@@ -42,6 +42,11 @@ CASES = {
     "tune": req(action="tune", tune={"max_candidates": 4}),
     "tune-budget": req(action="tune", analysis={"time_budget_ms": 1}),
     "garbage": {"bogus": 1},
+    "variants": req(action="compare", workload=dict(W, placements={"a": "l1", "b": "l1", "out": "l1"}),
+                    candidates=[{"id": "pt", "overrides": {"barriers": "per_thread"}},
+                                {"id": "dq", "overrides": {"work_split": "dynamic"}}]),
+    "tune-variants": req(action="tune", tune={"space": {"barriers": ["cluster", "per_thread"], "reader_threads": [2, 4],
+                                                        "compute_threads": [4], "writer_threads": [2]}}),
     "what-if": req(profiles={"costs": "craq-sim"},
                    what_if={"cost_overrides": {"wr.issue": 20}, "compute_service_scale": 0.5}),
 }

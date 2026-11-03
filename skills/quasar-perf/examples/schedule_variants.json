@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "action": "compare",
+  "profiles": {"costs": "ttsim-perf"},
+  "workload": {"op": "add", "dtype": "bf16", "num_tiles": 4096, "clusters": 32,
+               "placements": {"a": "l1", "b": "l1", "out": "l1"}},
+  "baseline": {},
+  "candidates": [
+    {"id": "per_thread_barriers", "overrides": {"barriers": "per_thread"}},
+    {"id": "dynamic_queue", "overrides": {"work_split": "dynamic"}}
+  ]
+}

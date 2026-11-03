@@ -208,6 +208,13 @@
    "class": "measurement-fit",
    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
    "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "dq.claim": {
+   "value": 30.0,
+   "low": 10.0,
+   "high": 100.0,
+   "class": "assumption",
+   "source": "assumed: one atomic increment on a cluster semaphore per claimed batch (work_split=dynamic only); no kernel implements it, so it is not measured"
   }
  },
  "compute_variants": {

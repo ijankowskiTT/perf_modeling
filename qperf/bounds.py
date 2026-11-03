@@ -18,6 +18,15 @@ def _lin(c, prefix, n, scale=1.0):
     return (f + c[prefix + ".per_tile"] * n) * scale
 
 
+def _dm_demand(work, batches, cfg, c):
+    """Busiest thread's work; with a dynamic split the threads share it evenly, plus one claim per batch."""
+    if not work:
+        return 0.0
+    if cfg.get("work_split") == "dynamic":
+        return (sum(work) + sum(batches) * c["dq.claim"]) / len(work)
+    return max(work)
+
+
 def cluster_bounds(cfg, routing, traffic, c):
     """Per-resource busy demand in cycles of the cost profile's clock, with the resource's start offset."""
     B = cfg["dm_batch"]
@@ -25,14 +34,14 @@ def cluster_bounds(cfg, routing, traffic, c):
     out = {}
     if n_in:
         per_batch = reader_batch_fixed(c, B, n_in)
-        work = [nb * per_batch + nt * n_in * c["rd.issue"]
-                for nb, nt in zip(traffic["reader_batches_per_thread"], traffic["tiles_per_thread"]["reader"])]
-        out["reader_issue"] = {"start": c["start.reader"], "demand": max(work) if work else 0.0}
+        nbs = traffic["reader_batches_per_thread"]
+        work = [nb * per_batch + nt * n_in * c["rd.issue"] for nb, nt in zip(nbs, traffic["tiles_per_thread"]["reader"])]
+        out["reader_issue"] = {"start": c["start.reader"], "demand": _dm_demand(work, nbs, cfg, c)}
     if routing["out_moves"]:
         per_batch = c["wr.fixed_b1"] if B == 1 else c["wr.fixed"]
-        work = [nb * per_batch + nt * c["wr.issue"]
-                for nb, nt in zip(traffic["writer_batches_per_thread"], traffic["tiles_per_thread"]["writer"])]
-        out["writer_issue"] = {"start": c["start.writer"], "demand": max(work) if work else 0.0}
+        nbs = traffic["writer_batches_per_thread"]
+        work = [nb * per_batch + nt * c["wr.issue"] for nb, nt in zip(nbs, traffic["tiles_per_thread"]["writer"])]
+        out["writer_issue"] = {"start": c["start.writer"], "demand": _dm_demand(work, nbs, cfg, c)}
     BC = cfg["tiles_per_cycle"]
     sc = compute_scale(c, cfg["C"])
     um, pk = [], []

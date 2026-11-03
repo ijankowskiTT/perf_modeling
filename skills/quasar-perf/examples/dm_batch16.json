@@ -1,0 +1,10 @@
+{
+  "schema_version": "1",
+  "action": "compare",
+  "profiles": {"costs": "craq-sim"},
+  "workload": {"op": "add", "dtype": "bf16", "num_tiles": 131072, "clusters": 32,
+               "placements": {"a": "dram", "b": "dram", "out": "dram"}},
+  "hypothetical": {"knob_limits": {"dm_batch": 16}},
+  "baseline": {},
+  "candidates": [{"id": "dm_batch16", "overrides": {"dm_batch": 16, "entries_per_thread": 32}}]
+}

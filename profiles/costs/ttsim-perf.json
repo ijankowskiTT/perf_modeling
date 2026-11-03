@@ -1,7 +1,7 @@
 {
  "kind": "costs",
  "name": "ttsim-perf",
- "revision": "2026-11-03.fit7",
+ "revision": "2026-11-03.fit8",
  "platform": "ttsim-perf (ENABLE_PERF=1)",
  "platform_scope": "cycle-approximate Tensix and Rocket timing (incl. cold first-iteration costs); L1-interleaved NoC transfers ARE timed (9% mean error), DRAM transfers are NOT. Times are simulator cycles reported as ns (1 cycle = 1 ns by convention), not silicon.",
  "calibration": {
@@ -210,19 +210,19 @@
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "noc.read_latency.l1": {
-   "value": 314.635,
-   "low": 267.44,
-   "high": 361.83,
+   "value": 372.736,
+   "low": 316.826,
+   "high": 428.646,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-03 on 84 L1 runs (B lll, D/E lll/lld/ddl) with cluster-wide barriers and a shared completion queue; 9.0% mean, 32% max (dm_batch=1), lll holdout 6.5%",
+   "source": "fitted 2026-11-03 on the 74 L1 runs of data/ttsim-perf.jsonl (B, D, E; lll A held out: 7.3%) with cluster-wide barriers and a time-ordered completion queue",
    "range_note": "+-15%: L1 fit mean error band"
   },
   "noc.write_latency.l1": {
-   "value": 177.601,
-   "low": 150.961,
-   "high": 204.241,
+   "value": 181.16,
+   "low": 153.986,
+   "high": 208.334,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-03 on 84 L1 runs (B lll, D/E lll/lld/ddl) with cluster-wide barriers and a shared completion queue; 9.0% mean, 32% max (dm_batch=1), lll holdout 6.5%",
+   "source": "fitted 2026-11-03 on the 74 L1 runs of data/ttsim-perf.jsonl (B, D, E; lll A held out: 7.3%) with cluster-wide barriers and a time-ordered completion queue",
    "range_note": "+-15%: L1 fit mean error band"
   },
   "noc.cluster_rw_shared_bytes_per_cycle.l1": {
@@ -247,19 +247,19 @@
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "noc.read_service.l1": {
-   "value": 38.699,
-   "low": 32.894,
-   "high": 44.504,
+   "value": 39.941,
+   "low": 33.95,
+   "high": 45.932,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-03 on 84 L1 runs (B lll, D/E lll/lld/ddl) with cluster-wide barriers and a shared completion queue; 9.0% mean, 32% max (dm_batch=1), lll holdout 6.5%",
+   "source": "fitted 2026-11-03 on the 74 L1 runs of data/ttsim-perf.jsonl (B, D, E; lll A held out: 7.3%) with cluster-wide barriers and a time-ordered completion queue",
    "range_note": "+-15%: L1 fit mean error band"
   },
   "noc.write_service.l1": {
-   "value": 52.476,
-   "low": 44.605,
-   "high": 60.347,
+   "value": 56.496,
+   "low": 48.022,
+   "high": 64.97,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-03 on 84 L1 runs (B lll, D/E lll/lld/ddl) with cluster-wide barriers and a shared completion queue; 9.0% mean, 32% max (dm_batch=1), lll holdout 6.5%",
+   "source": "fitted 2026-11-03 on the 74 L1 runs of data/ttsim-perf.jsonl (B, D, E; lll A held out: 7.3%) with cluster-wide barriers and a time-ordered completion queue",
    "range_note": "+-15%: L1 fit mean error band"
   },
   "noc.barrier_all_kinds": {
@@ -275,6 +275,13 @@
    "high": 1,
    "class": "measurement-fit",
    "source": "structure choice by fit on the same 84 L1 runs: one completion queue for reads and writes (9.0% vs 9.8% mean)"
+  },
+  "dq.claim": {
+   "value": 30.0,
+   "low": 10.0,
+   "high": 100.0,
+   "class": "assumption",
+   "source": "assumed: one atomic increment on a cluster semaphore per claimed batch (work_split=dynamic only); no kernel implements it, so it is not measured"
   }
  },
  "compute_variants": {

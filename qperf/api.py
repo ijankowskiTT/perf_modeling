@@ -23,6 +23,10 @@ from .validate import validate_request
 KNOBS = ("reader_threads", "compute_threads", "writer_threads", "dm_batch", "tiles_per_cycle", "entries_per_thread")
 SHORT = {"reader_threads": "R", "compute_threads": "C", "writer_threads": "W", "dm_batch": "dm_batch",
          "tiles_per_cycle": "tiles_per_cycle", "entries_per_thread": "entries_per_thread"}
+# Hypothetical schedule variants (not in the pinned kernels): knob -> pinned default.
+VARIANTS = {"barriers": "cluster", "work_split": "static"}
+VARIANT_NOTE = {"barriers": "per-thread NoC barriers (transaction IDs)",
+                "work_split": "a shared work queue for the DM threads"}
 TILE_BYTES = {"bf16": 2048, "fp32": 4096}
 NOISE = 0.02  # relative difference below which two estimates are "indistinguishable" (no meaningful gain)
 # The pipeline is evaluated tile by tile up to this many tiles per cluster and extrapolated beyond from two samples
@@ -123,6 +127,9 @@ def resolve_config(wl, knobs):
         cfg["R"] = 1
     if not moves_out:
         cfg["W"] = 1
+    for k, default in VARIANTS.items():
+        if knobs.get(k, default) != default:
+            cfg[k] = knobs[k]
     return cfg, applied
 
 
@@ -132,7 +139,7 @@ def _ck(k):
 
 def config_label(cfg):
     return (f"R{cfg['R']} C{cfg['C']} W{cfg['W']} dm_batch={cfg['dm_batch']} tiles_per_cycle={cfg['tiles_per_cycle']}"
-            f" entries_per_thread={cfg['entries_per_thread']}")
+            f" entries_per_thread={cfg['entries_per_thread']}" + "".join(f" {k}={cfg[k]}" for k in VARIANTS if k in cfg))
 
 
 # ----------------------------------------------------------------------------------------------- evaluation
@@ -206,6 +213,8 @@ def evaluate_config(wl, cfg, arch, kernel, cost_profile, what_if, trace=False, b
     routing = routing_for(wl, cfg)
     routing["knob_limits_override"] = what_if.get("_knob_limits")
     errors, warnings, l1 = check(cfg, routing, arch, kernel)
+    warnings = warnings + [f"hypothetical kernel change: {VARIANT_NOTE[k]}; the pinned kernels do not implement it, "
+                           f"so no simulator run can confirm this estimate" for k in VARIANTS if k in cfg]
     res = {"config": dict(cfg), "label": config_label(cfg), "valid": not errors, "errors": errors,
            "warnings": warnings, "l1": l1}
     if errors:
@@ -492,7 +501,8 @@ DEFAULT_SPACE = {"reader_threads": [1, 2, 4], "compute_threads": [1, 2, 4], "wri
 
 
 def _simplicity(cfg):
-    return (cfg["R"] + cfg["C"] + cfg["W"], cfg["dm_batch"] + cfg["tiles_per_cycle"], cfg["entries_per_thread"])
+    return (sum(k in cfg for k in VARIANTS), cfg["R"] + cfg["C"] + cfg["W"], cfg["dm_batch"] + cfg["tiles_per_cycle"],
+            cfg["entries_per_thread"])
 
 
 def _tune(wl, base_knobs, base, ctx, spec, analysis, detail, budget_ms, t_start):

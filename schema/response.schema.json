@@ -380,6 +380,16 @@
         "entries_per_thread": {
           "type": "integer",
           "minimum": 1
+        },
+        "barriers": {
+          "enum": [
+            "per_thread"
+          ]
+        },
+        "work_split": {
+          "enum": [
+            "dynamic"
+          ]
         }
       }
     },

@@ -14,9 +14,16 @@ as its outstanding interval (issue end, completion); a barrier is released at th
 after it is reached. Timed transfers of one kind also complete one after another per cluster
 (noc.read_service / noc.write_service cycles each, per placement), as the RD_BAR zone shows on ttsim-perf: the
 wait after the last issue grows with the reads in flight cluster-wide. With noc.rw_serialized = 1 reads and
-writes share that queue. Queue order is evaluation order, which the barriers keep close to time order. When
+writes share that queue. The queue serves each transfer in the earliest free slot at or after it is ready, so
+the result does not depend on the order in which threads are evaluated. When
 transfers take no time (latency 0, no service, no per-thread bandwidth: DRAM on ttsim-perf) nothing is
 outstanding and a barrier returns at once.
+
+Two hypothetical schedule variants (not in the pinned kernels) can be selected in cfg:
+- barriers = "per_thread": each DM thread's barrier waits only for its own transfers (transaction IDs); the
+  completion queue stays shared, since the NIU still serves the cluster's transfers one after another.
+- work_split = "dynamic": the DM threads of a role take batches from one shared queue (in tile order) instead of
+  a fixed stride; the idle thread that is free first claims the next batch and pays dq.claim cycles for it.
 
 Times are in cycles of the cost profile's clock. The evaluation order is "advance every thread as far as
 its dependencies are known"; when nothing can advance, the parked barrier with the earliest quiet moment is
@@ -144,6 +151,29 @@ class Deadlock(Exception):
     pass
 
 
+class Server:
+    """A cluster's completion queue for one transfer kind: each transfer takes `svc` cycles of service and finishes
+    no earlier than `ready`; it is served in the earliest free slot ending at or after `ready`, so the result does
+    not depend on the order in which threads are evaluated."""
+
+    def __init__(self):
+        self.busy = []  # sorted, disjoint (start, end)
+
+    def serve(self, ready, svc):
+        s = ready - svc
+        k = 0
+        while k < len(self.busy) and self.busy[k][1] <= s:
+            k += 1
+        while k < len(self.busy) and self.busy[k][0] < s + svc:
+            s = max(s, self.busy[k][1])
+            k += 1
+        self.busy.insert(k, (s, s + svc))
+        return s + svc
+
+    def prune(self, before):
+        self.busy = [x for x in self.busy if x[1] > before]
+
+
 class TransferLog:
     """Outstanding intervals (issue end, completion) of the transfers one barrier waits for, across all DM threads
     of a cluster."""
@@ -227,20 +257,31 @@ def evaluate(cfg, costs, n_tiles, trace_limit=0):
     # cluster completion service of one read per moving input (in issue order), and of one write
     rd_svc = c.get("_rd_service") or (c.get("noc.read_service", 0.0),)
     wr_svc = c.get("noc.write_service", 0.0)
-    done_q = {"rd": -INF, "wr": -INF}  # last completion in each kind's cluster queue
+    queues = {"rd": Server(), "wr": Server()}  # each kind's cluster completion queue
     wr_key = "rd" if c.get("noc.rw_serialized", 0.0) >= 0.5 else "wr"
     tb_in = cfg["tile_bytes"][0]
     tb_out = cfg["tile_bytes"][2]
 
     threads = []  # (stats, generator-state)
+    per_thread = cfg.get("barriers", "cluster") == "per_thread"
+    dynamic = cfg.get("work_split", "static") == "dynamic"
+    claim_cost = c["dq.claim"] if dynamic else 0.0
+
+    def queued(progs):
+        """Dynamic split: every thread's static batches in one tile-ordered queue; threads start empty."""
+        q = sorted((b for _, p in progs for b in p), key=lambda b: b[0])
+        return [(st, []) for st, _ in progs], q
 
     # ---- reader threads ----
     reader_progs = []
+    rd_queue = []
     if reader_active:
         tcs = num_tcs(R, C, True)
         for t in range(R):
             st = ThreadStats("reader", t, start=dm_start("reader", t))
             reader_progs.append((st, reader_batches(n_tiles, R, t, B, tcs)))
+        if dynamic:
+            reader_progs, rd_queue = queued(reader_progs)
     else:
         # Borrowed inputs: one publish per counter at kernel start; entries are resident.
         st = ThreadStats("reader", 0, start=t0_dm)
@@ -254,11 +295,14 @@ def evaluate(cfg, costs, n_tiles, trace_limit=0):
 
     # ---- writer threads ----
     writer_progs = []
+    wr_queue = []
     if out_moves:
         tcs = num_tcs(C, W, False)
         for t in range(W):
             st = ThreadStats("writer", t, start=dm_start("writer", t))
             writer_progs.append((st, reader_batches(n_tiles, W, t, B, tcs)))
+        if dynamic:
+            writer_progs, wr_queue = queued(writer_progs)
     else:
         st = ThreadStats("writer", 0, start=dm_start("writer", 0))
         # Borrowed output: the writer pops each counter's whole share once it is computed.
@@ -281,13 +325,20 @@ def evaluate(cfg, costs, n_tiles, trace_limit=0):
     # Per-thread mutable state; "bar" holds a batch parked at its NoC barrier.
     rd_state = [{"pc": 0, "t": st.start, "bar": None} for st, _ in reader_progs]
     wr_state = [{"pc": 0, "t": st.start, "bar": None} for st, _ in writer_progs]
-    rlog = TransferLog()
-    wlog = rlog if c.get("noc.barrier_all_kinds", 0.0) >= 0.5 else TransferLog()
-    # Untimed transfers leave nothing outstanding: barriers return at once, no parking needed.
+    # Transfer logs a barrier waits on: one per cluster (firmware), or one per thread (transaction IDs).
     rd_timed = lat_r > 0 or bw_thr != INF or any(rd_svc)
     wr_timed = lat_w > 0 or bw_thr != INF or wr_svc > 0
-    if wlog is rlog:  # one quiet condition: an untimed kind still waits for the other kind's transfers
-        rd_timed = wr_timed = rd_timed or wr_timed
+    if per_thread:
+        rlogs = [TransferLog() for _ in reader_progs]
+        wlogs = [TransferLog() for _ in writer_progs]
+    else:
+        rlog = TransferLog()
+        wlog = rlog if c.get("noc.barrier_all_kinds", 0.0) >= 0.5 else TransferLog()
+        rlogs, wlogs = [rlog] * len(reader_progs), [wlog] * len(writer_progs)
+        if wlog is rlog:  # one quiet condition: an untimed kind still waits for the other kind's transfers
+            rd_timed = wr_timed = rd_timed or wr_timed
+    all_logs = list({id(x): x for x in rlogs + wlogs}.values())
+    # Untimed transfers leave nothing outstanding: barriers return at once, no parking needed.
     # Compute: unpack+math stage (UM) and pack stage (P), DST half-sync = 2 sections.
     cu_state = [{"um_pc": 0, "p_pc": 0, "um_t": st.start, "p_t": st.start + c.get("start.pack_offset", 0.0),
                  "um_end": [], "p_end": []} for st, _ in compute_progs]
@@ -329,10 +380,9 @@ def evaluate(cfg, costs, n_tiles, trace_limit=0):
             comp = max(issue_end + lat_r, comp_prev + (tb_in / bw_thr if bw_thr != INF else 0.0))
             svc = rd_svc[(j // n) % len(rd_svc)]  # the kernel reads all of a's tiles, then all of b's
             if svc:
-                comp = max(comp, done_q["rd"] + svc)
-                done_q["rd"] = comp
+                comp = queues["rd"].serve(comp, svc)
             completes.append(comp)
-            rlog.add(issue_end, comp)
+            rlogs[i].add(issue_end, comp)
             comp_prev = comp
             issue = issue_end
         busy += c["rd.issue"] * reqs
@@ -406,10 +456,9 @@ def evaluate(cfg, costs, n_tiles, trace_limit=0):
             issue_end = issue + c["wr.issue"]
             comp = max(issue_end + lat_w, comp_prev + (tb_out / bw_thr if bw_thr != INF else 0.0))
             if wr_svc:
-                comp = max(comp, done_q[wr_key] + wr_svc)
-                done_q[wr_key] = comp
+                comp = queues[wr_key].serve(comp, wr_svc)
             completes.append(comp)
-            wlog.add(issue_end, comp)
+            wlogs[i].add(issue_end, comp)
             comp_prev = comp
             issue = issue_end
         busy += c["wr.issue"] * n
@@ -490,28 +539,53 @@ def evaluate(cfg, costs, n_tiles, trace_limit=0):
             st.end = st.start
         return progressed
 
+    def claim(progs, states, queue):
+        """Dynamic split: hand the next queued batch to the idle thread that is free first, unless a thread parked
+        at a barrier could become free earlier. Returns True if a batch was claimed."""
+        got = False
+        while queue:
+            idle = [i for i, s in enumerate(states) if s["bar"] is None and s["pc"] >= len(progs[i][1])]
+            if not idle:
+                break
+            i = min(idle, key=lambda i: states[i]["t"])
+            if any(s["bar"] is not None and s["bar"][0] < states[i]["t"] for s in states):
+                break
+            progs[i][1].append(queue.pop(0))
+            states[i]["t"] += claim_cost
+            progs[i][0].busy += claim_cost
+            got = True
+        return got
+
+    def run_dm(progs, states, queue, step):
+        moved = False
+        while True:
+            m = claim(progs, states, queue) if dynamic else False
+            for i in range(len(progs)):
+                while step(i):
+                    m = True
+            if not m:
+                return moved
+            moved = True
+
     pending = True
     while pending:
-        progressed = False
-        for i in range(len(reader_progs)):
-            while step_reader(i):
-                progressed = True
+        progressed = run_dm(reader_progs, rd_state, rd_queue, step_reader)
         for i in range(len(compute_progs)):
             if step_compute(i):
                 progressed = True
-        for i in range(len(writer_progs)):
-            while step_writer(i):
-                progressed = True
+        if run_dm(writer_progs, wr_state, wr_queue, step_writer):
+            progressed = True
         done = (
-            all(s["pc"] >= len(p) for s, (_, p) in zip(rd_state, reader_progs))
+            not rd_queue and not wr_queue
+            and all(s["pc"] >= len(p) for s, (_, p) in zip(rd_state, reader_progs))
             and all(s["p_pc"] >= len(ch) for s, (_, ch) in zip(cu_state, compute_progs))
             and all((s["pc"] >= (len(p) if p is not None else 1)) for s, (_, p) in zip(wr_state, writer_progs))
         )
         pending = not done
         if pending and not progressed:
             # Release the parked barrier with the earliest quiet moment (ties: all of them).
-            parked = [(rlog.quiet_at(s["bar"][0]), 0, i) for i, s in enumerate(rd_state) if s["bar"] is not None]
-            parked += [(wlog.quiet_at(s["bar"][0]), 1, i) for i, s in enumerate(wr_state) if s["bar"] is not None]
+            parked = [(rlogs[i].quiet_at(s["bar"][0]), 0, i) for i, s in enumerate(rd_state) if s["bar"] is not None]
+            parked += [(wlogs[i].quiet_at(s["bar"][0]), 1, i) for i, s in enumerate(wr_state) if s["bar"] is not None]
             if not parked:
                 raise Deadlock("schedule makes no progress: the configuration would hang")
             t_min = min(p[0] for p in parked)
@@ -519,9 +593,10 @@ def evaluate(cfg, costs, n_tiles, trace_limit=0):
                 if t_q == t_min:
                     (finish_reader if kind == 0 else finish_writer)(i, t_q)
             low = min([s["bar"][0] if s["bar"] is not None else s["t"] for s in rd_state + wr_state] or [t_min])
-            rlog.prune(low)
-            if wlog is not rlog:
-                wlog.prune(low)
+            for log in all_logs:
+                log.prune(low)
+            for q in queues.values():
+                q.prune(low - 1e6)
 
     for (st, p), s in zip(reader_progs, rd_state):
         if not p:

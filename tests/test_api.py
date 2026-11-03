@@ -204,3 +204,60 @@ def test_tune_evaluates_every_candidate():
     s = out["search"]
     assert s["exhaustive"] and out["status"] == "ok"
     assert s["evaluated"] == s["considered"] == s["valid"]
+
+
+# ---- hypothetical schedule variants
+
+L1 = {"a": "l1", "b": "l1", "out": "l1"}
+
+
+def _variant_times(costs, placements, overrides, bases):
+    out = []
+    for base in bases:
+        r = analyze(req(action="compare", profiles={"costs": costs}, baseline=base,
+                        workload=dict(req()["workload"], placements=placements),
+                        candidates=[{"id": "v", "overrides": overrides}]))
+        out.append((r["baseline"]["time_ns"]["nominal"], r["candidates"][0]))
+    return out
+
+
+BASES = [{"reader_threads": r, "compute_threads": 4, "writer_threads": w, "dm_batch": b, "tiles_per_cycle": b,
+          "entries_per_thread": 2 * b} for r, w, b in ((4, 2, 1), (2, 2, 2), (4, 2, 4), (1, 4, 8))]
+
+
+def test_per_thread_barriers_never_slower_on_timed_transfers():
+    for base_t, cand in _variant_times("ttsim-perf", L1, {"barriers": "per_thread"}, BASES):
+        assert cand["time_ns"]["nominal"] <= base_t * (1 + 1e-9)
+        assert "barriers=per_thread" in cand["label"]
+        assert any("hypothetical kernel change" in w for w in cand["warnings"])
+
+
+def test_per_thread_barriers_change_nothing_when_transfers_are_untimed():
+    for base_t, cand in _variant_times("craq-sim", req()["workload"]["placements"], {"barriers": "per_thread"}, BASES):
+        assert cand["time_ns"]["nominal"] == base_t
+
+
+def test_dynamic_split_pays_its_claims():
+    w = req()["workload"]
+    times = [analyze(req(baseline=dict(BASES[2], work_split="dynamic"), workload=w,
+                         what_if={"cost_overrides": {"dq.claim": v}}))["baseline"]["time_ns"]["nominal"]
+             for v in (0, 30, 300)]
+    assert times[0] <= times[1] < times[2]
+
+
+def test_variant_extrapolation_matches_tile_by_tile():
+    from qperf import api
+    for knobs in ({"barriers": "per_thread"}, {"work_split": "dynamic"}):
+        r = req(profiles={"costs": "silicon-hypothesis"}, baseline=dict(BASES[2], **knobs),
+                workload=dict(req()["workload"], num_tiles=5000, clusters=1))
+        small = analyze(r)["baseline"]
+        old = api.EXACT_TILES
+        try:
+            api.EXACT_TILES = 1 << 20
+            api._cache = api.LRU(256)
+            exact = analyze(r)["baseline"]
+        finally:
+            api.EXACT_TILES = old
+            api._cache = api.LRU(256)
+        assert small["extrapolated"] and not exact["extrapolated"]
+        assert abs(small["time_ns"]["nominal"] / exact["time_ns"]["nominal"] - 1) < 1e-3, knobs

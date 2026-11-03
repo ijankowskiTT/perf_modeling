@@ -1,11 +1,11 @@
 {
  "kind": "costs",
  "name": "silicon-hypothesis",
- "revision": "2026-11-02.fit5+hyp1",
+ "revision": "2026-11-03.fit8+hyp1",
  "platform": "Quasar silicon (HYPOTHESIS): no measurement exists",
  "platform_scope": "conditional prediction: instruction costs from ttsim-perf at an assumed 1.35 GHz AICLK; DRAM/NoC latency and bandwidth are assumptions with wide ranges. Not a measurement.",
  "calibration": {
-  "derived_from": "ttsim-perf@2026-11-02.fit5",
+  "derived_from": "ttsim-perf@2026-11-03.fit8",
   "script": "calibration/make_silicon_hypothesis.py"
  },
  "clock": {
@@ -73,35 +73,35 @@
    "source": "DM2-DM5 start together, DM6-DM7 later"
   },
   "end.drain": {
-   "value": 44.125,
-   "low": 41.919,
-   "high": 46.331,
+   "value": 67.805,
+   "low": 64.415,
+   "high": 71.195,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "rd.issue": {
-   "value": 33.96,
-   "low": 32.262,
-   "high": 35.658,
+   "value": 32.228,
+   "low": 30.617,
+   "high": 33.839,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "rd.fixed": {
-   "value": 191.701,
-   "low": 182.116,
-   "high": 201.286,
+   "value": 181.218,
+   "low": 172.157,
+   "high": 190.279,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "rd.fixed_b1": {
-   "value": 91.87,
-   "low": 87.276,
-   "high": 96.464,
+   "value": 90.059,
+   "low": 85.556,
+   "high": 94.562,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "rd.one_operand_frac": {
@@ -128,27 +128,27 @@
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "wr.issue": {
-   "value": 45.625,
-   "low": 43.344,
-   "high": 47.906,
+   "value": 43.655,
+   "low": 41.472,
+   "high": 45.838,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "wr.fixed": {
-   "value": 104.798,
-   "low": 99.558,
-   "high": 110.038,
+   "value": 106.801,
+   "low": 101.461,
+   "high": 112.141,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "wr.fixed_b1": {
-   "value": 49.844,
-   "low": 47.352,
-   "high": 52.336,
+   "value": 50.555,
+   "low": 48.027,
+   "high": 53.083,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "wr.release_frac": {
@@ -173,28 +173,51 @@
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "rd.first_batch_extra": {
-   "value": 878.207,
+   "value": 818.898,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
-   "low": 834.297,
-   "high": 922.117,
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "low": 777.953,
+   "high": 859.843,
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "wr.first_batch_extra": {
-   "value": 147.838,
+   "value": 137.236,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
-   "low": 140.446,
-   "high": 155.23,
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "low": 130.374,
+   "high": 144.098,
    "range_note": "+-5% scenario range (holdout p90 error)"
   },
   "dfb.credit_latency": {
-   "value": 13.302,
-   "low": 12.637,
-   "high": 13.967,
+   "value": 2.778,
+   "low": 2.639,
+   "high": 2.917,
    "class": "measurement-fit",
-   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
    "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "rd.tc_first_touch": {
+   "value": 89.561,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "low": 85.083,
+   "high": 94.039,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.tc_first_touch": {
+   "value": 36.372,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "low": 34.553,
+   "high": 38.191,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "dq.claim": {
+   "value": 30.0,
+   "low": 10.0,
+   "high": 100.0,
+   "class": "assumption",
+   "source": "assumed: one atomic increment on a cluster semaphore per claimed batch (work_split=dynamic only); no kernel implements it, so it is not measured"
   },
   "noc.read_latency.dram": {
    "class": "assumption",
