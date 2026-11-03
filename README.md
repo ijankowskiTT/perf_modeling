@@ -54,6 +54,9 @@ python -m qperf analyze --request my.json --set workload.num_tiles=65536
 - Knobs: `reader_threads`, `compute_threads`, `writer_threads`, `dm_batch`, `tiles_per_cycle`,
   `entries_per_thread`. `{}` = the factory's default rule.
 - Placements: `dram`, `l1`, `borrowed`.
+- Hypothetical kernel changes, compared like knobs: `"barriers": "per_thread"` (transaction-ID barriers) and
+  `"work_split": "dynamic"` (shared work queue for the DM threads). Results carry a warning: no simulator can
+  confirm them.
 
 **Python**: `from qperf import analyze; analyze(request)`.
 
@@ -62,10 +65,23 @@ python -m qperf analyze --request my.json --set workload.num_tiles=65536
 | `profiles.costs` | Use for | Holdout error |
 |---|---|---|
 | `craq-sim` | default | ~1-2% |
-| `ttsim-perf` | L1 vs DRAM placement, NoC (craq-sim does not time transfers) | DRAM 1.4%, L1 9% |
+| `ttsim-perf` | L1 vs DRAM placement, NoC (craq-sim does not time transfers) | DRAM 1.4%, L1 7-9% |
 | `silicon-hypothesis` | silicon what-ifs under assumed clock, NoC, DRAM | n/a |
 
 No Quasar silicon exists yet: times are simulator cycles. Confirm close calls (<3%) with one simulator run.
+
+## Findings
+
+For `add`/`multiply` from DRAM on 32 clusters (craq-sim unless noted); each line has a request to rerun.
+
+| Question | Answer | Request |
+|---|---|---|
+| Best R/C/W, batch, tiles_per_cycle? | The factory's default is within 2% of the best config (except small `add`, 1k tiles: dm_batch 4, +3.5%) | `shortlist_tune.json` |
+| Larger DM batch? | dm_batch 16 is +8% at 32k tiles, +11% at 128k, nothing at 8k | `dm_batch16.json` |
+| Faster compute? | `add` is writer-bound: 2x faster compute gives 2%. `multiply` is compute-bound: 1.85x | `compute_whatif.json` (`--set workload.op=multiply`) |
+| Deeper rings? | No effect, even at 2000-cycle DRAM latency (silicon-hypothesis, 1 cluster): the barrier after each batch limits requests in flight; a larger batch hides latency | `ring_depth_latency.json` |
+| Dynamic work queue? | No gain: the static split is balanced to 1 tile; claims cost 1-5% | `schedule_variants.json` |
+| Per-thread barriers (transaction IDs)? | Nothing from DRAM; 1.16x from L1 (ttsim-perf), where the cluster-wide barrier stalls every reader | `schedule_variants.json` |
 
 ## More
 

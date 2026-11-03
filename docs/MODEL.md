@@ -20,6 +20,11 @@ Barriers are cluster-wide, as in the firmware; timed transfers complete through 
 Shared NoC, L1 and DRAM bandwidth are applied as bounds. Past 2048 tiles per cluster the result is extrapolated
 exactly from the periodic steady state (`extrapolated: true`). A configuration that cannot progress is invalid.
 
+**Hypothetical variants** (not in the kernels; results say so): `barriers: per_thread` gives each DM thread a
+barrier on its own transfers only (transaction IDs); `work_split: dynamic` lets the DM threads of a role claim
+batches from one shared queue, paying `dq.claim` (assumed 30 cycles) per batch. The completion queue stays shared
+and serves transfers in time order, so variants and the pinned schedule are evaluated the same way.
+
 **Not modeled**: NoC routing and link contention, L1 bank conflicts, dynamic arbitration, launch skew.
 
 **Costs**: every parameter in `profiles/costs/*.json` has `value`, `low`, `high`, `class` and `source`.

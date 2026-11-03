@@ -18,6 +18,8 @@ Start from `examples/`; schema in `schema/request.schema.json`.
   `num_tiles`).
 - Knobs: `reader_threads`, `compute_threads`, `writer_threads`, `dm_batch`, `tiles_per_cycle`,
   `entries_per_thread` (= `TTNN_QSR_*`). `baseline: {}` = the factory's rule.
+- Kernel-change what-ifs: `barriers: per_thread` (transaction IDs), `work_split: dynamic` (shared work queue).
+  Say they are hypothetical: no simulator can confirm them.
 - `profiles.costs`: `craq-sim` (default, primary simulator), `ttsim-perf` (when L1 vs DRAM placement or NoC
   matters: craq-sim does not time transfers), `silicon-hypothesis` (assumed clock/NoC/DRAM; call it a
   hypothesis). Plain ttsim has no profile; do not substitute one.
@@ -29,7 +31,7 @@ Start from `examples/`; schema in `schema/request.schema.json`.
 - `no_meaningful_gain` / `inconclusive`: no clear winner; prefer the simpler config and suggest one simulator run.
 - Ranges are cost scenarios, not confidence intervals; `lower_bound_ns` is not achievable; times are simulator
   cycles, not silicon.
-- Accuracy: craq-sim ~1-2% mean (R1C1W1 up to ~7%); ttsim-perf DRAM ~1.4%, L1 ~9% (up to ~30% at dm_batch=1).
+- Accuracy: craq-sim ~1-2% mean (R1C1W1 up to ~7%); ttsim-perf DRAM ~1.4%, L1 ~8% (up to ~40% at dm_batch=1).
 
 ## Never guess
 `needs_input`, `unsupported`, `invalid`: report the reason verbatim. Unknown latencies: use `sensitivity` over a
