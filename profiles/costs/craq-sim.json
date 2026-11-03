@@ -1,0 +1,350 @@
+{
+ "kind": "costs",
+ "name": "craq-sim",
+ "revision": "2026-11-03.fit6",
+ "platform": "craq-sim (tt-blaze), branch quasar @b702fd90, release_qsr build",
+ "platform_scope": "craq-sim (tt-blaze craq-sim, branch quasar @b702fd90, 2026-10-24): DM RISC-V at 1 instr/cycle, Tensix instruction timing incl. busy-status waits; NO NoC/DRAM transfer timing, barriers pre-satisfied, no contention, so l1/dram placements predict the same. Times are simulator cycles reported as ns (1 cycle = 1 ns by convention), not silicon.",
+ "calibration": {
+  "commit": "0fff850f3c6",
+  "sim_build": "craq-sim quasar@b702fd90",
+  "dataset": "calibration/data/craq-sim.jsonl (sim craq-b702fd90)",
+  "holdout": "src B",
+  "method": "qperf.calibration.fit: coordinate descent, mean squared log(pred/meas)",
+  "fitted_at": "2026-11-03"
+ },
+ "clock": {
+  "GHz": 1.0,
+  "domain": "simulator cycle",
+  "class": "convention",
+  "note": "1 cycle reported as 1 ns so that ns == cycles; not a hardware clock"
+ },
+ "assumptions": [
+  "costs are simulator cycles from the device profiler KERNEL zones (per-cluster span = first kernel start to last kernel end)",
+  "noc latency 0 and unlimited bandwidth: the simulator copies at issue (RES 10.x)"
+ ],
+ "params": {
+  "start.compute": {
+   "value": 702,
+   "low": 680,
+   "high": 720,
+   "class": "measurement",
+   "source": "NEO TRISC0 KERNEL start vs cluster t0, A"
+  },
+  "start.pack_offset": {
+   "value": 94,
+   "class": "measurement",
+   "source": "TRISC2 start - TRISC0 start"
+  },
+  "start.reader": {
+   "value": 558,
+   "low": 500,
+   "high": 620,
+   "class": "derivation",
+   "source": "reader DM start at 2 vs 8 tile counters (R1C1W1, R1C4W1)"
+  },
+  "start.reader_per_tc": {
+   "value": 49.5,
+   "low": 40,
+   "high": 60,
+   "class": "derivation",
+   "source": "same"
+  },
+  "start.writer": {
+   "value": 433,
+   "low": 400,
+   "high": 470,
+   "class": "derivation",
+   "source": "writer DM start at 1 vs 4 tile counters"
+  },
+  "start.writer_per_tc": {
+   "value": 32,
+   "low": 25,
+   "high": 40,
+   "class": "derivation",
+   "source": "same"
+  },
+  "start.dm_late": {
+   "value": 65,
+   "low": 40,
+   "high": 90,
+   "class": "derivation",
+   "source": "DM6/DM7 start offset when R+W > 4"
+  },
+  "start.dm_early_slots": {
+   "value": 4,
+   "class": "measurement",
+   "source": "DM2-DM5 start together, DM6-DM7 later"
+  },
+  "end.drain": {
+   "value": 72.684,
+   "low": 69.019,
+   "high": 76.349,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "rd.issue": {
+   "value": 28.901,
+   "low": 27.456,
+   "high": 30.346,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "rd.fixed": {
+   "value": 146.388,
+   "low": 139.069,
+   "high": 153.707,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "rd.fixed_b1": {
+   "value": 63.975,
+   "low": 60.776,
+   "high": 67.174,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "rd.one_operand_frac": {
+   "value": 0.6,
+   "low": 0.45,
+   "high": 0.8,
+   "class": "assumption",
+   "source": "no single-moving-input calibration yet"
+  },
+  "rd.publish_frac": {
+   "value": 0.998,
+   "low": 0.798,
+   "high": 0.998,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "range_note": "fraction: clipped to [0,1]"
+  },
+  "rd.borrow_publish": {
+   "value": 36.139,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "low": 34.331,
+   "high": 37.947,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.issue": {
+   "value": 37.131,
+   "low": 35.274,
+   "high": 38.988,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.fixed": {
+   "value": 84.495,
+   "low": 80.271,
+   "high": 88.719,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.fixed_b1": {
+   "value": 37.874,
+   "low": 35.98,
+   "high": 39.768,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.release_frac": {
+   "value": 0.998,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "low": 0.798,
+   "high": 0.998,
+   "range_note": "fraction: clipped to [0,1]"
+  },
+  "wr.borrow_pop": {
+   "value": 12,
+   "class": "assumption",
+   "source": "one wait+pop per counter of a borrowed output"
+  },
+  "compute.multi_neo_scale": {
+   "value": 1.018,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "low": 0.967,
+   "high": 1.069,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "noc.read_latency": {
+   "value": 0,
+   "class": "specification",
+   "source": "simulator does not time transfers"
+  },
+  "noc.write_latency": {
+   "value": 0,
+   "class": "specification",
+   "source": "simulator does not time transfers"
+  },
+  "rd.first_batch_extra": {
+   "value": 0.078,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "low": 0.074,
+   "high": 0.082,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.first_batch_extra": {
+   "value": 0.078,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "low": 0.074,
+   "high": 0.082,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "dfb.credit_latency": {
+   "value": 37.785,
+   "low": 35.896,
+   "high": 39.674,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  }
+ },
+ "compute_variants": {
+  "fpu:add:bf16": {
+   "_source": "hhh (all borrowed) C1/C4 x tiles_per_cycle 1,2,4,8 at 32/64/128 tiles; unpack TRISC is the binding stage",
+   "cu.fixed": {
+    "value": 303.886,
+    "low": 288.692,
+    "high": 319.08,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.per_tile": {
+    "value": 4.996,
+    "low": 4.747,
+    "high": 5.245,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.fixed_n1": {
+    "value": 243.068,
+    "low": 230.915,
+    "high": 255.221,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cm.fixed": {
+    "value": 0,
+    "class": "assumption",
+    "source": "math is not binding in any calibrated case"
+   },
+   "cm.per_tile": {
+    "value": 20,
+    "low": 10,
+    "high": 40,
+    "class": "assumption",
+    "source": "math TRISC ends ~650 cyc before unpack at all sizes"
+   },
+   "cp.fixed": {
+    "value": 6.86,
+    "low": 6.517,
+    "high": 7.203,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cp.per_tile": {
+    "value": 1.065,
+    "low": 1.012,
+    "high": 1.118,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.first_chunk_extra": {
+    "value": 0.052,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 240 add runs incl. 1024/2048-tile G; B held out)",
+    "low": 0.05,
+    "high": 0.054,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   }
+  },
+  "sfpu:multiply:bf16": {
+   "_source": "eltwise_binary_sfpu_no_bcast_dfb.cpp: 2 copy_tile unpacks per tile, SFPU mul on the math TRISC, 1 pack",
+   "start.compute": {
+    "value": 860,
+    "class": "measurement",
+    "source": "TRISC0 KERNEL start, multiply runs (A)"
+   },
+   "cu.fixed": {
+    "value": 558.015,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 530.114,
+    "high": 585.916,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.per_tile": {
+    "value": 21.939,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 20.842,
+    "high": 23.036,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.fixed_n1": {
+    "value": 500.997,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 475.947,
+    "high": 526.047,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.first_chunk_extra": {
+    "value": 89.888,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 85.394,
+    "high": 94.382,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cm.fixed": {
+    "value": 23.68,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 22.496,
+    "high": 24.864,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cm.per_tile": {
+    "value": 265.009,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 251.759,
+    "high": 278.259,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cp.fixed": {
+    "value": 223.551,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 212.373,
+    "high": 234.729,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cp.per_tile": {
+    "value": 38.804,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 36.864,
+    "high": 40.744,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   }
+  }
+ }
+}

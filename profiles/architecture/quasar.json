@@ -1,0 +1,50 @@
+{
+  "kind": "architecture",
+  "name": "quasar",
+  "revision": "2026-11-02.1",
+  "description": "Quasar cluster resources and limits as the native binary_ng factory and the DFB host see them.",
+  "clusters_max": {"value": 32, "class": "specification", "source": "quasar_32_arch_ttsim.yaml: 8x4 worker grid (RES:41-43)"},
+  "neo_per_cluster": {"value": 4, "class": "specification", "source": "NEO HLS; RES:41-43"},
+  "dm_cores": {"physical": 8, "user": 6, "class": "specification",
+               "source": "binary_ng_utils.hpp kNativeUserDmCores=6; DM0 = DFB ISR, DM1 = remapper (RES:36-40)"},
+  "limits": {
+    "compute_threads_allowed": [1, 2, 4],
+    "user_dm_cores": 6,
+    "max_ring_entries": 255,
+    "max_tile_counters_per_risc": 6,
+    "source": "binary_ng_utils.cpp native_tuning TT_FATALs; factory num_entries<=255 (uint8 threshold); RES:83-140",
+    "class": "specification"
+  },
+  "l1": {
+    "bytes_per_cluster": 4194304,
+    "reserved_bytes": 524288,
+    "banks": 64,
+    "bank_bytes": 64,
+    "class": "specification (size) / assumption (reserved_bytes)",
+    "source": "worker_l1_size 4194304 (RES:56-59). reserved_bytes is an ASSUMPTION for firmware, kernel code and allocator reservations; confirm from the allocator before trusting a near-limit L1 verdict.",
+    "bank_mapping": "unknown: address hashing per NEO HLS; the model does not assume bank = address % banks"
+  },
+  "dst": {
+    "tiles_per_section_16bit": 8,
+    "tiles_per_section_32bit": 4,
+    "sync": "half",
+    "class": "derivation",
+    "source": "get_dest_reg_count (compute_kernel_config.cpp:128), DEST_REGISTER_FULL_SIZE=64*16 rows (tensix_types.h:220), half sync"
+  },
+  "noc": {
+    "payload_bytes_per_cycle": 256,
+    "cluster_read_ports": 4,
+    "cluster_write_ports": 4,
+    "class": "specification (from RES:65-76, 916); not measured",
+    "source": "NOC_PAYLOAD_WIDTH 2048 bits; cluster NoC 4R+4W L1 ports"
+  },
+  "dram": {
+    "bringup_GBps": 256, "qsr1_GBps": 875, "qsr3_GBps": 1500, "efficiency_max": 0.75,
+    "class": "assumption (preliminary HAS / O2O study)", "source": "RES:1594-1601"
+  },
+  "clocks": {
+    "aiclk_GHz": {"value": 1.35, "low": 0.76, "high": 1.55, "class": "assumption",
+                  "source": "HAS Table 9 preliminary NoC clocks 0.76/1.33/1.55 GHz; Tensix ~1.4 GHz (RES:1601, STA:871)"},
+    "note": "Simulator cost profiles are in simulator cycles; they declare their own clock. Cycles of different domains are never added."
+  }
+}

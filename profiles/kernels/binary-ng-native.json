@@ -1,0 +1,73 @@
+{
+ "kind": "kernel",
+ "name": "binary-ng-native",
+ "revision": "c86eb2dc690",
+ "kernels_unchanged_since": "0fff850f3c6",
+ "description": "binary_ng Quasar-native no-broadcast program: kernels_qsr reader_no_bcast_dfb / eltwise_binary_{,sfpu_}no_bcast_dfb / writer_no_bcast_dfb, built by binary_ng_quasar_native_factory.cpp.",
+ "sources": {
+  "reader": "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/dataflow/reader_no_bcast_dfb.cpp",
+  "writer": "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/dataflow/writer_no_bcast_dfb.cpp",
+  "compute_fpu": "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/compute/eltwise_binary_no_bcast_dfb.cpp",
+  "compute_sfpu": "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/compute/eltwise_binary_sfpu_no_bcast_dfb.cpp",
+  "rule": "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/binary_ng_utils.cpp resolve_native_config",
+  "dfb": "tt_metal/impl/dataflow_buffer/dataflow_buffer.cpp calculate_num_tile_counters"
+ },
+ "stages": [
+  "reader thread t of R: tiles {t, t+R, ...}; counter-major walk over num_tcs = C/R counters (C>=R) with dm_batch tiles from ONE counter per batch; per batch: reserve_back per moving input, one async_read per tile per moving input, one async_read_barrier, push_back per moving input. dm_batch==1 runs a cheaper plain loop.",
+  "ring: STRIDED DFB, max(P,C) tile counters, tile i -> counter i % max(P,C), capacity entries_per_thread per counter",
+  "compute thread c of C: tiles {c, c+C, ...} in chunks of tiles_per_cycle; unpack TRISC: wait_front x2, unpack, pop_front x2; math TRISC: binary op into a half-sync DST section; pack TRISC: reserve_back, pack, push_back",
+  "writer thread w of W: counter-major walk over num_tcs = C/W counters; per batch: wait_front, one async_write per tile, async_write_barrier, pop_front",
+  "borrowed operand: the ring IS the resident L1 shard/slice; reader publishes once per counter (R=1), writer pops once per counter (W=1)"
+ ],
+ "env_knobs": {
+  "reader_threads": "TTNN_QSR_READER_THREADS",
+  "compute_threads": "TTNN_QSR_COMPUTE_THREADS",
+  "writer_threads": "TTNN_QSR_WRITER_THREADS",
+  "dm_batch": "TTNN_QSR_DM_BATCH",
+  "tiles_per_cycle": "TTNN_QSR_TILES_PER_CYCLE",
+  "entries_per_thread": "TTNN_QSR_ENTRIES_PER_THREAD",
+  "dram_batch": "TTNN_QSR_DRAM_BATCH"
+ },
+ "routing": {
+  "sfpu_ops_bf16": [
+   "multiply",
+   "divide"
+  ],
+  "fpu_ops_bf16": [
+   "add",
+   "subtract",
+   "rsub"
+  ],
+  "note": "is_binary_sfpu_op (binary_ng_device_operation.cpp:26): MUL/DIV are SFPU unless fast_and_approximate_mode; ADD/SUB are SFPU only for fp32/int. fp32_dest_acc_en follows fp32 inputs."
+ },
+ "unsupported": [
+  "broadcast (row/col/scalar) programs",
+  "activations / fused RELU",
+  "tail rings of a borrowed shard not divisible by C (cost reported as a warning only)",
+  "TTNN_QSR_IMPLICIT_SYNC (rejected by the factory)",
+  "sharded operands moved over the NoC (factory keeps batch 1; model treats them as interleaved NoC reads)"
+ ],
+ "knob_limits": {
+  "reader_threads": 8,
+  "compute_threads": 8,
+  "writer_threads": 8,
+  "dm_batch": 8,
+  "tiles_per_cycle": 8,
+  "entries_per_thread": 255,
+  "source": "binary_ng_utils.cpp native_tuning read_knob: kMaxThreads=8, kMaxBatch=8 (dm_batch AND tiles_per_cycle), kMaxEntriesPerThread=255",
+  "class": "specification"
+ },
+ "source_blobs": {
+  "commit": "c86eb2dc690",
+  "files": {
+   "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/dataflow/reader_no_bcast_dfb.cpp": "c3b5c1fab68e55af4d4114c0b2380890ab83e03f",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/dataflow/writer_no_bcast_dfb.cpp": "d41c78f400e9b485fbcbe8a78330e881ba90f961",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/compute/eltwise_binary_no_bcast_dfb.cpp": "024271da1d88075aa2e1a2a5647bc49dd8d604d3",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/compute/eltwise_binary_sfpu_no_bcast_dfb.cpp": "3fe7f3211b72357480574bb0919cc55ce1228a60",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/binary_ng_utils.cpp": "f0caef6c719680c66fba863de53ecd9f1bffdaf0",
+   "tt_metal/impl/dataflow_buffer/dataflow_buffer.cpp": "156d65ccdd2c9793e9d4891f8d0131ea8b2e5462",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/binary_ng_quasar_native_factory.cpp": "51c56ae52ec0bdcce935fcd83c44b07a2b177bfe"
+  },
+  "note": "git blob sha1 of each mirrored source; `python -m qperf check-drift --tree <tt-metal>` compares"
+ }
+}

@@ -1,0 +1,417 @@
+{
+ "kind": "costs",
+ "name": "ttsim-perf",
+ "revision": "2026-11-03.fit7",
+ "platform": "ttsim-perf (ENABLE_PERF=1)",
+ "platform_scope": "cycle-approximate Tensix and Rocket timing (incl. cold first-iteration costs); L1-interleaved NoC transfers ARE timed (9% mean error), DRAM transfers are NOT. Times are simulator cycles reported as ns (1 cycle = 1 ns by convention), not silicon.",
+ "calibration": {
+  "commit": "0fff850f3c6",
+  "dataset": "calibration/data/ttsim-perf.jsonl (sim perf)",
+  "holdout": "src B (DRAM/borrowed); L1 terms fitted on the L1 runs of B, D, E",
+  "method": "qperf.calibration.fit: coordinate descent, mean squared log(pred/meas)",
+  "fitted_at": "2026-11-03"
+ },
+ "clock": {
+  "GHz": 1.0,
+  "domain": "simulator cycle",
+  "class": "convention",
+  "note": "1 cycle reported as 1 ns so that ns == cycles; not a hardware clock"
+ },
+ "assumptions": [
+  "costs are simulator cycles from the device profiler KERNEL zones (per-cluster span)",
+  "DM kernels start ~4 us after the first Neo kernel on this simulator (DFB setup); prologue dominates small ops",
+  "L1-interleaved (placement l1) transfers on this simulator: cluster-wide NoC barriers and a shared completion queue, fitted to 9.0% mean error (up to 32% at dm_batch=1); DRAM transfers are untimed"
+ ],
+ "params": {
+  "start.compute": {
+   "value": 1108,
+   "low": 1060,
+   "high": 1120,
+   "class": "measurement",
+   "source": "TRISC0 KERNEL start"
+  },
+  "start.pack_offset": {
+   "value": 214,
+   "class": "measurement",
+   "source": "TRISC2 start - TRISC0 start"
+  },
+  "start.reader": {
+   "value": 3860,
+   "low": 3750,
+   "high": 3980,
+   "class": "measurement",
+   "source": "KERNEL start of the DM RISC per role/tile-counter count, A (pinned, not fitted)"
+  },
+  "start.reader_per_tc": {
+   "value": 102,
+   "low": 80,
+   "high": 120,
+   "class": "measurement",
+   "source": "KERNEL start of the DM RISC per role/tile-counter count, A (pinned, not fitted)"
+  },
+  "start.writer": {
+   "value": 3676,
+   "low": 3600,
+   "high": 3760,
+   "class": "measurement",
+   "source": "KERNEL start of the DM RISC per role/tile-counter count, A (pinned, not fitted)"
+  },
+  "start.writer_per_tc": {
+   "value": 146,
+   "low": 110,
+   "high": 170,
+   "class": "measurement",
+   "source": "KERNEL start of the DM RISC per role/tile-counter count, A (pinned, not fitted)"
+  },
+  "start.dm_late": {
+   "value": 410,
+   "low": 350,
+   "high": 470,
+   "class": "measurement",
+   "source": "KERNEL start of the DM RISC per role/tile-counter count, A (pinned, not fitted)"
+  },
+  "start.dm_early_slots": {
+   "value": 4,
+   "class": "measurement",
+   "source": "DM2-DM5 start together, DM6-DM7 later"
+  },
+  "end.drain": {
+   "value": 67.805,
+   "low": 64.415,
+   "high": 71.195,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "rd.issue": {
+   "value": 32.228,
+   "low": 30.617,
+   "high": 33.839,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "rd.fixed": {
+   "value": 181.218,
+   "low": 172.157,
+   "high": 190.279,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "rd.fixed_b1": {
+   "value": 90.059,
+   "low": 85.556,
+   "high": 94.562,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "rd.one_operand_frac": {
+   "value": 0.6,
+   "low": 0.45,
+   "high": 0.8,
+   "class": "assumption",
+   "source": "no single-moving-input calibration yet"
+  },
+  "rd.publish_frac": {
+   "value": 0.998,
+   "low": 0.798,
+   "high": 0.998,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "range_note": "fraction: clipped to [0,1]"
+  },
+  "rd.borrow_publish": {
+   "value": 61.14,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "low": 58.083,
+   "high": 64.197,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.issue": {
+   "value": 43.655,
+   "low": 41.472,
+   "high": 45.838,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.fixed": {
+   "value": 106.801,
+   "low": 101.461,
+   "high": 112.141,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.fixed_b1": {
+   "value": 50.555,
+   "low": 48.027,
+   "high": 53.083,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.release_frac": {
+   "value": 0.998,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "low": 0.798,
+   "high": 0.998,
+   "range_note": "fraction: clipped to [0,1]"
+  },
+  "wr.borrow_pop": {
+   "value": 20,
+   "class": "assumption",
+   "source": "one wait+pop per counter of a borrowed output"
+  },
+  "compute.multi_neo_scale": {
+   "value": 1.056,
+   "low": 1.003,
+   "high": 1.109,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "noc.read_latency": {
+   "value": 0,
+   "class": "measurement",
+   "source": "DRAM transfers are untimed on ttsim-perf: ddd runs fit with 0"
+  },
+  "noc.write_latency": {
+   "value": 0,
+   "class": "measurement",
+   "source": "same"
+  },
+  "rd.first_batch_extra": {
+   "value": 818.898,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "low": 777.953,
+   "high": 859.843,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.first_batch_extra": {
+   "value": 137.236,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "low": 130.374,
+   "high": 144.098,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "dfb.credit_latency": {
+   "value": 2.778,
+   "low": 2.639,
+   "high": 2.917,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "noc.read_latency.l1": {
+   "value": 314.635,
+   "low": 267.44,
+   "high": 361.83,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on 84 L1 runs (B lll, D/E lll/lld/ddl) with cluster-wide barriers and a shared completion queue; 9.0% mean, 32% max (dm_batch=1), lll holdout 6.5%",
+   "range_note": "+-15%: L1 fit mean error band"
+  },
+  "noc.write_latency.l1": {
+   "value": 177.601,
+   "low": 150.961,
+   "high": 204.241,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on 84 L1 runs (B lll, D/E lll/lld/ddl) with cluster-wide barriers and a shared completion queue; 9.0% mean, 32% max (dm_batch=1), lll holdout 6.5%",
+   "range_note": "+-15%: L1 fit mean error band"
+  },
+  "noc.cluster_rw_shared_bytes_per_cycle.l1": {
+   "value": 400,
+   "class": "measurement-fit",
+   "source": "fit ran to its upper bound: no evidence of a cluster bandwidth cap at <=400 B/cycle in the fit set"
+  },
+  "rd.tc_first_touch": {
+   "value": 89.561,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "low": 85.083,
+   "high": 94.039,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "wr.tc_first_touch": {
+   "value": 36.372,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on A + C + D/E ddd (perf, 186 runs; 1.4% mean, holdouts 0.3-1.5%)",
+   "low": 34.553,
+   "high": 38.191,
+   "range_note": "+-5% scenario range (holdout p90 error)"
+  },
+  "noc.read_service.l1": {
+   "value": 38.699,
+   "low": 32.894,
+   "high": 44.504,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on 84 L1 runs (B lll, D/E lll/lld/ddl) with cluster-wide barriers and a shared completion queue; 9.0% mean, 32% max (dm_batch=1), lll holdout 6.5%",
+   "range_note": "+-15%: L1 fit mean error band"
+  },
+  "noc.write_service.l1": {
+   "value": 52.476,
+   "low": 44.605,
+   "high": 60.347,
+   "class": "measurement-fit",
+   "source": "fitted 2026-11-03 on 84 L1 runs (B lll, D/E lll/lld/ddl) with cluster-wide barriers and a shared completion queue; 9.0% mean, 32% max (dm_batch=1), lll holdout 6.5%",
+   "range_note": "+-15%: L1 fit mean error band"
+  },
+  "noc.barrier_all_kinds": {
+   "value": 1,
+   "low": 1,
+   "high": 1,
+   "class": "measurement",
+   "source": "RD_BAR/WR_BAR zones (TT_METAL_PROFILER_SUM, per-thread barrier zone totals): L1 writes stall DRAM-read barriers and L1 reads stall DRAM-write barriers"
+  },
+  "noc.rw_serialized": {
+   "value": 1,
+   "low": 1,
+   "high": 1,
+   "class": "measurement-fit",
+   "source": "structure choice by fit on the same 84 L1 runs: one completion queue for reads and writes (9.0% vs 9.8% mean)"
+  }
+ },
+ "compute_variants": {
+  "fpu:add:bf16": {
+   "_source": "hhh (all borrowed) C1/C2/C4 x tiles_per_cycle 1,2,4,8 at 32/64/128 tiles",
+   "cu.fixed": {
+    "value": 367.063,
+    "low": 348.71,
+    "high": 385.416,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.per_tile": {
+    "value": 1.675,
+    "low": 1.591,
+    "high": 1.759,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.fixed_n1": {
+    "value": 280.966,
+    "low": 266.918,
+    "high": 295.014,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cm.fixed": {
+    "value": 0,
+    "class": "assumption",
+    "source": "math not binding"
+   },
+   "cm.per_tile": {
+    "value": 25,
+    "low": 10,
+    "high": 45,
+    "class": "assumption",
+    "source": "math TRISC ends ~400 cyc before unpack"
+   },
+   "cp.fixed": {
+    "value": 277.426,
+    "low": 263.555,
+    "high": 291.297,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cp.per_tile": {
+    "value": 29.363,
+    "low": 27.895,
+    "high": 30.831,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.first_chunk_extra": {
+    "value": 1275.182,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A) (perf, 124 runs)",
+    "low": 1211.423,
+    "high": 1338.941,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   }
+  },
+  "sfpu:multiply:bf16": {
+   "_source": "eltwise_binary_sfpu_no_bcast_dfb.cpp: 2 copy_tile unpacks per tile, SFPU mul on the math TRISC, 1 pack",
+   "start.compute": {
+    "value": 1315,
+    "class": "measurement",
+    "source": "TRISC0 KERNEL start, multiply runs (A)"
+   },
+   "cu.fixed": {
+    "value": 608.271,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A, multiply) (perf, 17 runs)",
+    "low": 577.857,
+    "high": 638.685,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.per_tile": {
+    "value": 30.999,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A, multiply) (perf, 17 runs)",
+    "low": 29.449,
+    "high": 32.549,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.fixed_n1": {
+    "value": 580.621,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A, multiply) (perf, 17 runs)",
+    "low": 551.59,
+    "high": 609.652,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.first_chunk_extra": {
+    "value": 1741.454,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A, multiply) (perf, 17 runs)",
+    "low": 1654.381,
+    "high": 1828.527,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cm.fixed": {
+    "value": 0.621,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A, multiply) (perf, 17 runs)",
+    "low": 0.59,
+    "high": 0.652,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cm.per_tile": {
+    "value": 250.339,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A, multiply) (perf, 17 runs)",
+    "low": 237.822,
+    "high": 262.856,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cp.fixed": {
+    "value": 159.811,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A, multiply) (perf, 17 runs)",
+    "low": 151.82,
+    "high": 167.802,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cp.per_tile": {
+    "value": 48.873,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-02 on data/ttsim-perf.jsonl (A, multiply) (perf, 17 runs)",
+    "low": 46.429,
+    "high": 51.317,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   }
+  }
+ }
+}
