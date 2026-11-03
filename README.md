@@ -4,6 +4,19 @@ Performance model of Quasar binary_ng eltwise (`add`, `multiply`). For an op siz
 config it predicts the time, names the bottleneck and finds the best config, in milliseconds, without a
 simulator. Python 3 standard library only.
 
+## Install (Claude Code plugin)
+
+Needs read access to this private repo and git credentials for GitHub on your machine (SSH key, or
+`gh auth login` plus `export CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1`).
+
+```bash
+claude plugin install qperf --marketplace ijankowskiTT/perf_modeling     # Claude Code 2.1.292+
+# older: claude plugin marketplace add ijankowskiTT/perf_modeling && claude plugin install qperf@perf-modeling
+```
+
+Then ask Claude Code a question (below). Update: `claude plugin marketplace update perf-modeling && claude plugin
+update qperf@perf-modeling`, or enable auto-update for the marketplace in `/plugin`.
+
 ## Example
 
 ```bash
@@ -32,14 +45,15 @@ guess. `--format json` gives the full response (`schema/response.schema.json`).
 
 ## Usage
 
-**Claude Code**: ask in plain words ("which 3 configs should I benchmark for a 64k-tile add from DRAM?"); the
-`quasar-perf` skill (`skills/quasar-perf/`) builds the request and explains the answer.
+**Claude Code** (plugin installed): ask in plain words ("which 3 configs should I benchmark for a 64k-tile add from
+DRAM?"); the `quasar-perf` skill builds the request and explains the answer.
 
 **CLI**: copy an example from `skills/quasar-perf/examples/` and run it:
 
 ```bash
 python -m qperf analyze --request my.json --format text
 python -m qperf analyze --request my.json --set workload.num_tiles=65536
+python -m qperf analyze --request my.json --format html --out report.html   # charts; --format md for markdown
 ```
 
 ```json

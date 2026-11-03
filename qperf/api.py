@@ -406,7 +406,7 @@ def _analyze(req, t_start):
     costs, costs_id = load("costs", prof["costs"])
     analysis = req.get("analysis", {})
     detail = analysis.get("detail", "compact")
-    budget_ms = analysis.get("time_budget_ms", 250 if action != "tune" else 2000)
+    budget_ms = analysis.get("time_budget_ms", 250 if action != "tune" else 20000)
     what_if = dict(req.get("what_if", {}))
     hyp = req.get("hypothetical") or {}
     if hyp.get("knob_limits"):

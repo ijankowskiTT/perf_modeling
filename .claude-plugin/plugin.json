@@ -1,0 +1,6 @@
+{
+  "name": "qperf",
+  "description": "Quasar binary_ng eltwise performance model: predict time, bottleneck and best TTNN_QSR_* config without a simulator",
+  "author": {"name": "ijankowskiTT"},
+  "repository": "https://github.com/ijankowskiTT/perf_modeling"
+}

@@ -1,6 +1,6 @@
 """qperf command line. Every subcommand goes through the same analyze() as the Python API.
 
-  qperf analyze --request case.json [--format json|text] [--set analysis.detail=full]
+  qperf analyze --request case.json [--format json|text|md|html] [--out report.html] [--set analysis.detail=full]
   qperf calibrate report --data calibration/data/ttsim-perf.jsonl --sim perf --costs ttsim-perf [--rank]
   qperf calibrate fit --data ... --sim perf --costs ttsim-perf --keys k1,k2 --revision NEW [--filter layout=ddd]
   qperf bench [--repeat 20]
@@ -84,7 +84,20 @@ def cmd_analyze(a):
     for s in a.set or []:
         _set(req, s)
     res = analyze(req)
-    print(json.dumps(res, indent=1) if a.format == "json" else _text(res))
+    if a.format in ("md", "html"):
+        from .report import to_html, to_markdown
+
+        if a.format == "html":
+            res = analyze(dict(req, analysis=dict(req.get("analysis", {}), detail="full")))
+        out = (to_html if a.format == "html" else to_markdown)(req, res)
+    else:
+        out = json.dumps(res, indent=1) if a.format == "json" else _text(res)
+    if a.out:
+        with open(a.out, "w") as f:
+            f.write(out)
+        print(a.out)
+    else:
+        print(out)
     return 0 if res["status"] in ("ok", "partial") else 2
 
 
@@ -190,7 +203,8 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("analyze")
     s.add_argument("--request", required=True)
-    s.add_argument("--format", choices=["json", "text"], default="json")
+    s.add_argument("--format", choices=["json", "text", "md", "html"], default="json")
+    s.add_argument("--out", help="write the output to this file (md/html reports)")
     s.add_argument("--set", action="append", help="override a request field, e.g. analysis.detail=full")
     s.set_defaults(fn=cmd_analyze)
     c = sub.add_parser("calibrate")

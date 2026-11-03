@@ -24,6 +24,27 @@ def test_example_runs_ok(path):
         assert "exhaustive" in out["search"]
 
 
+@pytest.mark.parametrize("path", EXAMPLES, ids=os.path.basename)
+def test_example_reports_render(path):
+    from qperf.report import to_html, to_markdown
+
+    req = json.load(open(path))
+    out = analyze(req)
+    md, page = to_markdown(req, out), to_html(req, out)
+    assert md.startswith("# qperf report") and "## Key points" in md
+    assert page.startswith("<!doctype html>") and "<svg" in page and "<script" not in page
+    assert out["baseline"]["label"] in page
+
+
+def test_report_of_a_failed_request_has_no_numbers():
+    from qperf.report import to_html, to_markdown
+
+    req = json.load(open(EXAMPLES[0]))
+    req["workload"]["op"] = "atan2"
+    out = analyze(req)
+    assert " ns" not in to_markdown(req, out) and "<svg" not in to_html(req, out)
+
+
 def test_skill_doc_points_at_existing_things():
     skill = open(os.path.join(ROOT, "skills", "quasar-perf", "SKILL.md")).read()
     assert "schema/request.schema.json" in skill and os.path.exists(os.path.join(ROOT, "schema", "request.schema.json"))
