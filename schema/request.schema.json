@@ -1,0 +1,275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qperf/request/1",
+  "title": "qperf analyze request",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "action",
+    "workload"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1"
+      ]
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "estimate",
+        "compare",
+        "tune",
+        "sensitivity"
+      ]
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "architecture": {
+          "type": "string",
+          "description": "name or name@revision, e.g. quasar@2026-11-02.1"
+        },
+        "kernel": {
+          "type": "string",
+          "description": "e.g. binary-ng-native@c86eb2dc690"
+        },
+        "costs": {
+          "type": "string",
+          "description": "platform the times describe: ttsim-perf | craq-sim | silicon-hypothesis"
+        }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "type": "string"
+        },
+        "kernel_variant": {
+          "type": "string",
+          "enum": [
+            "fpu",
+            "sfpu"
+          ],
+          "description": "only when the op's routing is not in the kernel profile; take it from the program log"
+        },
+        "dtype": {
+          "type": "string",
+          "enum": [
+            "bf16",
+            "fp32"
+          ]
+        },
+        "num_tiles": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "shape": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "tiles_scope": {
+          "type": "string",
+          "enum": [
+            "operation",
+            "cluster"
+          ]
+        },
+        "clusters": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "placements": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "a": {
+              "type": "string",
+              "enum": [
+                "dram",
+                "l1",
+                "borrowed"
+              ]
+            },
+            "b": {
+              "type": "string",
+              "enum": [
+                "dram",
+                "l1",
+                "borrowed"
+              ]
+            },
+            "out": {
+              "type": "string",
+              "enum": [
+                "dram",
+                "l1",
+                "borrowed"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "baseline": {
+      "$ref": "#/$defs/knobs"
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "overrides"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "overrides": {
+            "$ref": "#/$defs/knobs"
+          }
+        }
+      }
+    },
+    "what_if": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "compute_service_scale": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cost_overrides": {
+          "type": "object",
+          "description": "cost key -> number or {value, low, high}; keys as in the cost profile"
+        }
+      }
+    },
+    "tune": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "space": {
+          "type": "object",
+          "description": "knob -> list of values (null = rule)"
+        },
+        "max_candidates": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        }
+      }
+    },
+    "sensitivity": {
+      "type": "object",
+      "required": [
+        "param",
+        "values"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "param": {
+          "type": "string",
+          "description": "a cost key (e.g. noc.read_latency), compute_service_scale or num_tiles"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objective": {
+          "type": "string",
+          "enum": [
+            "latency"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "full"
+          ]
+        },
+        "top_k": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "time_budget_ms": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "hypothetical": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "knob_limits": {
+          "type": "object",
+          "description": "override TTNN_QSR knob ceilings to model a factory change, e.g. {\"dm_batch\": 64}"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "knobs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reader_threads": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "compute_threads": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "writer_threads": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "dm_batch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "tiles_per_cycle": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "entries_per_thread": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "dram_batch": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

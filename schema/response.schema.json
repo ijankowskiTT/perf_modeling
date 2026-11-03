@@ -1,0 +1,620 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qperf/response/1",
+  "title": "qperf analyze response",
+  "description": "Every response has schema_version, engine_version, status, result_kind and runtime_ms. status ok|partial carry results; needs_input|invalid|unsupported carry a message (and, for an invalid baseline, the evaluated baseline with its errors). partial = a search or sweep stopped early (budget, max_candidates): results are real but not exhaustive.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "engine_version",
+    "status",
+    "result_kind",
+    "runtime_ms"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1"
+      ]
+    },
+    "engine_version": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "partial",
+        "needs_input",
+        "invalid",
+        "unsupported"
+      ]
+    },
+    "result_kind": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "finite_buffer_estimate",
+        null
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "runtime_ms": {
+      "type": "number"
+    },
+    "cache_hits": {
+      "type": "integer"
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "architecture",
+        "kernel",
+        "costs"
+      ],
+      "properties": {
+        "architecture": {
+          "$ref": "#/$defs/profile_id"
+        },
+        "kernel": {
+          "$ref": "#/$defs/profile_id"
+        },
+        "costs": {
+          "$ref": "#/$defs/profile_id"
+        }
+      }
+    },
+    "applied_defaults": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "platform_scope": {
+      "type": "string"
+    },
+    "hypothetical": {
+      "type": "object"
+    },
+    "baseline": {
+      "$ref": "#/$defs/result"
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/result"
+      }
+    },
+    "top": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/result"
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "speedup_range": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "speedup_nominal": {
+            "type": "number"
+          },
+          "bottleneck_after": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "search": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exhaustive"
+      ],
+      "properties": {
+        "enumerated": {
+          "type": "integer"
+        },
+        "invalid": {
+          "type": "integer"
+        },
+        "valid": {
+          "type": "integer"
+        },
+        "considered": {
+          "type": "integer"
+        },
+        "evaluated": {
+          "type": "integer"
+        },
+        "truncated_by_max_candidates": {
+          "type": "boolean"
+        },
+        "out_of_time": {
+          "type": "boolean"
+        },
+        "exhaustive": {
+          "type": "boolean"
+        },
+        "evaluated_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "order": {
+          "type": "string"
+        }
+      }
+    },
+    "sensitivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "param",
+        "series"
+      ],
+      "properties": {
+        "param": {
+          "type": "string"
+        },
+        "partial": {
+          "type": "boolean"
+        },
+        "series": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value",
+                "valid"
+              ],
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "time_ns": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "bottleneck": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "valid": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "ranking_changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "between": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "param": {
+                "type": "string"
+              },
+              "at_about": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "bottleneck_shifts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "config": {
+                "type": "string"
+              },
+              "from": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "to": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "at_about": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "description": "detail=full: every cost used, with value/low/high/class/source"
+    },
+    "resolved_input": {
+      "type": "object"
+    },
+    "resolved_input_sha256": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "range3": {
+      "type": "object",
+      "required": [
+        "nominal"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "nominal": {
+          "type": "number"
+        },
+        "low": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "threads"
+      ],
+      "properties": {
+        "useful_busy_frac": {
+          "type": "number"
+        },
+        "starved_frac": {
+          "type": "number"
+        },
+        "backpressure_frac": {
+          "type": "number"
+        },
+        "transfer_wait_frac": {
+          "type": "number"
+        },
+        "start_ns": {
+          "type": "number"
+        },
+        "threads": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "required": [
+        "R",
+        "C",
+        "W",
+        "dm_batch",
+        "tiles_per_cycle",
+        "entries_per_thread"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "R": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "C": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "W": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "dm_batch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tiles_per_cycle": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "entries_per_thread": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "label",
+        "config",
+        "valid",
+        "errors"
+      ],
+      "description": "One evaluated configuration. detail=compact returns exactly these fields; detail=full adds traffic, work split, L1 detail and per-thread timelines (first 16 threads).",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/config"
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "result_kind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "finite_buffer_estimate",
+            null
+          ]
+        },
+        "time_ns": {
+          "$ref": "#/$defs/range3"
+        },
+        "time_cycles": {
+          "type": "number"
+        },
+        "lower_bound_ns": {
+          "type": "number"
+        },
+        "per_tile_ns": {
+          "type": "number"
+        },
+        "throughput_tiles_per_us": {
+          "type": "number"
+        },
+        "steady_state_ns_per_tile_per_cluster": {
+          "type": "number"
+        },
+        "extrapolated": {
+          "type": "boolean"
+        },
+        "bottleneck": {
+          "type": "object",
+          "required": [
+            "resource"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "resource": {
+              "type": "string"
+            },
+            "bound_share_of_estimate": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "note": {
+              "type": "string"
+            },
+            "busiest_role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "dominant_wait": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "starved",
+                    "backpressure",
+                    "transfer_latency"
+                  ]
+                },
+                "fraction": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        },
+        "near_binding": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bounds_ns": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "lower bound per resource (reader_issue, writer_issue, compute_unpack_math, compute_pack, noc_port*, l1_*, dram_global)"
+        },
+        "roles": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "reader": {
+              "$ref": "#/$defs/role"
+            },
+            "compute": {
+              "$ref": "#/$defs/role"
+            },
+            "writer": {
+              "$ref": "#/$defs/role"
+            }
+          }
+        },
+        "l1": {
+          "type": "object",
+          "required": [
+            "ring_bytes",
+            "fits"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "ring_bytes": {
+              "type": "integer"
+            },
+            "fits": {
+              "type": "boolean"
+            },
+            "resident_tensor_bytes": {
+              "type": "integer"
+            },
+            "available_bytes": {
+              "type": "integer"
+            }
+          }
+        },
+        "comparison": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "speedup_vs_baseline": {
+              "$ref": "#/$defs/range3"
+            },
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "faster",
+                "slower",
+                "no_meaningful_gain",
+                "inconclusive"
+              ]
+            }
+          }
+        },
+        "critical_cluster": {
+          "type": "object"
+        },
+        "work_split": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "traffic_per_cluster": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "profile_id": {
+      "type": "object",
+      "required": [
+        "name",
+        "revision",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
