@@ -1,0 +1,9 @@
+{
+  "schema_version": "1",
+  "action": "sensitivity",
+  "profiles": {"costs": "craq-sim"},
+  "workload": {"op": "add", "dtype": "bf16", "num_tiles": 8192, "clusters": 32,
+               "placements": {"a": "dram", "b": "dram", "out": "dram"}},
+  "baseline": {},
+  "sensitivity": {"param": "compute_service_scale", "values": [0.5, 0.75, 1.0, 1.25, 1.5]}
+}

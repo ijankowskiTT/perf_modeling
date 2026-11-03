@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "action": "compare",
+  "profiles": {"costs": "craq-sim"},
+  "workload": {"op": "add", "dtype": "bf16", "num_tiles": 4096, "clusters": 32,
+               "placements": {"a": "dram", "b": "dram", "out": "dram"}},
+  "baseline": {"reader_threads": 1, "compute_threads": 1, "writer_threads": 1, "dm_batch": 1, "tiles_per_cycle": 1, "entries_per_thread": 2},
+  "candidates": [
+    {"id": "R4C4W2", "overrides": {"reader_threads": 4, "compute_threads": 4, "writer_threads": 2}},
+    {"id": "R4C4W2_b8", "overrides": {"reader_threads": 4, "compute_threads": 4, "writer_threads": 2, "dm_batch": 8, "tiles_per_cycle": 8, "entries_per_thread": 16}}
+  ],
+  "analysis": {"detail": "compact"}
+}

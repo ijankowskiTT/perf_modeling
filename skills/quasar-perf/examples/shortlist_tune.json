@@ -1,0 +1,10 @@
+{
+  "schema_version": "1",
+  "action": "tune",
+  "profiles": {"costs": "craq-sim"},
+  "workload": {"op": "add", "dtype": "bf16", "num_tiles": 4096, "clusters": 32,
+               "placements": {"a": "dram", "b": "dram", "out": "dram"}},
+  "baseline": {},
+  "tune": {},
+  "analysis": {"top_k": 3}
+}
