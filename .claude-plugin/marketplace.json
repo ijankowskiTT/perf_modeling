@@ -1,12 +1,15 @@
 {
   "name": "perf-modeling",
-  "owner": {"name": "ijankowskiTT"},
+  "owner": {
+    "name": "ijankowskiTT"
+  },
   "description": "Quasar performance-modeling tools",
   "plugins": [
     {
       "name": "qperf",
       "source": "./",
-      "description": "Quasar binary_ng eltwise performance model: predict time, bottleneck and best TTNN_QSR_* config without a simulator"
+      "description": "Quasar performance model: binary_ng eltwise and data-movement ops (tilize, untilize, padding variants, sharding, reshard, move); predicts time, bottleneck and best config without a simulator",
+      "version": "1.0.0"
     }
   ]
 }

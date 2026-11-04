@@ -28,6 +28,7 @@ Is it worth implementing per-thread NoC barriers? When would it help?
 Which 3 configs should I benchmark for a 4k-tile multiply in L1?
 How long does tilize of a 3136x64 tensor take, and would height-sharding it help?
 How does untilize time grow with width? Where does it stop being writer-bound?
+Is it worth sharding this 1024x256 tensor over 32 cores instead of 8?
 How does it change if DRAM latency doubles? Does a deeper ring hide it?
 Use the quasar-perf skill on PR <link>: compare main vs the PR's batching and other options.
 ```
@@ -66,7 +67,7 @@ Token use per question (`python bench/tokens.py`):
 
 | | Covered | Not yet |
 |---|---|---|
-| Ops | binary_ng `add`, `multiply`; `tilize` (Default, SingleCore, Sharded), `untilize` (MultiCore, SingleCore, Block), `tilize_with_val_padding` (Default), `untilize_with_unpadding` (Interleaved, BlockInterleaved); bf16 | `subtract`, `rsub`, `divide`, fp32 (no costs yet); padding-variant SingleCore (next); addalpha, activations, broadcast, matmul |
+| Ops | binary_ng `add`, `multiply`; `tilize` (Default, SingleCore, Sharded), `untilize` (MultiCore, SingleCore, Block), `tilize_with_val_padding` (Default, SingleCore), `untilize_with_unpadding` (Interleaved, BlockInterleaved, SingleCore), `interleaved_to_sharded` / `sharded_to_interleaved` (TILE, height/width/block); bf16 | `subtract`, `rsub`, `divide`, fp32 (no costs yet); move, reshard (next); addalpha, activations, broadcast, matmul |
 | Layout | each operand in DRAM, L1 (interleaved) or borrowed (resident shard), any mix | tail rings of uneven slices |
 | Knobs | reader/compute/writer threads, `dm_batch`, `tiles_per_cycle`, `entries_per_thread` (`TTNN_QSR_*`) | |
 | Kernel changes | per-thread NoC barriers, dynamic work queue (hypothetical: no simulator can confirm) | other schedules |

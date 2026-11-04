@@ -17,12 +17,21 @@ import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-QUESTIONS = {
+QUESTIONS = {  # question, regex an answer backed by the model must contain
     "dm16": ("Would dm_batch 16 help a 128k-tile bf16 add from DRAM on Quasar?", r"1\.1\d\s*[x×]|11\s*%"),
     "readers": ("For a 64k-tile bf16 add on Quasar from DRAM, would 2 more reader threads or 30% faster compute help?",
                 r"writer"),
     "barriers": ("Is it worth implementing per-thread (transaction-ID) NoC barriers for a 4k-tile bf16 add on Quasar, "
                  "with tensors in DRAM vs L1?", r"1\.1[5-7]\s*[x×]|1[5-7]\s*%"),
+    "tilize": ("How long does tilize of a 1x1x3136x64 bf16 tensor from DRAM take on Quasar, and would height-sharded "
+               "input be faster?", r"4[.,]\d\s*µs|4,?6\d\d|3(\.\d)?\s*[x×]"),
+    "untilize_wide": ("On Quasar, which untilize factory runs for a 256x4096 bf16 tensor in DRAM, and what limits it?",
+                      r"[Bb]lock"),
+    "padding": ("How long does tilize_with_val_padding of a 3000x1000 bf16 tensor from DRAM take on Quasar?",
+                r"\d[\d,.]*\s*(ns|µs|cycles)"),
+    "shard_cores": ("Is it worth height-sharding a 1024x256 bf16 tensor from DRAM onto 32 cores instead of 8 on Quasar?",
+                    r"2[.,]\d\s*[x×]|faster"),
+    "unsupported": ("How long does a Quasar matmul of 1024x1024 by 1024x1024 take?", r"(not|un)\s*supported|cannot|no model"),
 }
 TOOLS = ["Bash(PYTHONPATH=*)", "Bash(python3 *)", "Write", "Read", "Skill", "Agent"]
 
