@@ -45,12 +45,23 @@ def test_report_of_a_failed_request_has_no_numbers():
     assert " ns" not in to_markdown(req, out) and "<svg" not in to_html(req, out)
 
 
-def test_skill_doc_points_at_existing_things():
+def test_skill_and_agent_point_at_existing_things():
+    import re
+    from qperf.profiles import load
+
     skill = open(os.path.join(ROOT, "skills", "quasar-perf", "SKILL.md")).read()
-    assert "schema/request.schema.json" in skill and os.path.exists(os.path.join(ROOT, "schema", "request.schema.json"))
+    agent = open(os.path.join(ROOT, "agents", "qperf-runner.md")).read()
+    assert "qperf:qperf-runner" in skill and "agents/qperf-runner.md" in skill
+    assert re.search(r"^model: (haiku|sonnet|opus)", agent, re.M)
     for name in ("ttsim-perf", "craq-sim", "silicon-hypothesis"):
-        assert name in skill
-        assert os.path.exists(os.path.join(ROOT, "profiles", "costs", name + ".json"))
+        assert name in agent and os.path.exists(os.path.join(ROOT, "profiles", "costs", name + ".json"))
+    params = load("costs", "silicon-hypothesis")[0]["params"]
+    for key in re.findall(r"(noc\.\w+\.dram|dram\.\w+)", agent):
+        assert key in params, key
+    # the agent's request template is a valid request that runs
+    tmpl = agent[agent.index('{"schema_version"'):]
+    tmpl = json.loads(tmpl[:tmpl.index("}}}") + 3])
+    assert analyze(tmpl)["status"] == "ok"
 
 
 @pytest.mark.parametrize("mutate,status", [
