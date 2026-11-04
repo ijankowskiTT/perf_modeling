@@ -52,7 +52,7 @@
       "properties": {
         "op": {
           "type": "string",
-          "description": "add | multiply (binary_ng) | tilize | untilize | tilize_with_val_padding | untilize_with_unpadding | interleaved_to_sharded | sharded_to_interleaved"
+          "description": "add | multiply (binary_ng) | tilize | untilize | tilize_with_val_padding | untilize_with_unpadding | interleaved_to_sharded | sharded_to_interleaved | move"
         },
         "kernel_variant": {
           "type": "string",
@@ -141,12 +141,12 @@
           }
         },
         "layout": {
-          "type": "string",
-          "enum": [
-            "tile",
-            "row_major"
-          ],
-          "description": "interleaved_to_sharded / sharded_to_interleaved: tensor layout (default tile, even tile shards; row_major: sticks, shard ceil(H/n) x W, H x ceil(W/n) rounded up to 16 B, or ceil(H/k) x ceil(W/k), the last shard may be partial)"
+          "enum": ["tile", "row_major"],
+          "description": "interleaved_to_sharded / sharded_to_interleaved and move: tensor layout (default tile). Sharding ops, row_major: sticks, shard ceil(H/n) x W, H x ceil(W/n) rounded up to 16 B, or ceil(H/k) x ceil(W/k), the last shard may be partial"
+        },
+        "output": {
+          "enum": ["overlap", "separate"],
+          "description": "move: where the output lands relative to the input (default overlap; separate = MoveProgramFactory, which Quasar rejects)"
         }
       }
     },

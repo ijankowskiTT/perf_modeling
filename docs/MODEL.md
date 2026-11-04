@@ -29,6 +29,15 @@ reader batching barriers every `thr` reads as the kernel does. ROW_MAJOR: one re
 (aligned path), or a transaction-ID scratch read plus a local loopback per row with 4 in flight (unaligned DRAM
 source); uneven last shards clipped.
 
+**move** (`qperf/ops/move.py`, registered in `qperf/ops/registry.py`): interleaved DRAM or L1, TILE or ROW_MAJOR,
+the overlapping-output path (MoveOverlap), which is the only interleaved path Quasar runs: a non-overlapping output
+selects MoveProgramFactory, whose legacy copy kernels Quasar rejects (`DataMovementKernel is not supported on
+Quasar`), and an output at the input's address runs no program. Pages split by `split_work_to_cores`; per core the
+reader reads page by page (one barrier each), then all cores handshake through the controller core (one semaphore
+multicast per region), and only then the writer writes. The controller sets the span; the slowest other core's reads
+are evaluated alongside it. On both simulators a page read costs the same for any page size, writes are nearly free;
+on ttsim-perf L1 reads of 32 cores cost ~6x DRAM reads. Sharded move is not modeled yet.
+
 **Pipeline**: reader, compute and writer threads run their kernels' own loops over the DFB's strided tile
 counters with finite rings and a half-sync DST. Per batch: fixed cost, one request per tile, one barrier.
 Barriers are cluster-wide, as in the firmware; timed transfers complete through one per-cluster queue.

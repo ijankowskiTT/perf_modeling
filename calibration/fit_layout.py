@@ -226,6 +226,8 @@ def main():
         cf = dict(flags)
         cf.update({f"{p}.start_{k}": statistics.median(v) for k, v in starts.items()})
         cf.update({f"{p}.{k}": v for k, v in INIT.items()})
+        from qperf.ops import registry
+        cf.update({f"{p}.{k}": v for k, v in getattr(registry.module_for(op0), "INIT", {}).items()})  # module's own terms
         keys = keys_for(op0, fac)
         def l1_sides(r):  # which directions move data over the NoC from / to L1 (the plan's placements)
             cfg = plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[1][0][0]
@@ -234,13 +236,16 @@ def main():
         rd_l1 = any(l1_sides(r)[0] for r in fs)
         wr_l1 = any(l1_sides(r)[1] for r in fs)
         if rd_l1 or wr_l1:  # L1 transfer terms only where the runs can identify them
+            l1_init = {}
             for d, on in (("rd", rd_l1), ("wr", wr_l1)):
                 if on:
-                    keys += [f"{d}_cpb_l1", f"{d}_lat_l1", f"{d}_svc_l1"]
-                    cf.update({f"{p}.{d}_cpb_l1": 0.01, f"{p}.{d}_lat_l1": 50.0, f"{p}.{d}_svc_l1": 20.0})
+                    l1_init.update({f"{d}_cpb_l1": 0.01, f"{d}_lat_l1": 50.0, f"{d}_svc_l1": 20.0})
             # global L1 network: a hard bound plus a fair share per core moving L1 data (gradual contention)
-            keys += ["l1_gbw", "l1_share_bw"]
-            cf.update({f"{p}.l1_gbw": 500.0, f"{p}.l1_share_bw": 500.0})
+            l1_init.update({"l1_gbw": 500.0, "l1_share_bw": 500.0})
+            allowed = getattr(registry.module_for(op0), "L1_KEYS", None)  # a module may leave some out
+            l1 = [k for k in l1_init if allowed is None or k in allowed]
+            keys += l1
+            cf.update({f"{p}.{k}": l1_init[k] for k in l1})
         cf = fit(fs, cf, [f"{p}.{k}" for k in keys])
         print(f"{op0} {fac} ({p}) on {a.sim}: {len(fs)} fit runs, {len(hs)} holdout ({a.holdout})")
         print("  " + ", ".join(f"{k.split('.')[1]}={v:.1f}" for k, v in cf.items()))

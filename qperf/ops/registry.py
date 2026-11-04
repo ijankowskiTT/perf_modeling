@@ -27,3 +27,4 @@ def module_for(op):
 
 
 # --- registered op modules (one line each) ---
+from . import move as _move; register(_move)  # noqa: E402
