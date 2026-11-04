@@ -6,13 +6,12 @@ description: >-
 
 # quasar-perf
 
-Delegate: spawn the `qperf:qperf-runner` agent (Haiku by default; pass model "sonnet" for multi-part questions
-such as a PR analysis or many layouts) with the user's question and any context it needs
-(PR summary, sizes, layouts). Do not run qperf or read its files yourself. Relay its answer as is (do not redo or expand it); if it returns a
-report path, publish that HTML with the Artifact tool when available, else give the path.
+Spawn the `qperf:qperf-runner` agent with the user's question and the context it needs (PR summary, sizes,
+layouts). It runs on Haiku; pass model "sonnet" for multi-part questions such as a PR analysis. Do not run qperf
+or read its files yourself.
 
-Follow-ups ("and with dm_batch 4?", "what about L1?"): continue the same runner with SendMessage so it keeps the
-workload and request files; if that is not possible, spawn a new runner and pass the previous request file path and
-the workload in one line.
-
-Only if the Agent tool is unavailable: follow `${CLAUDE_PLUGIN_ROOT}/agents/qperf-runner.md` yourself.
+- Relay the runner's answer as is. If it returns a report path, publish the HTML with the Artifact tool if you have
+  it; otherwise give the path.
+- Follow-ups ("and with dm_batch 4?"): continue the same runner with SendMessage. If you can't, spawn a new runner
+  with the previous request file path.
+- No Agent tool: follow `${CLAUDE_PLUGIN_ROOT}/agents/qperf-runner.md` yourself.

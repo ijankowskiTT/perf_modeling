@@ -2,16 +2,16 @@
 
 ## 1.0.0
 
-- binary_ng eltwise (`add`, `multiply`): thread allocation, DM batch, tiles_per_cycle, ring depth, compute / DRAM / L1
-  what-ifs, kernel-change variants (per-thread barriers, dynamic work queue). ~1-2% on craq-sim.
-- Data movement on a generic engine (`qperf/engine.py`): tilize, untilize, tilize_with_val_padding,
-  untilize_with_unpadding (Default / MultiCore / SingleCore / Sharded / Block factories), interleaved_to_sharded,
-  sharded_to_interleaved (TILE and ROW_MAJOR), move (overlap path, the only one Quasar runs); bf16 and fp32.
-- reshard: SameWidth / SameHeight (and their write variants), Generic, CopyPages; TILE and ROW_MAJOR, L1 and DRAM;
-  NoC port and link contention on ttsim-perf. <= 1.9% on craq-sim; ttsim-perf SameHeight / Generic are a flagged gap.
-  <= 2.5% mean per factory on craq-sim, <= 3% on ttsim-perf.
-- binary_ng fp32 (add, multiply): ~1.4% held-out on craq-sim.
-- Claude Code plugin: the `quasar-perf` skill delegates to a Haiku runner agent (~$0.15 per question); follow-ups keep
-  context; HTML / markdown reports with charts.
-- `check-drift --ref main | pr/N`: compares the mirrored kernel sources with GitHub; comment / include / formatting
+- **binary_ng** `add`, `multiply` (bf16, fp32). Covers thread allocation, DM batch, tiles_per_cycle, ring depth,
+  compute / DRAM / L1 what-ifs and hypothetical kernel changes (per-thread barriers, dynamic work queue).
+- **Data movement** (bf16, fp32):
+  - tilize, untilize and their padding variants;
+  - interleaved_to_sharded and sharded_to_interleaved (TILE, ROW_MAJOR);
+  - move (overlap path);
+  - reshard (SameWidth, SameHeight and their write variants, Generic, CopyPages).
+- **Accuracy**: <= 2.5% mean per factory on craq-sim and <= 3.3% on ttsim-perf. Exceptions, flagged in answers:
+  ttsim-perf reshard SameHeight / Generic, and binary_ng L1 (~8%).
+- **Plugin**: the `quasar-perf` skill hands each question to a Haiku runner (~$0.14 per question). Follow-ups keep
+  context. Reports with charts are optional.
+- **`check-drift --ref main | pr/N`**: compares the pinned kernels with GitHub. Comment, include and formatting
   changes count as cosmetic.
