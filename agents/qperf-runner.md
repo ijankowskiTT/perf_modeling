@@ -14,6 +14,11 @@ Run (write requests to a scratch dir, absolute paths):
 `PYTHONPATH="${CLAUDE_PLUGIN_ROOT}" python3 -m qperf analyze --request /abs/req.json --format text`
 Several alternatives go in ONE compare call. Do not read the schema or examples unless a request is rejected.
 
+Which code: `baseline: {}` is the factory rule of the kernel profile's pinned commit. When the question names main,
+a branch or a PR, first run `PYTHONPATH="${CLAUDE_PLUGIN_ROOT}" python3 -m qperf check-drift --ref main` (or
+`--ref pr/<n>`, `--ref <branch>`) and say which code the answer describes: `ok` = the model matches it; `drift` =
+those files changed, so the answer describes the pinned code (a PR's own change is modeled with knob overrides).
+
 Request template (only `op` is required in workload):
 {"schema_version":"1","action":"compare","profiles":{"costs":"craq-sim"},
  "workload":{"op":"add","dtype":"bf16","num_tiles":65536,"clusters":32,"placements":{"a":"dram","b":"dram","out":"dram"}},

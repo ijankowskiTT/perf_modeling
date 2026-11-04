@@ -1,7 +1,7 @@
 {
  "kind": "kernel",
  "name": "binary-ng-native",
- "revision": "c86eb2dc690",
+ "revision": "f3ef8f22aaa",
  "kernels_unchanged_since": "0fff850f3c6",
  "description": "binary_ng Quasar-native no-broadcast program: kernels_qsr reader_no_bcast_dfb / eltwise_binary_{,sfpu_}no_bcast_dfb / writer_no_bcast_dfb, built by binary_ng_quasar_native_factory.cpp.",
  "sources": {
@@ -58,16 +58,16 @@
   "class": "specification"
  },
  "source_blobs": {
-  "commit": "c86eb2dc690",
+  "commit": "f3ef8f22aaa",
   "files": {
    "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/dataflow/reader_no_bcast_dfb.cpp": "c3b5c1fab68e55af4d4114c0b2380890ab83e03f",
    "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/dataflow/writer_no_bcast_dfb.cpp": "d41c78f400e9b485fbcbe8a78330e881ba90f961",
    "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/compute/eltwise_binary_no_bcast_dfb.cpp": "024271da1d88075aa2e1a2a5647bc49dd8d604d3",
    "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/kernels_qsr/compute/eltwise_binary_sfpu_no_bcast_dfb.cpp": "3fe7f3211b72357480574bb0919cc55ce1228a60",
    "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/binary_ng_utils.cpp": "f0caef6c719680c66fba863de53ecd9f1bffdaf0",
-   "tt_metal/impl/dataflow_buffer/dataflow_buffer.cpp": "156d65ccdd2c9793e9d4891f8d0131ea8b2e5462",
+   "tt_metal/impl/dataflow_buffer/dataflow_buffer.cpp": "e3bf2d6d8f8ba80777514c3db56c502805b14108",
    "ttnn/cpp/ttnn/operations/experimental/quasar/binary_ng/device/binary_ng_quasar_native_factory.cpp": "51c56ae52ec0bdcce935fcd83c44b07a2b177bfe"
   },
-  "note": "git blob sha1 of each mirrored source; `python -m qperf check-drift --tree <tt-metal>` compares"
+  "note": "re-verified 2026-11-04 against main f3ef8f22aaa: since c86eb2dc690 only dataflow_buffer.cpp changed (includes, #62821)"
  }
 }

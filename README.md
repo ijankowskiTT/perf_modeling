@@ -33,6 +33,9 @@ Use the quasar-perf skill on PR <link>: compare main vs the PR's batching and ot
 Add "make a report with charts" to get a shareable page: headline, time per config, where each role's time goes,
 sensitivity lines and all numbers.
 
+Comparisons with "main" use the kernels pinned in the model (re-verified against tt-metal main on 2026-11-04). For a
+question about main, a branch or a PR, Claude first checks on GitHub whether those kernel files changed and says so.
+
 Each answer gives the bottleneck, the options with time, speedup and verdict (`faster`, `no_meaningful_gain`,
 `inconclusive`), the best choice and why, and its limits. Ranges are cost scenarios, not confidence intervals.
 Unsupported cases are reported as such, never guessed.

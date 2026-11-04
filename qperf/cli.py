@@ -5,7 +5,7 @@
   qperf calibrate fit --data ... --sim perf --costs ttsim-perf --keys k1,k2 --revision NEW [--filter layout=ddd]
   qperf bench [--repeat 20]
   qperf profiles
-  qperf check-drift --tree /path/to/tt-metal
+  qperf check-drift --tree /path/to/tt-metal | --ref main | --ref <branch|sha> | --ref pr/63305 [--repo tenstorrent/tt-metal]
 """
 
 from __future__ import annotations
@@ -164,25 +164,69 @@ def cmd_bench(a):
     return 0
 
 
+def _github(path):
+    """GET a GitHub API path: `gh api` when available (uses the user's auth), else anonymous HTTPS."""
+    import subprocess
+    import urllib.request
+
+    try:
+        r = subprocess.run(["gh", "api", path], capture_output=True, text=True, timeout=30)
+        if r.returncode == 0:
+            return json.loads(r.stdout)
+        if "Not Found" in r.stdout + r.stderr:
+            return None
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    try:
+        with urllib.request.urlopen("https://api.github.com/" + path, timeout=30) as f:
+            return json.load(f)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _remote_blobs(repo, ref, paths):
+    """Blob sha of each path at ref (branch, sha, or pr/<n> = the PR's head) in a GitHub repo."""
+    label = ref
+    if ref.startswith("pr/"):
+        pr = _github(f"repos/{repo}/pulls/{ref[3:]}")
+        if not pr:
+            raise SystemExit(f"cannot read PR {ref[3:]} of {repo}")
+        repo, ref = pr["head"]["repo"]["full_name"], pr["head"]["sha"]
+        label = f"PR #{pr['number']} head {ref[:11]}"
+    commit = _github(f"repos/{repo}/commits/{ref}")
+    if not commit:
+        raise SystemExit(f"cannot resolve {ref} in {repo} (gh auth login, or check the name)")
+    sha = commit["sha"]
+    out = {}
+    for path in paths:
+        meta = _github(f"repos/{repo}/contents/{path}?ref={sha}")
+        out[path] = meta.get("sha") if isinstance(meta, dict) else None
+    return out, f"{repo}@{label} ({sha[:11]}, {commit['commit']['committer']['date'][:10]})"
+
+
 def cmd_check_drift(a):
-    """Compare the sources the kernel profile mirrors with a tt-metal tree (git blob sha1, no git needed)."""
+    """Compare the sources the kernel profile mirrors with a tt-metal tree or a GitHub ref (git blob sha1)."""
     import hashlib
 
     from . import profiles as P
 
     kernel, kid = P.load("kernel", a.kernel)
     blobs = kernel.get("source_blobs", {})
-    changed, missing = [], []
-    for path, want in blobs.get("files", {}).items():
-        f = os.path.join(a.tree, path)
-        if not os.path.exists(f):
-            missing.append(path)
-            continue
-        data = open(f, "rb").read()
-        got = hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
-        if got != want:
-            changed.append(path)
-    out = {"kernel_profile": kid, "pinned_commit": blobs.get("commit"), "tree": a.tree, "changed": changed,
+    files = blobs.get("files", {})
+    if a.ref:
+        got_all, where = _remote_blobs(a.repo, a.ref, list(files))
+    elif a.tree:
+        got_all, where = {}, a.tree
+        for path in files:
+            f = os.path.join(a.tree, path)
+            if os.path.exists(f):
+                data = open(f, "rb").read()
+                got_all[path] = hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+    else:
+        raise SystemExit("give --tree <tt-metal checkout> or --ref <main|branch|sha|pr/N>")
+    changed = [p for p, want in files.items() if got_all.get(p) and got_all[p] != want]
+    missing = [p for p in files if not got_all.get(p)]
+    out = {"kernel_profile": kid, "pinned_commit": blobs.get("commit"), "compared_with": where, "changed": changed,
            "missing": missing, "status": "ok" if not (changed or missing) else "drift"}
     if changed or missing:
         out["advice"] = ("the mirrored code moved: re-read the changed files, update qperf/rule.py, constraints.py or "
@@ -230,7 +274,9 @@ def main(argv=None):
     b.add_argument("--repeat", type=int, default=20)
     b.set_defaults(fn=cmd_bench)
     d = sub.add_parser("check-drift", help="are the sources the model mirrors unchanged in a tt-metal tree?")
-    d.add_argument("--tree", required=True)
+    d.add_argument("--tree", help="a local tt-metal checkout")
+    d.add_argument("--ref", help="GitHub ref instead of a checkout: main, a branch, a sha, or pr/<number>")
+    d.add_argument("--repo", default="tenstorrent/tt-metal")
     d.add_argument("--kernel", default="binary-ng-native")
     d.set_defaults(fn=cmd_check_drift)
     pr = sub.add_parser("profiles")
