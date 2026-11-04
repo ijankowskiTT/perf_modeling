@@ -893,135 +893,135 @@
    "source": "profiler: median kernel start"
   },
   "utzs.rd_cpb": {
-   "value": 0.00172399,
-   "low": 0.00163779,
-   "high": 0.00181019,
+   "value": 0.0104283,
+   "low": 0.00990686,
+   "high": 0.0109497,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.wr_cpb": {
-   "value": 0.0101095,
-   "low": 0.00960405,
-   "high": 0.010615,
+   "value": 0.00668485,
+   "low": 0.00635061,
+   "high": 0.00701909,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.rd_setup": {
-   "value": 43.2438,
-   "low": 41.0816,
-   "high": 45.406,
+   "value": 22.3738,
+   "low": 21.2551,
+   "high": 23.4925,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.wr_setup": {
-   "value": 1206.27,
-   "low": 1145.95,
-   "high": 1266.58,
+   "value": 535.272,
+   "low": 508.508,
+   "high": 562.035,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.rd_fixed": {
-   "value": 39.8586,
-   "low": 37.8657,
-   "high": 41.8515,
+   "value": 22.7845,
+   "low": 21.6453,
+   "high": 23.9238,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.rd_issue": {
-   "value": 35.1552,
-   "low": 33.3974,
-   "high": 36.9129,
+   "value": 32.7824,
+   "low": 31.1433,
+   "high": 34.4215,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.rd_first": {
-   "value": 43.2438,
-   "low": 41.0816,
-   "high": 45.406,
+   "value": 22.3738,
+   "low": 21.2551,
+   "high": 23.4925,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.rd_tail": {
-   "value": 378.116,
-   "low": 359.21,
-   "high": 397.022,
+   "value": 849.177,
+   "low": 806.719,
+   "high": 891.636,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.um_fixed": {
-   "value": 104.722,
-   "low": 99.4861,
-   "high": 109.958,
+   "value": 1.31338,
+   "low": 1.24771,
+   "high": 1.37905,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.um_per_tile": {
-   "value": 59.0139,
-   "low": 56.0632,
-   "high": 61.9646,
+   "value": 41.6631,
+   "low": 39.5799,
+   "high": 43.7462,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.pk_fixed": {
-   "value": 0.0045164,
-   "low": 0.00429058,
-   "high": 0.00474222,
+   "value": 49.0356,
+   "low": 46.5838,
+   "high": 51.4874,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.pk_per_tile": {
-   "value": 67.1851,
-   "low": 63.8258,
-   "high": 70.5443,
+   "value": 24.4886,
+   "low": 23.2641,
+   "high": 25.713,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.cu_first": {
-   "value": 523.297,
-   "low": 497.132,
-   "high": 549.462,
+   "value": 31.9463,
+   "low": 30.349,
+   "high": 33.5436,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.wr_fixed": {
-   "value": 12.3207,
-   "low": 11.7047,
-   "high": 12.9368,
+   "value": 165.268,
+   "low": 157.004,
+   "high": 173.531,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.wr_issue": {
-   "value": 41.2281,
-   "low": 39.1666,
-   "high": 43.2895,
+   "value": 30.324,
+   "low": 28.8078,
+   "high": 31.8402,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.wr_first": {
-   "value": 0.356137,
-   "low": 0.338331,
-   "high": 0.373944,
+   "value": 0.138056,
+   "low": 0.131153,
+   "high": 0.144959,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.wr_tail": {
-   "value": 103.44,
-   "low": 98.2677,
-   "high": 108.612,
+   "value": 1156.95,
+   "low": 1099.1,
+   "high": 1214.79,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.cu_tail": {
-   "value": 89.4092,
-   "low": 84.9388,
-   "high": 93.8797,
+   "value": 1084.08,
+   "low": 1029.87,
+   "high": 1138.28,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },
   "utzs.drain": {
-   "value": 15.651,
-   "low": 14.8684,
-   "high": 16.4335,
+   "value": 9.32046,
+   "low": 8.85443,
+   "high": 9.78648,
    "class": "measurement-fit",
    "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
   },

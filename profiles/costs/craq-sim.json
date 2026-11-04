@@ -830,133 +830,133 @@
    "low": 0.000101469,
    "high": 0.00011215,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.wr_cpb": {
    "value": 1.30314e-08,
    "low": 1.23798e-08,
    "high": 1.36829e-08,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.rd_setup": {
    "value": 0.00233717,
    "low": 0.00222031,
    "high": 0.00245403,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.wr_setup": {
    "value": 498.49,
    "low": 473.565,
    "high": 523.414,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.rd_fixed": {
    "value": 27.7023,
    "low": 26.3172,
    "high": 29.0874,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.rd_issue": {
    "value": 27.7023,
    "low": 26.3172,
    "high": 29.0874,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.rd_first": {
    "value": 0.00233717,
    "low": 0.00222031,
    "high": 0.00245403,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.rd_tail": {
    "value": 164.546,
    "low": 156.318,
    "high": 172.773,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.um_fixed": {
    "value": 103.173,
    "low": 98.0141,
    "high": 108.331,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.um_per_tile": {
    "value": 0.00921701,
    "low": 0.00875616,
    "high": 0.00967786,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.pk_fixed": {
    "value": 9.55821e-06,
    "low": 9.0803e-06,
    "high": 1.00361e-05,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.pk_per_tile": {
    "value": 8.89605,
    "low": 8.45125,
    "high": 9.34085,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.cu_first": {
    "value": 58.6116,
    "low": 55.681,
    "high": 61.5422,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.wr_fixed": {
    "value": 585.022,
    "low": 555.771,
    "high": 614.273,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.wr_issue": {
    "value": 19.7255,
    "low": 18.7392,
    "high": 20.7117,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.wr_first": {
    "value": 0.0183217,
    "low": 0.0174056,
    "high": 0.0192378,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.wr_tail": {
    "value": 0.471902,
    "low": 0.448307,
    "high": 0.495497,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.cu_tail": {
    "value": 0.0146019,
    "low": 0.0138718,
    "high": 0.015332,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "utzs.drain": {
    "value": 0.00045249,
    "low": 0.000429865,
    "high": 0.000475114,
    "class": "measurement-fit",
-   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+   "source": "fitted on untilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "tvp.start_reader": {
    "value": 668.0,
@@ -2077,6 +2077,13 @@
    "high": 29.5979,
    "class": "measurement-fit",
    "source": "fitted on tilize_with_val_padding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzs.dfb_blocks": {
+   "value": 2,
+   "low": 2,
+   "high": 2,
+   "class": "measurement",
+   "source": "untilize SingleCore on craq-sim behaves as if its DFBs held two blocks (fit 0.9% vs 2.1% with one); ttsim-perf follows the factory's one block"
   }
  },
  "compute_variants": {

@@ -148,7 +148,10 @@ def build(op, cfg, c):
     borrowed = cfg["in_place"] == "borrowed"
     cap_in = cap_out = cfg.get("cap") or wt
     if op == "untilize" and nb > 1 and not cfg.get("cap"):
-        cap_in = cap_out = 2 * wt
+        # MultiCore double-buffers with more than one block; SingleCore's DFBs hold one block (factory), but craq-sim
+        # behaves as if they held two (<p>.dfb_blocks, per profile)
+        blocks = 2 if cfg["factory"] == "MultiCore" else c.get(f"{p}.dfb_blocks", 1)
+        cap_in = cap_out = int(blocks) * wt
     rin = Ring("in", 1, n + 1 if borrowed else cap_in, n)
     rout = Ring("out", 1, n + 1 if borrowed else cap_out, n)
     logs, lat_cr = [TransferLog(), TransferLog()], c.get(f"{p}.credit_latency", 0.0)  # own terms only, not binary_ng's

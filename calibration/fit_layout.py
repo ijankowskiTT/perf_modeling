@@ -206,7 +206,7 @@ def main():
     flags = {}
     if prof_name:
         params = json.load(open(os.path.join(ROOT, "profiles", "costs", prof_name + ".json")))["params"]
-        flags = {k: v["value"] for k, v in params.items() if k in ("noc.barrier_all_kinds",)}
+        flags = {k: v["value"] for k, v in params.items() if k in ("noc.barrier_all_kinds",) or k.endswith(".dfb_blocks")}
     c = {}
     for p in sorted({pre_of(r) for r in rs}):
         fac = fac_of(next(r for r in rs if pre_of(r) == p))
