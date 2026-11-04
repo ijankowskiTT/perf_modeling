@@ -204,6 +204,27 @@ def _remote_blobs(repo, ref, paths):
     return out, f"{repo}@{label} ({sha[:11]}, {commit['commit']['committer']['date'][:10]})"
 
 
+def code_tokens(text):
+    """C/C++ source without comments, #include lines and formatting, as a token list: two versions with equal tokens
+    differ only cosmetically. Conservative: a rename or any code change still differs."""
+    import re
+
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)  # block comments
+    text = re.sub(r"//[^\n]*", " ", text)  # line comments
+    text = re.sub(r"^[ \t]*#[ \t]*include[^\n]*", " ", text, flags=re.M)  # include lines
+    return re.findall(r"\w+|[^\w\s]", text)
+
+
+def _blob_text(repo, sha):
+    """Content of a git blob (by its sha) from GitHub, or None."""
+    import base64
+
+    meta = _github(f"repos/{repo}/git/blobs/{sha}")
+    if not isinstance(meta, dict) or "content" not in meta:
+        return None
+    return base64.b64decode(meta["content"]).decode("utf-8", "replace")
+
+
 def cmd_check_drift(a):
     """Compare the sources the kernel profile mirrors with a tt-metal tree or a GitHub ref (git blob sha1)."""
     import hashlib
@@ -226,8 +247,21 @@ def cmd_check_drift(a):
         raise SystemExit("give --tree <tt-metal checkout> or --ref <main|branch|sha|pr/N>")
     changed = [p for p, want in files.items() if got_all.get(p) and got_all[p] != want]
     missing = [p for p in files if not got_all.get(p)]
+    # Changes that are only comments, includes or formatting do not change the schedule the model mirrors.
+    cosmetic = []
+    for path in changed:
+        old = _blob_text(a.repo, files[path])
+        if a.ref:
+            new = _blob_text(a.repo, got_all[path])
+        else:
+            new = open(os.path.join(a.tree, path), encoding="utf-8", errors="replace").read()
+        if old is not None and new is not None and code_tokens(old) == code_tokens(new):
+            cosmetic.append(path)
+    changed = [p for p in changed if p not in cosmetic]
     out = {"kernel_profile": kid, "pinned_commit": blobs.get("commit"), "compared_with": where, "changed": changed,
-           "missing": missing, "status": "ok" if not (changed or missing) else "drift"}
+           "cosmetic_changes": cosmetic, "missing": missing, "status": "ok" if not (changed or missing) else "drift"}
+    if cosmetic and not (changed or missing):
+        out["note"] = "only comments, includes or formatting changed: the model still matches this code"
     if changed or missing:
         out["advice"] = ("the mirrored code moved: re-read the changed files, update qperf/rule.py, constraints.py or "
                          "pipeline.py if the schedule or rule changed, then recalibrate (docs/CALIBRATION.md)")

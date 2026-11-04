@@ -60,3 +60,13 @@ def test_check_drift_detects_a_changed_source(tmp_path):
     first.write_bytes(first.read_bytes() + b"// edit\n")
     out = run()
     assert out.returncode == 3 and json.loads(out.stdout)["changed"] == [next(iter(files))]
+
+
+def test_cosmetic_changes_are_recognized():
+    from qperf.cli import code_tokens as t
+
+    a = '#include "x.h"\nint f(int a) { // add\n  return a+1; /* c */ }\n'
+    b = '#include <y.hpp>\n#include "x.h"\n\nint f( int a )\n{\n    return a + 1;\n}\n'
+    assert t(a) == t(b)  # includes, comments and formatting only
+    assert t(a) != t("int f(int b) { return b+1; }")  # a rename is a real change
+    assert t(a) != t("int f(int a) { return a+2; }")
