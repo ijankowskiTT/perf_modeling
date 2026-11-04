@@ -56,6 +56,9 @@ def _noc(c, p, kind, place, nbytes):
         gap += nbytes * c.get(f"{p}.{d}_cpb_l1", 0.0)
         lat = c.get(f"{p}.{d}_lat_l1", 0.0)
         svc = c.get(f"{p}.{d}_svc_l1", 0.0)  # per-request service in the core's shared L1 completion queue
+        share = c.get(f"{p}.l1_share_bw", 0.0)  # fair share of the global L1 network among the cores moving L1 data
+        if share:
+            gap = max(gap, nbytes * c.get("_active_l1_cores", 1) / share)
     return lat, gap, svc, bool(lat or gap or svc)
 
 
@@ -496,6 +499,9 @@ def estimate(op, H, W, costs, dtype="bf16", mem="dram", multicore=True, trace=0)
     factory, loads = plan(op, H, W, dtype, mem, multicore)
     for cfg, _ in loads:
         cfg["factory"] = factory
+    active = sum(n for cfg, n in loads if "l1" in (cfg.get("in_place"), cfg.get("out_place")))
+    if active:
+        costs = dict(costs, _active_l1_cores=active)
     results = [(cfg, cores, run(build(op, cfg, costs), trace)) for cfg, cores in loads if cfg["blocks"]]
     span = max(r["makespan"] for _, _, r in results)
     out = {"factory": factory, "span": span, "loads": results}

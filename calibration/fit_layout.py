@@ -227,14 +227,20 @@ def main():
         cf.update({f"{p}.start_{k}": statistics.median(v) for k, v in starts.items()})
         cf.update({f"{p}.{k}": v for k, v in INIT.items()})
         keys = keys_for(op0, fac)
-        def in_l1(r):  # an operand moved over the NoC from / to L1 (the plan's placements, not the mem string)
+        def l1_sides(r):  # which directions move data over the NoC from / to L1 (the plan's placements)
             cfg = plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[1][0][0]
-            return "l1" in (cfg["in_place"], cfg["out_place"])
+            return cfg["in_place"] == "l1", cfg["out_place"] == "l1"
 
-        if any(in_l1(r) for r in fs):  # L1 transfer terms only where the runs can identify them
-            keys += ["rd_cpb_l1", "wr_cpb_l1", "rd_lat_l1", "wr_lat_l1", "rd_svc_l1", "wr_svc_l1", "l1_gbw"]
-            cf.update({f"{p}.rd_cpb_l1": 0.01, f"{p}.wr_cpb_l1": 0.01, f"{p}.rd_lat_l1": 50.0, f"{p}.wr_lat_l1": 50.0,
-                       f"{p}.rd_svc_l1": 20.0, f"{p}.wr_svc_l1": 20.0, f"{p}.l1_gbw": 500.0})
+        rd_l1 = any(l1_sides(r)[0] for r in fs)
+        wr_l1 = any(l1_sides(r)[1] for r in fs)
+        if rd_l1 or wr_l1:  # L1 transfer terms only where the runs can identify them
+            for d, on in (("rd", rd_l1), ("wr", wr_l1)):
+                if on:
+                    keys += [f"{d}_cpb_l1", f"{d}_lat_l1", f"{d}_svc_l1"]
+                    cf.update({f"{p}.{d}_cpb_l1": 0.01, f"{p}.{d}_lat_l1": 50.0, f"{p}.{d}_svc_l1": 20.0})
+            # global L1 network: a hard bound plus a fair share per core moving L1 data (gradual contention)
+            keys += ["l1_gbw", "l1_share_bw"]
+            cf.update({f"{p}.l1_gbw": 500.0, f"{p}.l1_share_bw": 500.0})
         cf = fit(fs, cf, [f"{p}.{k}" for k in keys])
         print(f"{op0} {fac} ({p}) on {a.sim}: {len(fs)} fit runs, {len(hs)} holdout ({a.holdout})")
         print("  " + ", ".join(f"{k.split('.')[1]}={v:.1f}" for k, v in cf.items()))
