@@ -1,0 +1,415 @@
+{
+ "i2sr.start_reader": {
+  "value": 255.0,
+  "low": 242.25,
+  "high": 267.75,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "i2sr.start_compute": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "i2sr.start_writer": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "i2sr.rd_cpb": {
+  "value": 0.00716161,
+  "low": 0.00680353,
+  "high": 0.00751969,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.rd_setup": {
+  "value": 346.034,
+  "low": 328.732,
+  "high": 363.335,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.wr_setup": {
+  "value": 1322.24,
+  "low": 1256.13,
+  "high": 1388.35,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.rd_fixed": {
+  "value": 346.034,
+  "low": 328.732,
+  "high": 363.335,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.rd_issue": {
+  "value": 29.2261,
+  "low": 27.7648,
+  "high": 30.6874,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.rd_first": {
+  "value": 346.034,
+  "low": 328.732,
+  "high": 363.335,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.rd_tail": {
+  "value": 303.632,
+  "low": 288.45,
+  "high": 318.813,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.wr_fixed": {
+  "value": 268.454,
+  "low": 255.031,
+  "high": 281.877,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.wr_tail": {
+  "value": 246.522,
+  "low": 234.196,
+  "high": 258.848,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.drain": {
+  "value": 5.58196,
+  "low": 5.30286,
+  "high": 5.86106,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.rd_cpb_l1": {
+  "value": 0.00920751,
+  "low": 0.00874713,
+  "high": 0.00966788,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.wr_cpb_l1": {
+  "value": 0.170086,
+  "low": 0.161582,
+  "high": 0.17859,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.rd_lat_l1": {
+  "value": 158.485,
+  "low": 150.56,
+  "high": 166.409,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.wr_lat_l1": {
+  "value": 500.0,
+  "low": 475.0,
+  "high": 525.0,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.rd_svc_l1": {
+  "value": 30.7554,
+  "low": 29.2176,
+  "high": 32.2932,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.wr_svc_l1": {
+  "value": 500.0,
+  "low": 475.0,
+  "high": 525.0,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sr.l1_gbw": {
+  "value": 500.0,
+  "low": 475.0,
+  "high": 525.0,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.start_reader": {
+  "value": 255.0,
+  "low": 242.25,
+  "high": 267.75,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "i2sru.start_compute": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "i2sru.start_writer": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "i2sru.rd_cpb": {
+  "value": 0.00993708,
+  "low": 0.00944022,
+  "high": 0.0104339,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.rd_setup": {
+  "value": 605.867,
+  "low": 575.574,
+  "high": 636.16,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.wr_setup": {
+  "value": 1435.68,
+  "low": 1363.89,
+  "high": 1507.46,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.rd_fixed": {
+  "value": 0.765629,
+  "low": 0.727348,
+  "high": 0.803911,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.rd_issue": {
+  "value": 86.5799,
+  "low": 82.2509,
+  "high": 90.9089,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.rd_first": {
+  "value": 0.542714,
+  "low": 0.515578,
+  "high": 0.56985,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.rd_tail": {
+  "value": 381.645,
+  "low": 362.563,
+  "high": 400.727,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.wr_fixed": {
+  "value": 877.026,
+  "low": 833.175,
+  "high": 920.877,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.wr_tail": {
+  "value": 396.166,
+  "low": 376.358,
+  "high": 415.975,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.drain": {
+  "value": 1.76942,
+  "low": 1.68095,
+  "high": 1.85789,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.rd_cpb_l1": {
+  "value": 0.0129116,
+  "low": 0.012266,
+  "high": 0.0135571,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.wr_cpb_l1": {
+  "value": 0.0703894,
+  "low": 0.0668699,
+  "high": 0.0739089,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.rd_lat_l1": {
+  "value": 225.284,
+  "low": 214.02,
+  "high": 236.549,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.wr_lat_l1": {
+  "value": 50.0,
+  "low": 47.5,
+  "high": 52.5,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.rd_svc_l1": {
+  "value": 20.0,
+  "low": 19.0,
+  "high": 21.0,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.wr_svc_l1": {
+  "value": 20.0,
+  "low": 19.0,
+  "high": 21.0,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "i2sru.l1_gbw": {
+  "value": 500.0,
+  "low": 475.0,
+  "high": 525.0,
+  "class": "measurement-fit",
+  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.start_reader": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "s2ir.start_compute": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "s2ir.start_writer": {
+  "value": 261.0,
+  "low": 247.95,
+  "high": 274.05,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "s2ir.wr_cpb": {
+  "value": 0.000275932,
+  "low": 0.000262135,
+  "high": 0.000289728,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.rd_setup": {
+  "value": 560.121,
+  "low": 532.115,
+  "high": 588.127,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.wr_setup": {
+  "value": 845.549,
+  "low": 803.271,
+  "high": 887.826,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.rd_tail": {
+  "value": 340.523,
+  "low": 323.497,
+  "high": 357.55,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.wr_fixed": {
+  "value": 0.0238687,
+  "low": 0.0226753,
+  "high": 0.0250622,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.wr_issue": {
+  "value": 30.2952,
+  "low": 28.7804,
+  "high": 31.8099,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.wr_first": {
+  "value": 0.0238687,
+  "low": 0.0226753,
+  "high": 0.0250622,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.wr_tail": {
+  "value": 524.633,
+  "low": 498.401,
+  "high": 550.865,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.drain": {
+  "value": 2.6788,
+  "low": 2.54486,
+  "high": 2.81274,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.rd_cpb_l1": {
+  "value": 0.126973,
+  "low": 0.120624,
+  "high": 0.133321,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.wr_cpb_l1": {
+  "value": 0.0158821,
+  "low": 0.015088,
+  "high": 0.0166762,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.rd_lat_l1": {
+  "value": 4975.0,
+  "low": 4726.25,
+  "high": 5223.75,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.wr_lat_l1": {
+  "value": 155.408,
+  "low": 147.637,
+  "high": 163.178,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.rd_svc_l1": {
+  "value": 500.0,
+  "low": 475.0,
+  "high": 525.0,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.wr_svc_l1": {
+  "value": 31.7854,
+  "low": 30.1961,
+  "high": 33.3746,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ },
+ "s2ir.l1_gbw": {
+  "value": 500.0,
+  "low": 475.0,
+  "high": 525.0,
+  "class": "measurement-fit",
+  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+ }
+}

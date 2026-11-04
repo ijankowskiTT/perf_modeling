@@ -4,7 +4,8 @@
 #       sharded_to_interleaved | move
 #   mem: dram | l1 (interleaved, input and output) | hs (height-sharded over the grid, L1; tilize/untilize only)
 #        sharding ops: <hs|ws|bs><cores>[d|l], e.g. hs8 = height-sharded over 8 cores (L1), interleaved side in DRAM
-#        (suffix l: interleaved side in L1); bs needs a square core count (2x2, 3x3, ...)
+#        (suffix l: interleaved side in L1); bs needs a square core count (2x2, 3x3, ...); a trailing r = ROW_MAJOR
+#        tensors (e.g. hs8r, ws4lr): shard shape ceil(H/n) x W etc. in elements, the last shard may be partial
 #   multicore: 1 | 0 (use_multicore)
 # The record keeps every core's span (the op ends with its slowest core) and the kernel files the program used,
 # so the factory is read from the program, not inferred.
@@ -33,26 +34,32 @@ try:
     Q = ttnn.experimental.quasar
     if op in ("interleaved_to_sharded", "sharded_to_interleaved"):
         kind, rest = mem[:2], mem[2:]
+        rm = rest.endswith("r")  # ROW_MAJOR tensors: shard shapes in elements, uneven last shards allowed
+        rest = rest.rstrip("r")
         side = ttnn.L1_MEMORY_CONFIG if rest.endswith("l") else ttnn.DRAM_MEMORY_CONFIG
         n = int(rest.rstrip("dl"))
         g = device.compute_with_storage_grid_size()
+        div = (lambda a, b: -(-a // b)) if rm else (lambda a, b: a // b)  # ROW_MAJOR: ceil, the last shard partial
+        # ROW_MAJOR shard rows must be whole 16 B (the ops' L1 page alignment check): round a split width up
+        wdiv = (lambda a, b: -(-div(a, b) * x.element_size() // 16) * 16 // x.element_size()) if rm else div
         if kind == "bs":
             k = int(round(n ** 0.5))
             grid = ttnn.CoreGrid(y=k, x=k)
-            strategy, shard = ttnn.ShardStrategy.BLOCK, (H // k, W // k)
+            strategy, shard = ttnn.ShardStrategy.BLOCK, (div(H, k), wdiv(W, k))
         else:
             grid = ttnn.num_cores_to_corerangeset(n, g, row_wise=True)
             strategy = ttnn.ShardStrategy.HEIGHT if kind == "hs" else ttnn.ShardStrategy.WIDTH
-            shard = (H // n, W) if kind == "hs" else (H, W // n)
+            shard = (div(H, n), W) if kind == "hs" else (H, wdiv(W, n))
         shcfg = ttnn.create_sharded_memory_config(shard, core_grid=grid, strategy=strategy,
                                                   use_height_and_width_as_shard_shape=True)
+        lay = ttnn.ROW_MAJOR_LAYOUT if rm else ttnn.TILE_LAYOUT
         if op == "interleaved_to_sharded":
-            t = ttnn.from_torch(x, dtype=dt, layout=ttnn.TILE_LAYOUT, device=device, memory_config=side)
+            t = ttnn.from_torch(x, dtype=dt, layout=lay, device=device, memory_config=side)
             out = Q.interleaved_to_sharded(t, shcfg)
         else:
-            t = ttnn.from_torch(x, dtype=dt, layout=ttnn.TILE_LAYOUT, device=device, memory_config=shcfg)
+            t = ttnn.from_torch(x, dtype=dt, layout=lay, device=device, memory_config=shcfg)
             out = Q.sharded_to_interleaved(t, side)
-        got = ttnn.to_torch(out).float()
+        got = ttnn.to_torch(out)[..., :H, :W].float()
     elif op == "move":  # TILE, interleaved, same memory config in and out (non-overlapping buffers: page copy)
         t = ttnn.from_torch(x, dtype=dt, layout=ttnn.TILE_LAYOUT, device=device, memory_config=memcfg)
         out = Q.move(t, memory_config=memcfg)

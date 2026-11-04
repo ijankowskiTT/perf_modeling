@@ -139,6 +139,14 @@
               "minimum": 1
             }
           }
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "tile",
+            "row_major"
+          ],
+          "description": "interleaved_to_sharded / sharded_to_interleaved: tensor layout (default tile, even tile shards; row_major: sticks, shard ceil(H/n) x W, H x ceil(W/n) rounded up to 16 B, or ceil(H/k) x ceil(W/k), the last shard may be partial)"
         }
       }
     },

@@ -75,9 +75,13 @@ def _workload(w, knobs):
             raise LayoutError("invalid", f"{w['op']}: placements.a is the interleaved side, dram or l1")
         if strategy == "block" and math.isqrt(cores) ** 2 != cores:
             raise LayoutError("unsupported", "block sharding is modeled on a square core grid (4, 9, 16, ...)")
-        mem = {"height": "hs", "width": "ws", "block": "bs"}[strategy] + str(cores) + ("l" if place == "l1" else "")
+        layout = w.get("layout", "tile")  # tensor layout: tile (even tile shards) | row_major (sticks; last shard may
+        if layout not in ("tile", "row_major"):  # be partial)
+            raise LayoutError("invalid", f"{w['op']}: workload.layout is tile or row_major")
+        mem = {"height": "hs", "width": "ws", "block": "bs"}[strategy] + str(cores) + ("l" if place == "l1" else "") + \
+            ("r" if layout == "row_major" else "")
         return {"op": w["op"], "dtype": w.get("dtype", "bf16"), "H": rows, "W": W, "mem": mem, "placement": place,
-                "shard": f"{strategy} x{cores}", "use_multicore": True}
+                "shard": f"{strategy} x{cores}" + (", row_major" if layout == "row_major" else ""), "use_multicore": True}
     return {"op": w["op"], "dtype": w.get("dtype", "bf16"), "H": rows, "W": W, "mem": MEM_OF[place],
             "placement": place, "use_multicore": knobs.get("use_multicore", True)}
 

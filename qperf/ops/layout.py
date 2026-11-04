@@ -66,15 +66,44 @@ def _build_shard_move(op, cfg, c, p):
     """interleaved_to_sharded / sharded_to_interleaved (TILE, L1 shard borrowed): only the interleaved side moves data.
     i2s reader_unary_sharded_blocks_interleaved_start_id: reserve(shard), shard tile reads with a barrier every `thr`
     reads and one at the end, push(shard); writer_unary_sharded: wait + pop. s2i reader_unary_sharded: push(shard);
-    writer_unary_sharded_blocks_interleaved_start_id: wait(shard), one write per tile, one barrier, pop(shard)."""
-    n, elem = cfg["tiles"], cfg["elem"]
+    writer_unary_sharded_blocks_interleaved_start_id: wait(shard), one write per tile, one barrier, pop(shard).
+
+    ROW_MAJOR (cfg["rm"]): a DFB entry is one row (stick) of the shard, `rows` x `width` bytes on this core (clipped on
+    the last shards).
+    i2s reader_unary_stick_layout_sharded_blocks_interleaved_start_id: reserve(rows); aligned (source in L1, or DRAM
+      with the core's width offset and align(unit, 16) both multiples of 64): one read of `width` bytes per row, one
+      barrier, push(rows). Unaligned: per row a TRID-tagged read source -> scratch of `abytes` (width + offset into the
+      64 B-aligned source window), then a local loopback read scratch -> shard of `width` bytes (an L1 NoC read); up to
+      4 TRID slots in flight, each polled until flushed; push(rows). writer_unary_sharded: wait + pop.
+    s2i reader_unary_sharded: push(rows); writer_unary_stick_layout_sharded_blocks_interleaved_start_id: wait(shard),
+      one write of `width` bytes per row, one barrier, pop."""
+    rm = cfg.get("rm", False)
+    n, elem = (cfg["rows"] if rm else cfg["tiles"]), cfg["elem"]
     tile_bytes = TILE * TILE * elem
     ring = Ring("shard", 1, n + 1, n)
     allt = list(range(n))
     logs, lat_cr = [TransferLog(), TransferLog()], 0.0
     st_r = ThreadStats("reader", 0, start=c[f"{p}.start_reader"])
     st_w = ThreadStats("writer", 0, start=c[f"{p}.start_writer"])
-    if op == "interleaved_to_sharded":
+    if rm and op == "interleaved_to_sharded":
+        rd = [("busy", c.get(f"{p}.rd_setup", 0.0), True), ("wait", "space", ring, allt, True)]
+        lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], cfg["abytes"])
+        if cfg["aligned"]:
+            groups, inflight = [(n, lat, gap, svc, "rd")], 0
+        else:
+            # issue order of the TRID loop: 4 source reads, then each slot's loopback once its source read is flushed,
+            # then the slot's next source read once its loopback is flushed: max_inflight=4 encodes both dependencies
+            llat, lgap, lsvc, _ = _noc(c, p, "read", "l1", cfg["width"])
+            groups, inflight = [], 4  # num_trids
+            for j in range(0, n, inflight):
+                k = min(inflight, n - j)
+                groups += [(k, lat, gap, svc, "rd"), (k, llat, lgap, lsvc, "rd")]
+        rd += [DMBatch(allt, "space", ring, c[f"{p}.rd_fixed"], 0.0, (c.get(f"{p}.rd_first", 0.0), 0.0, 0),
+                       c[f"{p}.rd_issue"], groups, 0, True, "push", lat_cr, max_inflight=inflight, dma=True),
+               ("wait", "popped", ring, allt, False), ("busy", c.get(f"{p}.rd_tail", 0.0), True)]
+        wr = [("busy", c.get(f"{p}.wr_setup", 0.0), True), ("wait", "data", ring, allt, True),
+              ("busy", c.get(f"{p}.wr_fixed", 0.0), True), ("pop", ring, allt, 0.0), ("busy", c.get(f"{p}.wr_tail", 0.0), True)]
+    elif op == "interleaved_to_sharded":
         lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], tile_bytes)
         thr = cfg["thr"] or n
         rd = [("busy", c.get(f"{p}.rd_setup", 0.0), True), ("wait", "space", ring, allt, True)]
@@ -87,7 +116,7 @@ def _build_shard_move(op, cfg, c, p):
         wr = [("busy", c.get(f"{p}.wr_setup", 0.0), True), ("wait", "data", ring, allt, True),
               ("busy", c.get(f"{p}.wr_fixed", 0.0), True), ("pop", ring, allt, 0.0), ("busy", c.get(f"{p}.wr_tail", 0.0), True)]
     else:
-        lat, gap, svc, timed = _noc(c, p, "write", cfg["out_place"], tile_bytes)
+        lat, gap, svc, timed = _noc(c, p, "write", cfg["out_place"], cfg["width"] if rm else tile_bytes)
         rd = [("busy", c.get(f"{p}.rd_setup", 0.0), True), ("push", ring, allt, 0.0), ("wait", "popped", ring, allt, False),
               ("busy", c.get(f"{p}.rd_tail", 0.0), True)]
         wr = [("busy", c.get(f"{p}.wr_setup", 0.0), True),
@@ -100,10 +129,53 @@ def _build_shard_move(op, cfg, c, p):
 
 
 def shard_plan(op, H, W, elem, mem):
-    """mem = <hs|ws|bs><cores>[d|l]: shard strategy, cores, interleaved side in DRAM (default) or L1. Even shards."""
+    """mem = <hs|ws|bs><cores>[d|l][r]: shard strategy, cores, interleaved side in DRAM (default) or L1. TILE: even
+    shards. Trailing r = ROW_MAJOR: shards as the runner and ttnn build them, ceil(H/n) x W (height), H x ceil(W/n)
+    (width) or ceil(H/k) x ceil(W/k) on a k x k grid (block), in elements; only cores with data run, the last shard row /
+    column is clipped. Per core, as the factory's loop computes it: rows, width bytes, and for i2s from DRAM whether the
+    stick read is aligned (curr_idx_w % 64 == 0 and align(unit, 16) % 64 == 0) or goes through the scratch (then
+    abytes = curr_idx_w % 64 + width). Factories: RowMajor (s2i; i2s with every core aligned), RowMajorUnaligned (i2s
+    with any core unaligned). One load per distinct core, core 0 (a full shard at offset 0) first."""
     kind, rest = mem[:2], mem[2:]
+    rm = rest.endswith("r")
+    rest = rest.rstrip("r")
     side = "l1" if rest.endswith("l") else "dram"
     ncores = int(rest.rstrip("dl"))
+    if rm:
+        i2s = op == "interleaved_to_sharded"
+        if kind == "bs":
+            k = math.isqrt(ncores)
+            if k * k != ncores:
+                raise ValueError("block sharding is modeled on a square core grid (4, 9, 16, ...)")
+            sh, sw = math.ceil(H / k), math.ceil(W / k)
+        else:
+            sh, sw = (math.ceil(H / ncores), W) if kind == "hs" else (H, math.ceil(W / ncores))
+        if kind != "hs":  # the runner rounds a split width up to whole 16 B (the ops' shard page alignment check)
+            sw = -(-sw * elem // 16) * 16 // elem
+        unit, row = sw * elem, W * elem  # shard row bytes, tensor row bytes
+        if unit % 16:
+            raise ValueError("ROW_MAJOR shard rows must be a multiple of 16 B (the ops reject other shard widths)")
+        padded = -(-unit // 16) * 16  # shard row stride in L1 (keep_l1_aligned, L1 alignment 16 B)
+        groups = {}
+        for i in range(math.ceil(H / sh)):
+            for j in range(math.ceil(row / unit)):
+                rows, width, off = min(sh, H - i * sh), min(unit, row - j * unit), j * unit
+                aligned = not i2s or side == "l1" or (off % 64 == 0 and padded % 64 == 0)  # DRAM alignment 64 B
+                key = (rows, width, aligned, width if aligned else off % 64 + width)
+                g = groups.setdefault(key, [0, False])
+                g[0] += 1
+                g[1] = g[1] or (i == 0 and j == 0)
+        loads = []
+        for (rows, width, aligned, abytes), (n, first) in sorted(groups.items(),
+                                                                 key=lambda kv: (not kv[1][1], -kv[0][0] * kv[0][1])):
+            loads.append((dict(rm=True, rows=rows, width=width, aligned=aligned, abytes=abytes, elem=elem, blocks=1,
+                               wt=rows, tiles=rows * width / (TILE * TILE * elem),  # tile units: estimate's L1 bound
+                               in_place=side if i2s else "borrowed",
+                               # the unaligned reader's loopback copy into the shard is an L1 NoC read
+                               out_place=("borrowed" if aligned else "l1") if i2s else side), n))
+        if i2s and not all(cfg["aligned"] for cfg, _ in loads):
+            return "RowMajorUnaligned", loads
+        return "RowMajor", loads
     ht, wt = math.ceil(H / TILE), math.ceil(W / TILE)
     if kind == "hs":
         sh, sw = math.ceil(ht / ncores), wt
@@ -279,7 +351,9 @@ PREFIX = {("tilize", "Default"): "tz", ("tilize", "SingleCore"): "tzs", ("tilize
           ("tilize_with_val_padding", "Default"): "tvp", ("untilize_with_unpadding", "Interleaved"): "uwp",
           ("untilize_with_unpadding", "Block"): "utzb",
           ("tilize_with_val_padding", "SingleCore"): "tvps", ("untilize_with_unpadding", "SingleCore"): "uwps",
-          ("interleaved_to_sharded", "Default"): "i2s", ("sharded_to_interleaved", "Default"): "s2i"}  # BlockInterleaved runs the untilize Block kernels
+          ("interleaved_to_sharded", "Default"): "i2s", ("sharded_to_interleaved", "Default"): "s2i",
+          ("interleaved_to_sharded", "RowMajor"): "i2sr", ("interleaved_to_sharded", "RowMajorUnaligned"): "i2sru",
+          ("sharded_to_interleaved", "RowMajor"): "s2ir"}  # BlockInterleaved runs the untilize Block kernels
 FAMILY = {"tilize": "tilize", "tilize_with_val_padding": "tilize", "untilize": "untilize",
           "untilize_with_unpadding": "untilize", "interleaved_to_sharded": "move", "sharded_to_interleaved": "move"}
 GRID = 32  # Quasar worker cores (clusters) in the compute grid
