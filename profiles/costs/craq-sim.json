@@ -2084,6 +2084,419 @@
    "high": 2,
    "class": "measurement",
    "source": "untilize SingleCore on craq-sim behaves as if its DFBs held two blocks (fit 0.9% vs 2.1% with one); ttsim-perf follows the factory's one block"
+  },
+  "i2sr.start_reader": {
+   "value": 113.0,
+   "low": 107.35,
+   "high": 118.65,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "i2sr.start_compute": {
+   "value": 0.0,
+   "low": 0.0,
+   "high": 0.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "i2sr.start_writer": {
+   "value": 0.0,
+   "low": 0.0,
+   "high": 0.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "i2sr.rd_cpb": {
+   "value": 0.000374687,
+   "low": 0.000355953,
+   "high": 0.000393422,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.rd_setup": {
+   "value": 20.976,
+   "low": 19.9272,
+   "high": 22.0248,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.wr_setup": {
+   "value": 201.875,
+   "low": 191.782,
+   "high": 211.969,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.rd_fixed": {
+   "value": 49.4716,
+   "low": 46.9981,
+   "high": 51.9452,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.rd_issue": {
+   "value": 29.0094,
+   "low": 27.5589,
+   "high": 30.4599,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.rd_first": {
+   "value": 49.4716,
+   "low": 46.9981,
+   "high": 51.9452,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.rd_tail": {
+   "value": 56.8502,
+   "low": 54.0077,
+   "high": 59.6927,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.wr_fixed": {
+   "value": 25.3121,
+   "low": 24.0465,
+   "high": 26.5777,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.wr_tail": {
+   "value": 60.5243,
+   "low": 57.498,
+   "high": 63.5505,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.drain": {
+   "value": 0.0570633,
+   "low": 0.0542102,
+   "high": 0.0599165,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.rd_cpb_l1": {
+   "value": 5.53233e-07,
+   "low": 5.25571e-07,
+   "high": 5.80895e-07,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.wr_cpb_l1": {
+   "value": 0.00010275,
+   "low": 9.76127e-05,
+   "high": 0.000107888,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.rd_lat_l1": {
+   "value": 0.000120731,
+   "low": 0.000114694,
+   "high": 0.000126767,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.wr_lat_l1": {
+   "value": 59.9252,
+   "low": 56.929,
+   "high": 62.9215,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.rd_svc_l1": {
+   "value": 28.7445,
+   "low": 27.3073,
+   "high": 30.1817,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.wr_svc_l1": {
+   "value": 500.0,
+   "low": 475.0,
+   "high": 525.0,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sr.l1_gbw": {
+   "value": 601.742,
+   "low": 571.655,
+   "high": 631.829,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.start_reader": {
+   "value": 113.0,
+   "low": 107.35,
+   "high": 118.65,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "i2sru.start_compute": {
+   "value": 0.0,
+   "low": 0.0,
+   "high": 0.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "i2sru.start_writer": {
+   "value": 0.0,
+   "low": 0.0,
+   "high": 0.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "i2sru.rd_cpb": {
+   "value": 9.96191e-05,
+   "low": 9.46382e-05,
+   "high": 0.0001046,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.rd_setup": {
+   "value": 34.3613,
+   "low": 32.6432,
+   "high": 36.0794,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.wr_setup": {
+   "value": 387.998,
+   "low": 368.598,
+   "high": 407.398,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.rd_fixed": {
+   "value": 34.3613,
+   "low": 32.6432,
+   "high": 36.0794,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.rd_issue": {
+   "value": 60.388,
+   "low": 57.3686,
+   "high": 63.4074,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.rd_first": {
+   "value": 34.3613,
+   "low": 32.6432,
+   "high": 36.0794,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.rd_tail": {
+   "value": 67.6236,
+   "low": 64.2424,
+   "high": 71.0048,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.wr_fixed": {
+   "value": 27.9325,
+   "low": 26.5359,
+   "high": 29.3292,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.wr_tail": {
+   "value": 67.6561,
+   "low": 64.2733,
+   "high": 71.0389,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.drain": {
+   "value": 9.44615,
+   "low": 8.97384,
+   "high": 9.91846,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.rd_cpb_l1": {
+   "value": 9.96191e-05,
+   "low": 9.46382e-05,
+   "high": 0.0001046,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.wr_cpb_l1": {
+   "value": 0.0616817,
+   "low": 0.0585976,
+   "high": 0.0647658,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.rd_lat_l1": {
+   "value": 34.3613,
+   "low": 32.6432,
+   "high": 36.0794,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.wr_lat_l1": {
+   "value": 500.0,
+   "low": 475.0,
+   "high": 525.0,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.rd_svc_l1": {
+   "value": 57.1573,
+   "low": 54.2995,
+   "high": 60.0152,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.wr_svc_l1": {
+   "value": 500.0,
+   "low": 475.0,
+   "high": 525.0,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "i2sru.l1_gbw": {
+   "value": 500.0,
+   "low": 475.0,
+   "high": 525.0,
+   "class": "measurement-fit",
+   "source": "fitted on interleaved_to_sharded runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.start_reader": {
+   "value": 0.0,
+   "low": 0.0,
+   "high": 0.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "s2ir.start_compute": {
+   "value": 0.0,
+   "low": 0.0,
+   "high": 0.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "s2ir.start_writer": {
+   "value": 17.0,
+   "low": 16.15,
+   "high": 17.85,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "s2ir.wr_cpb": {
+   "value": 0.00105847,
+   "low": 0.00100555,
+   "high": 0.0011114,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.rd_setup": {
+   "value": 100.0,
+   "low": 95.0,
+   "high": 105.0,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.wr_setup": {
+   "value": 115.172,
+   "low": 109.413,
+   "high": 120.93,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.rd_tail": {
+   "value": 27.3893,
+   "low": 26.0199,
+   "high": 28.7588,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.wr_fixed": {
+   "value": 18.1859,
+   "low": 17.2766,
+   "high": 19.0952,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.wr_issue": {
+   "value": 30.0208,
+   "low": 28.5197,
+   "high": 31.5218,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.wr_first": {
+   "value": 20.0415,
+   "low": 19.0395,
+   "high": 21.0436,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.wr_tail": {
+   "value": 67.4518,
+   "low": 64.0792,
+   "high": 70.8244,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.drain": {
+   "value": 0.00343217,
+   "low": 0.00326056,
+   "high": 0.00360377,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.rd_cpb_l1": {
+   "value": 0.102882,
+   "low": 0.0977381,
+   "high": 0.108026,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.wr_cpb_l1": {
+   "value": 2.76501e-08,
+   "low": 2.62676e-08,
+   "high": 2.90326e-08,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.rd_lat_l1": {
+   "value": 1412.2,
+   "low": 1341.59,
+   "high": 1482.82,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.wr_lat_l1": {
+   "value": 0.00310199,
+   "low": 0.00294689,
+   "high": 0.00325709,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.rd_svc_l1": {
+   "value": 20.0,
+   "low": 19.0,
+   "high": 21.0,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.wr_svc_l1": {
+   "value": 20.0,
+   "low": 19.0,
+   "high": 21.0,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "s2ir.l1_gbw": {
+   "value": 544.888,
+   "low": 517.643,
+   "high": 572.132,
+   "class": "measurement-fit",
+   "source": "fitted on sharded_to_interleaved runs (craq-b702fd90), calibration/fit_layout.py"
   }
  },
  "compute_variants": {

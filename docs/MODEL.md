@@ -25,7 +25,9 @@ core share one completion queue and a barrier waits for either kind; many cores 
 a global network bandwidth. The padding variants model the pad fill (DMA zero-fill, or a CPU store loop with a fixed
 cost per padded row); untilize Block / BlockInterleaved split the tensor into S x S-tile squares as the device op does.
 interleaved_to_sharded / sharded_to_interleaved: only the interleaved side moves data (the L1 shard is borrowed), the
-reader batching barriers every `thr` reads as the kernel does.
+reader batching barriers every `thr` reads as the kernel does. ROW_MAJOR: one request per shard row
+(aligned path), or a transaction-ID scratch read plus a local loopback per row with 4 in flight (unaligned DRAM
+source); uneven last shards clipped.
 
 **Pipeline**: reader, compute and writer threads run their kernels' own loops over the DFB's strided tile
 counters with finite rings and a half-sync DST. Per batch: fixed cost, one request per tile, one barrier.

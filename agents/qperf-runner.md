@@ -34,7 +34,8 @@ Request template (only `op` is required in workload):
   tilize_with_val_padding, untilize_with_unpadding, interleaved_to_sharded, sharded_to_interleaved (others: report
   `unsupported`).
 - interleaved_to_sharded / sharded_to_interleaved (TILE): add `"shard":{"strategy":"height"|"width"|"block","cores":N}`;
-  placements.a = the interleaved side (dram | l1). Knobs: `shard_strategy`, `shard_cores`, `input`.
+  placements.a = the interleaved side (dram | l1); `"layout":"row_major"` for ROW_MAJOR tensors (default tile).
+  Knobs: `shard_strategy`, `shard_cores`, `input`.
 - tilize / untilize and the padding variants: `"workload":{"op":"tilize","dtype":"bf16","shape":[1,1,H,W],
   "placements":{"a":"dram"}}`; shape = the logical (unpadded) tensor, the padding variants pad / unpad to the next tile
   multiple; a = the tensor's memory: dram | l1 | borrowed = height-sharded, tilize only. Knobs: `use_multicore` (default true),
