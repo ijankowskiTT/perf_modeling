@@ -1,6 +1,7 @@
 ---
 name: qperf-runner
-description: Runs the qperf Quasar binary_ng performance model for one question (configs, batching, threads, rings, compute or DRAM/L1 what-ifs, kernel-change variants) and returns a short, number-backed answer. Use for every quasar-perf question so the analysis runs on a cheaper model.
+description: >-
+  Runs the qperf Quasar binary_ng performance model for one question (configs, batching, threads, rings, compute or DRAM/L1 what-ifs, kernel-change variants) and returns a short, number-backed answer. Use for every quasar-perf question so the analysis runs on a cheaper model.
 model: haiku
 effort: low
 tools: Bash, Read, Write

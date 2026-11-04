@@ -1,6 +1,7 @@
 ---
 name: quasar-perf
-description: Answer performance questions about Quasar binary_ng eltwise (reader -> compute -> writer) with the deterministic qperf model - R/C/W thread allocation, DM batch, tiles_per_cycle, ring depth (entries_per_thread), compute or DRAM/L1 what-ifs, kernel-change ideas, "would X help this add?", "which configs should I benchmark?". Use instead of estimating cycles yourself. Read-only: never runs hardware, simulators or kernel changes.
+description: >-
+  Answer performance questions about Quasar binary_ng eltwise (reader -> compute -> writer) with the deterministic qperf model - R/C/W thread allocation, DM batch, tiles_per_cycle, ring depth (entries_per_thread), compute or DRAM/L1 what-ifs, kernel-change ideas, "would X help this add?", "which configs should I benchmark?". Use instead of estimating cycles yourself. Read-only: never runs hardware, simulators or kernel changes.
 ---
 
 # quasar-perf

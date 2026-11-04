@@ -1,7 +1,8 @@
 # Model
 
-qperf evaluates the real schedule of one binary_ng Quasar-native program (`kernels_qsr/`, pinned in
-`profiles/kernels/binary-ng-native.json`) against a cost profile.
+qperf evaluates the real schedule of one Quasar program (today binary_ng native, `kernels_qsr/`, pinned in
+`profiles/kernels/binary-ng-native.json`) against a cost profile. Each op is a description in `qperf/ops/`
+that builds threads and rings; one generic engine evaluates them.
 
 **Scope**: no-broadcast tensor-tensor ops, TILE layout, each operand in DRAM, L1 (interleaved) or borrowed
 (resident shard). Calibrated: `add`, `multiply` (bf16). Anything else returns `needs_input` or `unsupported`.
@@ -12,7 +13,8 @@ qperf evaluates the real schedule of one binary_ng Quasar-native program (`kerne
 | Validity | `qperf/constraints.py` | the factory's checks (threads, STRIDED ratio, DST, ring, L1 budget) |
 | Traffic | `qperf/traffic.py` | exact counts of tiles, batches, barriers, NoC requests, bytes |
 | Bounds | `qperf/bounds.py` | per-resource lower bounds |
-| Pipeline | `qperf/pipeline.py` | fixed-schedule recurrence over the thread programs and rings |
+| Op description | `qperf/ops/binary_ng.py` | the kernels' thread programs: DM batches, compute chunks, rings |
+| Engine | `qperf/engine.py` | generic fixed-schedule recurrence over any op description |
 
 **Pipeline**: reader, compute and writer threads run their kernels' own loops over the DFB's strided tile
 counters with finite rings and a half-sync DST. Per batch: fixed cost, one request per tile, one barrier.
