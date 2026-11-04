@@ -1,71 +1,57 @@
 {
  "i2s.f32_l1_conf_cpb": {
-  "value": 0.00018906,
-  "low": 0.000179607,
-  "high": 0.000198513,
+  "value": 1.13206e-08,
+  "low": 1.07545e-08,
+  "high": 1.18866e-08,
   "class": "measurement-fit",
   "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
  },
  "i2s.f32_l1_gbw": {
-  "value": 506.892,
-  "low": 481.547,
-  "high": 532.236,
+  "value": 500.0,
+  "low": 475.0,
+  "high": 525.0,
   "class": "measurement-fit",
   "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
  },
  "i2s.f32_rd_cpb": {
-  "value": 0.00228616,
-  "low": 0.00217185,
-  "high": 0.00240046,
+  "value": 0.00219915,
+  "low": 0.00208919,
+  "high": 0.00230911,
   "class": "measurement-fit",
   "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
  },
  "i2s.f32_rd_cpb_l1": {
-  "value": 0.0105242,
-  "low": 0.00999802,
-  "high": 0.0110504,
-  "class": "measurement-fit",
-  "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
- },
- "i2s.f32_wr_cpb_l1": {
-  "value": 0.199,
-  "low": 0.18905,
-  "high": 0.20895,
+  "value": 0.0152491,
+  "low": 0.0144866,
+  "high": 0.0160115,
   "class": "measurement-fit",
   "source": "fitted on interleaved_to_sharded runs (perf), calibration/fit_layout.py"
  },
  "s2i.f32_l1_conf_cpb": {
-  "value": 0.000606657,
-  "low": 0.000576324,
-  "high": 0.00063699,
+  "value": 0.000211082,
+  "low": 0.000200528,
+  "high": 0.000221636,
   "class": "measurement-fit",
   "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
  },
  "s2i.f32_l1_gbw": {
-  "value": 598.592,
-  "low": 568.663,
-  "high": 628.522,
-  "class": "measurement-fit",
-  "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
- },
- "s2i.f32_rd_cpb_l1": {
-  "value": 0.000934415,
-  "low": 0.000887694,
-  "high": 0.000981135,
+  "value": 584.965,
+  "low": 555.717,
+  "high": 614.213,
   "class": "measurement-fit",
   "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
  },
  "s2i.f32_wr_cpb": {
-  "value": 0.00221645,
-  "low": 0.00210563,
-  "high": 0.00232727,
+  "value": 0.00679229,
+  "low": 0.00645267,
+  "high": 0.0071319,
   "class": "measurement-fit",
   "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
  },
  "s2i.f32_wr_cpb_l1": {
-  "value": 0.0137935,
-  "low": 0.0131038,
-  "high": 0.0144831,
+  "value": 0.0088802,
+  "low": 0.00843619,
+  "high": 0.00932421,
   "class": "measurement-fit",
   "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
  },
@@ -475,62 +461,6 @@
   "class": "measurement-fit",
   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
  },
- "utzs.f32_cu_first": {
-  "value": 611.854,
-  "low": 581.262,
-  "high": 642.447,
-  "class": "measurement-fit",
-  "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
- },
- "utzs.f32_cu_tail": {
-  "value": 250.672,
-  "low": 238.139,
-  "high": 263.206,
-  "class": "measurement-fit",
-  "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
- },
- "utzs.f32_pk_fixed": {
-  "value": 3.9094e-05,
-  "low": 3.71393e-05,
-  "high": 4.10487e-05,
-  "class": "measurement-fit",
-  "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
- },
- "utzs.f32_pk_per_tile": {
-  "value": 35.4169,
-  "low": 33.6461,
-  "high": 37.1878,
-  "class": "measurement-fit",
-  "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
- },
- "utzs.f32_rd_cpb": {
-  "value": 0.00271411,
-  "low": 0.00257841,
-  "high": 0.00284982,
-  "class": "measurement-fit",
-  "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
- },
- "utzs.f32_um_fixed": {
-  "value": 24.5146,
-  "low": 23.2889,
-  "high": 25.7404,
-  "class": "measurement-fit",
-  "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
- },
- "utzs.f32_um_per_tile": {
-  "value": 73.6553,
-  "low": 69.9725,
-  "high": 77.338,
-  "class": "measurement-fit",
-  "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
- },
- "utzs.f32_wr_cpb": {
-  "value": 0.00502974,
-  "low": 0.00477825,
-  "high": 0.00528122,
-  "class": "measurement-fit",
-  "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
- },
  "uwp.f32_cu_first": {
   "value": 0.157832,
   "low": 0.14994,
@@ -656,5 +586,61 @@
   "high": 0.00105086,
   "class": "measurement-fit",
   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+ },
+ "utzs.f32_rd_cpb": {
+  "value": 0.00581966,
+  "low": 0.00552867,
+  "high": 0.00611064,
+  "class": "measurement-fit",
+  "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
+ },
+ "utzs.f32_wr_cpb": {
+  "value": 2.02843e-12,
+  "low": 1.92701e-12,
+  "high": 2.12985e-12,
+  "class": "measurement-fit",
+  "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
+ },
+ "utzs.f32_cu_first": {
+  "value": 2.90576e-11,
+  "low": 2.76047e-11,
+  "high": 3.05105e-11,
+  "class": "measurement-fit",
+  "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
+ },
+ "utzs.f32_cu_tail": {
+  "value": 888.084,
+  "low": 843.679,
+  "high": 932.488,
+  "class": "measurement-fit",
+  "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
+ },
+ "utzs.f32_um_fixed": {
+  "value": 157.395,
+  "low": 149.525,
+  "high": 165.264,
+  "class": "measurement-fit",
+  "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
+ },
+ "utzs.f32_um_per_tile": {
+  "value": 39.6653,
+  "low": 37.682,
+  "high": 41.6486,
+  "class": "measurement-fit",
+  "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
+ },
+ "utzs.f32_pk_fixed": {
+  "value": 59.7522,
+  "low": 56.7646,
+  "high": 62.7398,
+  "class": "measurement-fit",
+  "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
+ },
+ "utzs.f32_pk_per_tile": {
+  "value": 49.6432,
+  "low": 47.161,
+  "high": 52.1253,
+  "class": "measurement-fit",
+  "source": "fitted on untilize runs (perf), calibration/fit_layout.py"
  }
 }

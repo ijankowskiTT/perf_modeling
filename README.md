@@ -75,7 +75,8 @@ Token use per question (`python bench/tokens.py`):
 | `interleaved_to_sharded`, `sharded_to_interleaved` | TILE and ROW_MAJOR; height / width / block; uneven last shards | <=1.8% | <=2.0% |
 | `move` | interleaved, overlapping output (the only path Quasar runs); TILE, ROW_MAJOR | <=0.4% | <=1.5% |
 
-Mean error per factory over all calibration runs (held-out runs within the same bounds; details in
+Data-movement ops: bf16 and fp32 (fp32 within the same bounds, untilize_with_unpadding SingleCore on craq-sim
+2.8%). Mean error per factory over all calibration runs (held-out runs within the same bounds; details in
 [docs/CALIBRATION.md](docs/CALIBRATION.md)). Kernel changes for binary_ng (per-thread barriers, dynamic work queue)
 are hypothetical: no simulator can confirm them.
 
