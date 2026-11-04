@@ -5,7 +5,7 @@
 #     place l (L1) | d (DRAM, sharded over the 2 DRAM banks)
 #   e.g. t_hs8l_hs4l: TILE, height-sharded over 8 L1 cores -> 4 L1 cores; r_ws2d_ws8l: row-major, width-sharded
 #   over the 2 DRAM banks -> 8 L1 cores.
-#   Shards are ceil-divided (TILE: whole tiles); the shard spec is the one qperf.ops.reshard.shard_spec computes.
+#   Shards are ceil-divided (TILE: whole tiles); the shard specs are the ones qperf.ops.reshard.parse_mem computes.
 import os
 import sys
 

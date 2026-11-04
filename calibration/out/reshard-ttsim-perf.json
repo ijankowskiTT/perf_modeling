@@ -1,0 +1,597 @@
+{
+ "rcp.start_reader": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rcp.start_compute": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rcp.start_writer": {
+  "value": 33.0,
+  "low": 31.35,
+  "high": 34.65,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rcp.rd_cpb": {
+  "value": 0.00202716,
+  "low": 0.0019258,
+  "high": 0.00212852,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.wr_cpb": {
+  "value": 0.000218203,
+  "low": 0.000207293,
+  "high": 0.000229113,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.rd_setup": {
+  "value": 100.0,
+  "low": 95.0,
+  "high": 105.0,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.wr_setup": {
+  "value": 860.031,
+  "low": 817.029,
+  "high": 903.032,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.rd_fixed": {
+  "value": 7.11645,
+  "low": 6.76063,
+  "high": 7.47227,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.rd_issue": {
+  "value": 0.0588947,
+  "low": 0.05595,
+  "high": 0.0618395,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.rd_first": {
+  "value": 352.622,
+  "low": 334.991,
+  "high": 370.253,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.rd_tail": {
+  "value": 159.452,
+  "low": 151.479,
+  "high": 167.424,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.wr_fixed": {
+  "value": 12.1139,
+  "low": 11.5082,
+  "high": 12.7196,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.wr_issue": {
+  "value": 80.9191,
+  "low": 76.8732,
+  "high": 84.9651,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.wr_first": {
+  "value": 131.288,
+  "low": 124.723,
+  "high": 137.852,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.wr_tail": {
+  "value": 340.051,
+  "low": 323.049,
+  "high": 357.054,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.drain": {
+  "value": 1.93107,
+  "low": 1.83451,
+  "high": 2.02762,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rcp.wr_bank_mod": {
+  "value": 2.39748,
+  "low": 2.2776,
+  "high": 2.51735,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.start_reader": {
+  "value": 31.0,
+  "low": 29.45,
+  "high": 32.55,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rgen.start_compute": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rgen.start_writer": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rgen.rd_cpb": {
+  "value": 0.0100465,
+  "low": 0.0095442,
+  "high": 0.0105488,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.rd_setup": {
+  "value": 9.66249,
+  "low": 9.17937,
+  "high": 10.1456,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.wr_setup": {
+  "value": 803.453,
+  "low": 763.28,
+  "high": 843.625,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.rd_fixed": {
+  "value": 91.4087,
+  "low": 86.8383,
+  "high": 95.9792,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.rd_issue": {
+  "value": 111.904,
+  "low": 106.308,
+  "high": 117.499,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.rd_first": {
+  "value": 326.035,
+  "low": 309.733,
+  "high": 342.336,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.rd_tail": {
+  "value": 45.6809,
+  "low": 43.3969,
+  "high": 47.965,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.wr_tail": {
+  "value": 23.6201,
+  "low": 22.439,
+  "high": 24.8011,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.drain": {
+  "value": 18.9452,
+  "low": 17.9979,
+  "high": 19.8925,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.rd_lat_l1": {
+  "value": 490.142,
+  "low": 465.635,
+  "high": 514.649,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rgen.rd_svc_l1": {
+  "value": 0.0378009,
+  "low": 0.0359109,
+  "high": 0.0396909,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.start_reader": {
+  "value": 94.0,
+  "low": 89.3,
+  "high": 98.7,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rsh.start_compute": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rsh.start_writer": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rsh.rd_cpb": {
+  "value": 4.28834e-10,
+  "low": 4.07392e-10,
+  "high": 4.50276e-10,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.rd_setup": {
+  "value": 29.1478,
+  "low": 27.6904,
+  "high": 30.6052,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.wr_setup": {
+  "value": 929.127,
+  "low": 882.67,
+  "high": 975.583,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.rd_fixed": {
+  "value": 158.876,
+  "low": 150.933,
+  "high": 166.82,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.rd_issue": {
+  "value": 16.5994,
+  "low": 15.7695,
+  "high": 17.4294,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.rd_first": {
+  "value": 122.881,
+  "low": 116.737,
+  "high": 129.025,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.rd_tail": {
+  "value": 457.521,
+  "low": 434.645,
+  "high": 480.397,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.wr_tail": {
+  "value": 1.97585,
+  "low": 1.87705,
+  "high": 2.07464,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.drain": {
+  "value": 6.63934e-05,
+  "low": 6.30738e-05,
+  "high": 6.97131e-05,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.dram_setup": {
+  "value": 279.752,
+  "low": 265.764,
+  "high": 293.74,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.rd_lat_l1": {
+  "value": 282.493,
+  "low": 268.368,
+  "high": 296.618,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsh.rd_svc_l1": {
+  "value": 4.7046e-12,
+  "low": 4.46937e-12,
+  "high": 4.93983e-12,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rshw.start_reader": {
+  "value": 127.0,
+  "low": 120.65,
+  "high": 133.35,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rshw.start_compute": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rshw.start_writer": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rshw.wr_cpb": {
+  "value": 0.000247571,
+  "low": 0.000235192,
+  "high": 0.00025995,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rshw.rd_setup": {
+  "value": 823.546,
+  "low": 782.369,
+  "high": 864.723,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rshw.wr_setup": {
+  "value": 798.815,
+  "low": 758.874,
+  "high": 838.756,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rshw.rd_tail": {
+  "value": 340.046,
+  "low": 323.044,
+  "high": 357.048,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rshw.wr_fixed": {
+  "value": 149.32,
+  "low": 141.854,
+  "high": 156.786,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rshw.wr_issue": {
+  "value": 18.9997,
+  "low": 18.0497,
+  "high": 19.9497,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rshw.wr_first": {
+  "value": 1.38047e-11,
+  "low": 1.31145e-11,
+  "high": 1.44949e-11,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rshw.wr_tail": {
+  "value": 430.618,
+  "low": 409.087,
+  "high": 452.149,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rshw.drain": {
+  "value": 0.0641602,
+  "low": 0.0609522,
+  "high": 0.0673682,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.start_reader": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rsw.start_compute": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rsw.start_writer": {
+  "value": 10.0,
+  "low": 9.5,
+  "high": 10.5,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rsw.rd_cpb": {
+  "value": 8.1776e-05,
+  "low": 7.76872e-05,
+  "high": 8.58648e-05,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.rd_setup": {
+  "value": 332.608,
+  "low": 315.978,
+  "high": 349.239,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.wr_setup": {
+  "value": 482.929,
+  "low": 458.782,
+  "high": 507.075,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.rd_fixed": {
+  "value": 0.00662299,
+  "low": 0.00629184,
+  "high": 0.00695414,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.rd_issue": {
+  "value": 192.957,
+  "low": 183.309,
+  "high": 202.605,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.rd_first": {
+  "value": 127.273,
+  "low": 120.91,
+  "high": 133.637,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.rd_tail": {
+  "value": 225.633,
+  "low": 214.352,
+  "high": 236.915,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.wr_tail": {
+  "value": 129.106,
+  "low": 122.651,
+  "high": 135.562,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.drain": {
+  "value": 52.2755,
+  "low": 49.6617,
+  "high": 54.8892,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.dram_setup": {
+  "value": 284.616,
+  "low": 270.385,
+  "high": 298.847,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.rd_lat_l1": {
+  "value": 231.771,
+  "low": 220.183,
+  "high": 243.36,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsw.rd_svc_l1": {
+  "value": 0.183947,
+  "low": 0.17475,
+  "high": 0.193144,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsww.start_reader": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rsww.start_compute": {
+  "value": 0.0,
+  "low": 0.0,
+  "high": 0.0,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rsww.start_writer": {
+  "value": 57.0,
+  "low": 54.15,
+  "high": 59.85,
+  "class": "measurement",
+  "source": "profiler: median kernel start"
+ },
+ "rsww.wr_cpb": {
+  "value": 1.24069e-07,
+  "low": 1.17865e-07,
+  "high": 1.30272e-07,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsww.rd_setup": {
+  "value": 488.666,
+  "low": 464.233,
+  "high": 513.099,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsww.wr_setup": {
+  "value": 728.613,
+  "low": 692.182,
+  "high": 765.044,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsww.rd_tail": {
+  "value": 412.054,
+  "low": 391.451,
+  "high": 432.657,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsww.wr_fixed": {
+  "value": 2.40727,
+  "low": 2.28691,
+  "high": 2.52764,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsww.wr_issue": {
+  "value": 161.845,
+  "low": 153.752,
+  "high": 169.937,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsww.wr_first": {
+  "value": 177.548,
+  "low": 168.671,
+  "high": 186.426,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsww.wr_tail": {
+  "value": 166.34,
+  "low": 158.023,
+  "high": 174.657,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ },
+ "rsww.drain": {
+  "value": 7.2784,
+  "low": 6.91448,
+  "high": 7.64233,
+  "class": "measurement-fit",
+  "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+ }
+}

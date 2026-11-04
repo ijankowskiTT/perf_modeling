@@ -29,12 +29,17 @@ Mirrored kernels (both DM kernels of a core run the same source; k0 = "reader" c
                   reserve(1) / read / barrier / push, wait / write / barrier / pop on a 1-entry DFB.
   CopyLocal       nd_reshard_copy_local_shards (is_reader): shard k on core k's first kernel (the second kernel's
                   shard k+N does not exist); per page one write per transfer_size piece and a flush; one barrier.
+                  Not modeled yet (plan raises): its output is wrong on both simulators. Generic from a DRAM input
+                  is not modeled either (neither simulator runs it); unaligned HEIGHT->HEIGHT rows (scratch path)
+                  and Generic with differing page sizes (row-major width changes) neither.
 
 Cost keys (<p>.*, cycles; p per factory, PREFIX): start_{reader,writer}; {rd,wr}_setup (prologue before the first
-request), {rd,wr}_fixed (per segment: vararg loads, address set-up), {rd,wr}_issue (per NoC request),
-{rd,wr}_cpb (DMA cycles per byte), {rd,wr}_tail (epilogue after the barrier), drain; L1 terms {rd,wr}_{cpb,lat,svc}_l1
-where a profile times L1 transfers. rd_* belong to the kernel source that reads, wr_* to the one that writes; the
-two DM threads of a core run one source, so k0 pays rd_setup / rd_tail and k1 wr_setup / wr_tail of it.
+request), {rd,wr}_first (once per kernel that has work), {rd,wr}_fixed (per segment / range: vararg loads, address
+set-up), {rd,wr}_issue (per NoC request), {rd,wr}_cpb (DMA cycles per byte), {rd,wr}_tail (epilogue after the
+barrier), drain, dram_setup (both kernels, DRAM input), wr_bank_mod (CopyPages: writer per page with 2 output banks);
+rd_{lat,svc}_l1 where a profile times L1 transfers (ttsim-perf), with the NoC port / link rates rd_{port,link}_cpb
+(default NOC_CPB) stretched by _contention. rd_* belong to the kernel source that reads, wr_* to the one that writes;
+the two DM threads of a core run one source, so k0 pays rd_setup / rd_tail and k1 wr_setup / wr_tail of it.
 """
 
 from __future__ import annotations
