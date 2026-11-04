@@ -19,6 +19,8 @@ Cost keys (cycles; profiles/costs/*.json), one prefix per factory because each r
 <p>.pk_{fixed,per_tile} (pack); <p>.cu_{first,tail}, <p>.pk_offset,
 <p>.wr_{setup,fixed,issue,first,tail}, <p>.{rd,wr}_cpb (cycles per byte moved), <p>.drain; p = tz (tilize Default), tzs (tilize SingleCore), tzh (tilize Sharded), utz (untilize MultiCore),
 utzs (untilize SingleCore). *_setup is a DM kernel's prologue before its first DFB wait, *_tail its cost after the last batch.
+fp32: the same kernels and loops (tilize_block per tile-row, untilize sub-blocks of <= 4 tiles: fp32 DEST holds half
+the tiles), unpacked straight to DEST; <p>.f32_<term> overrides <p>.<term> for fp32 (dtype_costs).
 """
 
 from __future__ import annotations
@@ -88,6 +90,9 @@ def _build_shard_move(op, cfg, c, p):
     logs, lat_cr = [TransferLog(), TransferLog()], 0.0
     st_r = ThreadStats("reader", 0, start=c[f"{p}.start_reader"])
     st_w = ThreadStats("writer", 0, start=c[f"{p}.start_writer"])
+    # interleaved pages in L1: cores that walk their shards in lockstep and start on the same bank queue on it
+    # (<p>.l1_conf_cpb: extra cycles per byte per other core on the bank; 0 where not fitted)
+    conf = tile_bytes * c.get(f"{p}.l1_conf_cpb", 0.0) * (cfg.get("bank_conflict", 1) - 1)
     if rm and op == "interleaved_to_sharded":
         rd = [("busy", c.get(f"{p}.rd_setup", 0.0), True), ("wait", "space", ring, allt, True)]
         lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], cfg["abytes"])
@@ -108,6 +113,7 @@ def _build_shard_move(op, cfg, c, p):
               ("busy", c.get(f"{p}.wr_fixed", 0.0), True), ("pop", ring, allt, 0.0), ("busy", c.get(f"{p}.wr_tail", 0.0), True)]
     elif op == "interleaved_to_sharded":
         lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], tile_bytes)
+        gap += conf if cfg["in_place"] == "l1" else 0.0
         thr = cfg["thr"] or n
         rd = [("busy", c.get(f"{p}.rd_setup", 0.0), True), ("wait", "space", ring, allt, True)]
         for j in range(0, n, thr):
@@ -120,6 +126,7 @@ def _build_shard_move(op, cfg, c, p):
               ("busy", c.get(f"{p}.wr_fixed", 0.0), True), ("pop", ring, allt, 0.0), ("busy", c.get(f"{p}.wr_tail", 0.0), True)]
     else:
         lat, gap, svc, timed = _noc(c, p, "write", cfg["out_place"], cfg["width"] if rm else tile_bytes)
+        gap += conf if cfg["out_place"] == "l1" else 0.0
         rd = [("busy", c.get(f"{p}.rd_setup", 0.0), True), ("push", ring, allt, 0.0), ("wait", "popped", ring, allt, False),
               ("busy", c.get(f"{p}.rd_tail", 0.0), True)]
         wr = [("busy", c.get(f"{p}.wr_setup", 0.0), True),
@@ -182,17 +189,36 @@ def shard_plan(op, H, W, elem, mem):
     ht, wt = math.ceil(H / TILE), math.ceil(W / TILE)
     if kind == "hs":
         sh, sw = math.ceil(ht / ncores), wt
+        first = [i * sh * wt for i in range(ncores)]  # each core's first interleaved page (tile id)
     elif kind == "ws":
         sh, sw = ht, math.ceil(wt / ncores)
+        first = [j * sw for j in range(ncores)]
     else:
         k = math.isqrt(ncores)
         sh, sw = math.ceil(ht / k), math.ceil(wt / k)
+        first = [i * sh * wt + j * sw for i in range(k) for j in range(k)]
+    # bank conflict: most cores whose first page sits on the same L1 bank (pages round-robin over GRID banks); with
+    # equal shards they stay aligned page after page
+    banks = {}
+    for f in first:
+        banks[f % GRID] = banks.get(f % GRID, 0) + 1
     tile_bytes = TILE * TILE * elem
     thr = (512 // ncores * 1152) // tile_bytes  # reader barrier every thr reads (0: only the final barrier)
-    cfg = dict(tiles=sh * sw, elem=elem, thr=thr, blocks=1, wt=sh * sw,
+    cfg = dict(tiles=sh * sw, elem=elem, thr=thr, blocks=1, wt=sh * sw, bank_conflict=max(banks.values()),
                in_place=side if op == "interleaved_to_sharded" else "borrowed",
                out_place="borrowed" if op == "interleaved_to_sharded" else side)
     return "Default", [(cfg, ncores)]
+
+
+def dtype_costs(c, p, elem):
+    """fp32 (elem 4) runs the same kernels with UnpackToDest and fp32 DEST (half the DEST tiles): a factory's
+    <p>.f32_<term> replaces <p>.<term> where the fp32 runs measured it (compute and per-byte terms); every other
+    term is the bf16 one."""
+    if elem != 4:
+        return c
+    pre = p + ".f32_"
+    over = {p + "." + k[len(pre):]: v for k, v in c.items() if k.startswith(pre)}
+    return {**c, **over} if over else c
 
 
 def _queues(shared):
@@ -213,6 +239,7 @@ def build(op, cfg, c):
     if m:
         return m.build(op, cfg, c, m.PREFIX[(op, cfg["factory"])])
     p = PREFIX[(op, cfg["factory"])]
+    c = dtype_costs(c, p, cfg["elem"])
     if op in SHARD_OPS:
         return _build_shard_move(op, cfg, c, p)
     fam = FAMILY[op]  # tilize or untilize: which compute and base DM loops the op's kernels share
@@ -397,6 +424,10 @@ def plan(op, H, W, dtype="bf16", mem="dram", multicore=True):
         while 2 * tpb * tile_bytes > L1_HALF and tpb > 1:
             tpb = max(d for d in range(1, tpb) if wt % d == 0)
         cfg = dict(blocks=ht * (wt // tpb), wt=tpb, elem=elem, row_bytes=tpb * TILE * elem, in_place=place, out_place=place)
+        if op == "untilize" and elem == 4:
+            # untilize_single_core_program_factory gives both DFBs one block (no double buffering). The bf16 fit was
+            # made with build()'s 2 blocks and is kept until refit; fp32 (fitted here) uses the factory's sizes.
+            cfg["cap"] = tpb
         return "SingleCore", [(cfg, 1)]
     per_core, ncores, cliff = split_blocks(GRID, ht)
     base = dict(wt=wt, elem=elem, row_bytes=W * elem, in_place=place, out_place=place)
@@ -508,6 +539,8 @@ def estimate(op, H, W, costs, dtype="bf16", mem="dram", multicore=True, trace=0)
     # Global bound: all cores' NoC traffic to / from L1 shares the network (<p>.l1_gbw bytes/cycle, fitted where L1
     # runs exist; ttsim-perf times it): with many cores moving L1 data at once the op cannot finish sooner.
     p = prefix_of(op, factory)
+    if p:
+        costs = dtype_costs(costs, p, 2 if dtype == "bf16" else 4)
     gbw = costs.get(f"{p}.l1_gbw", 0.0) if p else 0.0
     if gbw:
         tb = TILE * TILE * (2 if dtype == "bf16" else 4)

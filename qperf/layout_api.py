@@ -42,7 +42,8 @@ def _costs(profile, scenario, overrides, compute_scale=1.0):
         c[k] = _pick(v, scenario)
     if compute_scale != 1.0:  # what_if.compute_service_scale: scale the compute TRISC costs
         for k in c:
-            if k.split(".", 1)[-1].startswith(("cu_", "um_", "pk_")) and not k.endswith(("cu_first", "cu_tail")):
+            term = k.split(".", 1)[-1].removeprefix("f32_")  # fp32 overrides scale as their bf16 terms
+            if term.startswith(("cu_", "um_", "pk_")) and not term.endswith(("cu_first", "cu_tail")):
                 c[k] *= compute_scale
     return c
 
@@ -102,8 +103,9 @@ def _result(wl, profile, what_if):
     if p is None or f"{p}.start_reader" not in profile["params"]:  # every calibrated factory has its kernel starts
         raise LayoutError("needs_input", f"cost profile '{profile['name']}' has no costs for {op} {factory}; calibrate it "
                                          f"(calibration/fit_layout.py)")
-    if wl["dtype"] != "bf16":
-        res["warnings"].append("fp32 is not calibrated for tilize/untilize: costs are the bf16 fit")
+    f32_terms = [k for k in list(profile["params"]) + list(what_if.get("cost_overrides") or {}) if k.startswith(f"{p}.f32_")]
+    if wl["dtype"] != "bf16" and not f32_terms:
+        res["warnings"].append(f"fp32 is not calibrated for {op} {factory} on this profile: costs are the bf16 fit")
     if family_of(op) == "tilize" and math.ceil(W / TILE) > 64 and profile["name"] == "craq-sim":
         res["warnings"].append("craq-sim cannot run tilize wider than 64 tiles (mop_expander); this is an extrapolation")
     ghz = profile["clock"]["GHz"]

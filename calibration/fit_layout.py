@@ -46,9 +46,17 @@ INIT = {  # realistic starting values (cycles): a flat start lets least squares 
     "drain": 10}
 
 
-def load(path, sim, op):
+# fp32 (--dtype fp32): the bf16 fit stays; only the terms fp32 changes are fitted, as <p>.f32_<term> overrides
+# (qperf.ops.layout.dtype_costs), starting from the bf16 values. Compute: UnpackToDest and fp32 DEST (half the DEST
+# tiles); per-byte terms: rows and tiles twice as many bytes, the request counts unchanged.
+FP32_TERMS = ["cu_fixed", "cu_per_tile", "cu_first", "cu_tail", "um_fixed", "um_per_tile", "pk_fixed", "pk_per_tile",
+              "rd_cpb", "wr_cpb", "rd_zcpb", "rd_pcpb", "rd_pfix", "rd_cpb_l1", "wr_cpb_l1", "l1_gbw", "l1_conf_cpb"]
+
+
+def load(path, sim, op, dtype="bf16"):
     rs = [json.loads(l) for l in open(path)]
-    return [r for r in rs if not r.get("error") and r["sim"] == sim and r["op"] == op and r["max_abs_err"] < 0.05]
+    return [r for r in rs if not r.get("error") and r["sim"] == sim and r["op"] == op and r["max_abs_err"] < 0.05
+            and r.get("dtype", "bf16") == dtype]
 
 
 def predict(r, c):
@@ -164,12 +172,16 @@ def main():
     ap.add_argument("--holdout", default="every4", help="every4, or key=value (e.g. H=1280)")
     ap.add_argument("--write", help="store the fitted terms in profiles/costs/<profile>.json")
     ap.add_argument("--emit", help="write the fitted terms (profile param entries) to this JSON file instead")
+    ap.add_argument("--dtype", default="bf16", help="bf16, or fp32: fit <p>.f32_* overrides on top of the profile")
+    ap.add_argument("--terms", help="fp32: comma-separated terms to fit (default: the factory's terms in FP32_TERMS)")
+    ap.add_argument("--only", help="comma-separated cost prefixes to fit (default: every prefix in the runs)")
     a = ap.parse_args()
+    f32 = a.dtype == "fp32"
     ops = a.op.split(",")  # several ops when their factories share kernels (untilize Block, ..._unpadding BlockInterleaved)
     rs = []
     for path in a.data.split(","):
         for op in ops:
-            rs += load(path, a.sim, op)
+            rs += load(path, a.sim, op, a.dtype)
 
     def modeled(r):
         try:
@@ -196,7 +208,7 @@ def main():
         hk, hv = a.holdout.split("=")
         hold = [r for r in rs if str(r[hk]) == hv]
     fitset = [r for r in rs if r not in hold]
-    from qperf.ops.layout import plan, prefix_of
+    from qperf.ops.layout import family_of, plan, prefix_of
     # group by cost prefix: factories that share kernels share one set of cost terms
     pre_of = lambda r: prefix_of(r["op"], plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0])  # noqa: E731
     fac_of = lambda r: plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0]  # noqa: E731
@@ -207,8 +219,12 @@ def main():
     if prof_name:
         params = json.load(open(os.path.join(ROOT, "profiles", "costs", prof_name + ".json")))["params"]
         flags = {k: v["value"] for k, v in params.items() if k in ("noc.barrier_all_kinds",) or k.endswith(".dfb_blocks")}
+        if f32:  # fp32 overrides sit on the whole bf16 profile
+            flags = {k: v["value"] for k, v in params.items()}
     c = {}
     for p in sorted({pre_of(r) for r in rs}):
+        if a.only and p not in a.only.split(","):
+            continue
         fac = fac_of(next(r for r in rs if pre_of(r) == p))
         op0 = next(r for r in rs if pre_of(r) == p)["op"]
         fs = [r for r in fitset if pre_of(r) == p]
@@ -224,10 +240,12 @@ def main():
                 starts["writer"].append(roles.get("QUASAR_DM3", [0])[0])
                 starts["compute"].append(roles.get("QUASAR_NEO0_TRISC0", [0])[0])
         cf = dict(flags)
-        cf.update({f"{p}.start_{k}": statistics.median(v) for k, v in starts.items()})
-        cf.update({f"{p}.{k}": v for k, v in INIT.items()})
+        sp = f"{p}.f32_" if f32 else f"{p}."
+        cf.update({f"{sp}start_{k}": statistics.median(v) for k, v in starts.items()})
         from qperf.ops import registry
-        cf.update({f"{p}.{k}": v for k, v in getattr(registry.module_for(op0), "INIT", {}).items()})  # module's own terms
+        if not f32:
+            cf.update({f"{p}.{k}": v for k, v in INIT.items()})
+            cf.update({f"{p}.{k}": v for k, v in getattr(registry.module_for(op0), "INIT", {}).items()})  # module's own terms
         keys = keys_for(op0, fac)
         def l1_sides(r):  # which directions move data over the NoC from / to L1 (the plan's placements)
             cfg = plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[1][0][0]
@@ -235,6 +253,7 @@ def main():
 
         rd_l1 = any(l1_sides(r)[0] for r in fs)
         wr_l1 = any(l1_sides(r)[1] for r in fs)
+        in_l1 = lambda r: any(l1_sides(r))  # noqa: E731
         if rd_l1 or wr_l1:  # L1 transfer terms only where the runs can identify them
             l1_init = {}
             for d, on in (("rd", rd_l1), ("wr", wr_l1)):
@@ -245,14 +264,26 @@ def main():
             allowed = getattr(registry.module_for(op0), "L1_KEYS", None)  # a module may leave some out
             l1 = [k for k in l1_init if allowed is None or k in allowed]
             keys += l1
-            cf.update({f"{p}.{k}": l1_init[k] for k in l1})
+            if not f32:
+                cf.update({f"{p}.{k}": l1_init[k] for k in l1})
+        if f32:  # override only what fp32 changes, where the bf16 profile has the term; start from the bf16 value
+            allowed = a.terms.split(",") if a.terms else FP32_TERMS
+            if family_of(op0) == "move" and any(in_l1(r) for r in fs):  # L1 bank conflicts (0 in the bf16 fit)
+                keys.append("l1_conf_cpb")
+                cf.setdefault(f"{p}.l1_conf_cpb", 0.0)
+            keys = [f"f32_{k}" for k in keys if k in allowed and f"{p}.{k}" in cf]
+            cf.update({f"{p}.{k}": cf[f"{p}.{k[4:]}"] for k in keys})
         cf = fit(fs, cf, [f"{p}.{k}" for k in keys])
         print(f"{op0} {fac} ({p}) on {a.sim}: {len(fs)} fit runs, {len(hs)} holdout ({a.holdout})")
-        print("  " + ", ".join(f"{k.split('.')[1]}={v:.1f}" for k, v in cf.items()))
+        shown = [k for k in cf if k.startswith(sp) and (".start_" in k or k.split(".", 1)[1] in keys)] if f32 else \
+            [k for k in cf if k.startswith(p + ".")]
+        print("  " + ", ".join(f"{k.split('.')[1]}={cf[k]:.4g}" + (f" (bf16 {cf[p + '.' + k.split('.')[1][4:]]:.4g})"
+                                                                   if f32 and ".f32_" in k else "") for k in shown))
         report("fit", fs, cf, worst=3)
         if hs:
             report("holdout", hs, cf, worst=2)
-        c.update({k: v for k, v in cf.items() if k not in flags and (".start_" in k or k.split(".", 1)[1] in keys)})
+        c.update({k: v for k, v in cf.items() if (k not in flags or f32) and k.startswith(sp) and
+                  (".start_" in k or k.split(".", 1)[1] in keys)})
     if a.emit:  # for parallel work: merge into a profile later (calibration/merge_params.py)
         sig = lambda x: float(f"{x:.6g}")  # noqa: E731
         out = {k: {"value": sig(v), "low": sig(v * 0.95), "high": sig(v * 1.05),

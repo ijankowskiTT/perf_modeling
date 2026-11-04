@@ -42,10 +42,51 @@ Fitted per factory with `calibration/fit_layout.py` (least squares on the span a
 Known gaps: untilize from L1 on ttsim-perf (up to 11%), single-tile-high untilize SingleCore on ttsim-perf (up to
 14%), widths with a prime tile count (13 tiles: 5%). craq-sim cannot run tilize wider than 64 tiles.
 
+### fp32 (tilize / untilize, padding variants, sharding moves)
+
+The bf16 fit stays; `calibration/fit_layout.py --dtype fp32` fits only `<p>.f32_<term>` overrides (compute,
+per-byte, L1 and kernel-start terms; `FP32_TERMS`) on `calibration/data/fp32layout-<profile>.jsonl` (the bf16
+datasets' 888 cases rerun in fp32, all outputs exact) and emits them to `calibration/out/fp32layout-<profile>.json`.
+Fit mean (held-out mean in brackets):
+
+| Factory | craq-sim | ttsim-perf |
+|---|---|---|
+| tilize Default | 0.7% (1.4%) | 1.3% (1.8%) |
+| tilize SingleCore | 1.6% (1.4%) | 0.7% (0.5%) |
+| tilize Sharded | 0.7% (0.4%) | 1.0% (1.0%) |
+| tilize_with_val_padding Default | 0.6% (0.8%) | 0.5% (0.4%) |
+| tilize_with_val_padding SingleCore | 0.6% (1.1%) | 0.8% (2.5%) |
+| untilize MultiCore | 0.4% (0.4%) | 1.4% (1.2%) |
+| untilize SingleCore (single-buffered DFBs, as the factory) | 1.0% (0.3%) | 2.0% (1.5%) |
+| untilize Block / untilize_with_unpadding BlockInterleaved | 2.3% (2.1%) | 0.5% (1.0%) |
+| untilize_with_unpadding Interleaved | 1.4% (2.1%) | 0.3% (0.8%) |
+| untilize_with_unpadding SingleCore | 2.5% (2.8%) | 2.0% (2.6%) |
+| interleaved_to_sharded | 1.4% (1.9%) | 1.5% (2.6%) |
+| sharded_to_interleaved | 1.5% (2.2%) | 1.8% (2.8%) |
+
+Reproduce (each call merges into the emitted file):
+
+```bash
+for op in tilize tilize_with_val_padding interleaved_to_sharded sharded_to_interleaved untilize,untilize_with_unpadding; do
+  python calibration/fit_layout.py --data calibration/data/fp32layout-craq-sim.jsonl --sim craq-b702fd90 --op $op \
+      --dtype fp32 --emit calibration/out/fp32layout-craq-sim.json     # and --sim perf / ttsim-perf
+done
+# craq-sim untilize_with_unpadding Interleaved: its fp32 per-request DM costs differ too
+python calibration/fit_layout.py --data calibration/data/fp32layout-craq-sim.jsonl --sim craq-b702fd90 \
+    --op untilize,untilize_with_unpadding --dtype fp32 --only uwp --emit calibration/out/fp32layout-craq-sim.json \
+    --terms cu_fixed,cu_per_tile,cu_first,cu_tail,um_fixed,um_per_tile,pk_fixed,pk_per_tile,rd_cpb,wr_cpb,rd_cpb_l1,wr_cpb_l1,l1_gbw,rd_issue,wr_issue,rd_fixed,wr_fixed
+python calibration/merge_params.py calibration/out/fp32layout-craq-sim.json craq-sim   # into the profile
+```
+
+Known fp32 gaps: untilize_with_unpadding SingleCore on craq-sim (narrow writer-bound rows -5%, as in bf16; rows
+of 4 sub-blocks +10%), untilize Block on craq-sim with single-block DFBs (S = 15, 16: +10-13%), sharding moves
+with the interleaved side in L1 on ttsim-perf (bank conflicts are linear in the conflicting cores; up to 17%), wide
+tilize from L1 on ttsim-perf (-12%).
+
 ## Data
 
 `calibration/data/<profile>.jsonl` (binary_ng) and `layout-<profile>.jsonl` (tilize/untilize, from
-`calibration/run_dm_case.py`), one simulator run per line. binary_ng records: `layout` (`ddd`/`lll`/`hhh`/`lld`/`ddl`: a, b,
+`calibration/run_dm_case.py`; `fp32layout-<profile>.jsonl` the same cases in fp32), one simulator run per line. binary_ng records: `layout` (`ddd`/`lll`/`hhh`/`lld`/`ddl`: a, b,
 out in DRAM, L1 or borrowed), `op`, `tpc` (tiles per cluster), `knobspec`, `span_med` (cycles), `src` (campaign;
 `B` is the holdout).
 

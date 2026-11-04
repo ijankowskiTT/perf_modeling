@@ -38,6 +38,16 @@ multicast per region), and only then the writer writes. The controller sets the 
 are evaluated alongside it. On both simulators a page read costs the same for any page size, writes are nearly free;
 on ttsim-perf L1 reads of 32 cores cost ~6x DRAM reads. Sharded move is not modeled yet.
 
+**fp32** runs the same kernels and loops: tiles are 4096 B and rows twice as many bytes, the compute unpacks straight
+to DEST (`UnpackToDest`) with fp32 DEST, so untilize sub-blocks hold <= 4 tiles (half of bf16's 8), and tilize uses
+the standard (lossless) path. Request counts are unchanged; the fp32 runs measured that craq-sim's DM time per
+request barely grows with bytes (fitted per-byte terms ~half of bf16's) while ttsim-perf times the extra bytes, and
+that compute per tile differs (ttsim-perf: ~1.8x slower per tile for tilize). A factory's `<p>.f32_<term>` overrides
+`<p>.<term>` for fp32 (`dtype_costs`): compute terms, per-byte terms and kernel starts; every other term is the bf16
+fit. Sharding moves with the interleaved side in L1 also pay a bank-conflict term: cores that start their shards on
+the same L1 bank (pages round-robin over the 32 banks) walk them in lockstep and queue there (`<p>.l1_conf_cpb` per
+other core on the bank; fitted on fp32 runs only, 0 for bf16).
+
 **Pipeline**: reader, compute and writer threads run their kernels' own loops over the DFB's strided tile
 counters with finite rings and a half-sync DST. Per batch: fixed cost, one request per tile, one barrier.
 Barriers are cluster-wide, as in the firmware; timed transfers complete through one per-cluster queue.
@@ -49,7 +59,8 @@ barrier on its own transfers only (transaction IDs); `work_split: dynamic` lets 
 batches from one shared queue, paying `dq.claim` (assumed 30 cycles) per batch. The completion queue stays shared
 and serves transfers in time order, so variants and the pinned schedule are evaluated the same way.
 
-**Not modeled**: NoC routing and link contention, L1 bank conflicts, dynamic arbitration, launch skew.
+**Not modeled**: NoC routing and link contention, L1 bank conflicts (except the sharding moves' lockstep conflict
+above), dynamic arbitration, launch skew.
 
 **Costs**: every parameter in `profiles/costs/*.json` has `value`, `low`, `high`, `class` and `source`.
 `low`/`high` move all costs together (scenarios, shared by baseline and candidates), not confidence intervals.
