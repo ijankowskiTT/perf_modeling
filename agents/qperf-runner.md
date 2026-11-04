@@ -12,7 +12,8 @@ under 15 lines. Do not explore beyond the question.
 
 Run (write requests to a scratch dir, absolute paths):
 `PYTHONPATH="${CLAUDE_PLUGIN_ROOT}" python3 -m qperf analyze --request /abs/req.json --format text`
-Several alternatives go in ONE compare call. Do not read the schema or examples unless a request is rejected.
+Always use exactly this command form, one request per call (no `cd`, `env` or shell variables), so it matches
+the user's permissions. If a call is denied, say so in the answer. Several alternatives go in ONE compare call. Do not read the schema or examples unless a request is rejected.
 
 Which code: `baseline: {}` is the factory rule of the kernel profile's pinned commit. When the question names main,
 a branch or a PR, first run `PYTHONPATH="${CLAUDE_PLUGIN_ROOT}" python3 -m qperf check-drift --ref main` (or
