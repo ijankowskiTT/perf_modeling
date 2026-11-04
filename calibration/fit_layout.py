@@ -243,9 +243,11 @@ def main():
         sp = f"{p}.f32_" if f32 else f"{p}."
         cf.update({f"{sp}start_{k}": statistics.median(v) for k, v in starts.items()})
         from qperf.ops import registry
+        mod = registry.module_for(op0)
         if not f32:
             cf.update({f"{p}.{k}": v for k, v in INIT.items()})
-            cf.update({f"{p}.{k}": v for k, v in getattr(registry.module_for(op0), "INIT", {}).items()})  # module's own terms
+            cf.update({f"{p}.{k}": v for k, v in getattr(mod, "INIT", {}).items()})  # an op module's own terms
+            cf.update({f"{p}.{k}": v for k, v in getattr(mod, "FIT_INIT", {}).items()})
         keys = keys_for(op0, fac)
         def l1_sides(r):  # which directions move data over the NoC from / to L1 (the plan's placements)
             cfg = plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[1][0][0]
@@ -261,11 +263,13 @@ def main():
                     l1_init.update({f"{d}_cpb_l1": 0.01, f"{d}_lat_l1": 50.0, f"{d}_svc_l1": 20.0})
             # global L1 network: a hard bound plus a fair share per core moving L1 data (gradual contention)
             l1_init.update({"l1_gbw": 500.0, "l1_share_bw": 500.0})
-            allowed = getattr(registry.module_for(op0), "L1_KEYS", None)  # a module may leave some out
+            allowed = getattr(mod, "L1_KEYS", None)  # a module may leave some out
             l1 = [k for k in l1_init if allowed is None or k in allowed]
+            if mod and hasattr(mod, "l1_fit_keys"):  # or say which L1 terms a simulator can identify
+                l1 = list(mod.l1_fit_keys(op0, fac, a.sim))
             keys += l1
             if not f32:
-                cf.update({f"{p}.{k}": l1_init[k] for k in l1})
+                cf.update({f"{p}.{k}": l1_init[k] for k in l1 if k in l1_init})  # others: the module's FIT_INIT
         if f32:  # override only what fp32 changes, where the bf16 profile has the term; start from the bf16 value
             allowed = a.terms.split(",") if a.terms else FP32_TERMS
             if family_of(op0) == "move" and any(in_l1(r) for r in fs):  # L1 bank conflicts (0 in the bf16 fit)
