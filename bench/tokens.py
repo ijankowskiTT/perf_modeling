@@ -71,7 +71,7 @@ def run(qid, mode, model, budget):
             "cost_usd": round(res.get("total_cost_usd", 0.0), 4), "tokens_total": tok,
             "tokens_out": sum(v["out"] for v in models.values()), "turns": res.get("num_turns"),
             "tool_calls": len(tools), "qperf_runs": qperf_runs, "agent_spawns": agents,
-            "expected_fact": bool(re.search(expect, answer)), "seconds": round(time.time() - t0, 1),
+            "expected_fact": bool(re.search(expect, answer)), "seconds": round(time.time() - t0, 1), "answer": answer[:3000],
             "models": models, "usage": usage}
 
 

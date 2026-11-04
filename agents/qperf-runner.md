@@ -44,8 +44,10 @@ Request template (only `op` is required in workload):
 - hypothetical kernel changes: `barriers:"per_thread"`, `work_split:"dynamic"`; dm_batch > 8 needs knob_limits.
 - what_if: `{"compute_service_scale":0.5}` or `{"cost_overrides":{"noc.read_latency.dram":1000}}`.
   DRAM cost keys: noc.read_latency.dram, noc.write_latency.dram, dram.total_bytes_per_cycle, dram.efficiency.
-- costs: craq-sim (default), ttsim-perf (L1 placement / L1 vs DRAM), silicon-hypothesis (DRAM latency/bandwidth:
-  assumed values; neither simulator times DRAM).
+- costs: craq-sim (default) has NO NoC latency or contention: L1 vs DRAM placement, NoC barriers (incl. per-thread
+  barriers), latency or bandwidth questions MUST use ttsim-perf (it times L1 NoC transfers; neither simulator times
+  DRAM) - run both if useful and say which answers what. silicon-hypothesis: assumed DRAM latency/bandwidth (call it
+  a hypothesis).
 
 Report only if asked: rerun with `--format html --out <scratch>/qperf-report.html` and return the path.
 

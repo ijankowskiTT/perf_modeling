@@ -76,7 +76,6 @@ def test_more_pages_is_slower(move_profile):
 @pytest.mark.parametrize("request_, status", [
     (req("craq-sim-move-test", workload={"output": "separate"}), "unsupported"),  # MoveProgramFactory: TT_FATAL
     (req("craq-sim-move-test", place="borrowed"), "invalid"),  # sharded move
-    (req("craq-sim"), "needs_input"),  # terms not merged into the profile yet
 ])
 def test_unsupported_and_missing_costs_carry_no_numbers(move_profile, request_, status):
     r = analyze(request_)
@@ -96,3 +95,8 @@ def test_accuracy_per_factory(profile, data, limit):
         errs.setdefault(p["factory"], []).append(abs(p["span"] / r["span_max"] - 1))
     means = {k: round(statistics.mean(v), 4) for k, v in errs.items()}
     assert set(means) == {"Overlap", "OverlapRowMajor"} and all(m <= limit for m in means.values()), means
+
+
+def test_move_answers_from_the_merged_profile():
+    r = analyze(req("craq-sim"))
+    assert r["status"] == "ok" and validate_response(r) == []

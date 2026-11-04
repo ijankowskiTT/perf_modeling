@@ -2592,6 +2592,293 @@
    "high": 995.573,
    "class": "measurement-fit",
    "source": "fitted on sharded_to_interleaved runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.start_reader": {
+   "value": 9.0,
+   "low": 8.55,
+   "high": 9.45,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "mvo.start_compute": {
+   "value": 0.0,
+   "low": 0.0,
+   "high": 0.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "mvo.start_writer": {
+   "value": 0.0,
+   "low": 0.0,
+   "high": 0.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "mvo.rd_cpb": {
+   "value": 3.42107e-05,
+   "low": 3.25002e-05,
+   "high": 3.59213e-05,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.wr_cpb": {
+   "value": 2.91611e-05,
+   "low": 2.7703e-05,
+   "high": 3.06191e-05,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.rd_setup": {
+   "value": 1494.84,
+   "low": 1420.1,
+   "high": 1569.58,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.wr_setup": {
+   "value": 1484.61,
+   "low": 1410.38,
+   "high": 1558.84,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.rd_fixed": {
+   "value": 73.9251,
+   "low": 70.2289,
+   "high": 77.6214,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.rd_tail": {
+   "value": 1052.62,
+   "low": 999.993,
+   "high": 1105.25,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.wr_fixed": {
+   "value": 0.0367475,
+   "low": 0.0349101,
+   "high": 0.0385848,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.wr_tail": {
+   "value": 1231.38,
+   "low": 1169.81,
+   "high": 1292.95,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.sync_up": {
+   "value": 201.648,
+   "low": 191.566,
+   "high": 211.73,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.sync_core": {
+   "value": 2.45221,
+   "low": 2.3296,
+   "high": 2.57482,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.mc": {
+   "value": 92.0673,
+   "low": 87.4639,
+   "high": 96.6707,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.rd_cpb_l1g": {
+   "value": 7.31772e-11,
+   "low": 6.95184e-11,
+   "high": 7.68361e-11,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.rd_cpb_l1": {
+   "value": 0.0962505,
+   "low": 0.0914379,
+   "high": 0.101063,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.wr_cpb_l1": {
+   "value": 1.05777e-09,
+   "low": 1.00488e-09,
+   "high": 1.11065e-09,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.rd_lat_l1": {
+   "value": 194.51,
+   "low": 184.784,
+   "high": 204.235,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvo.wr_lat_l1": {
+   "value": 0.563395,
+   "low": 0.535225,
+   "high": 0.591564,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.start_reader": {
+   "value": 114.0,
+   "low": 108.3,
+   "high": 119.7,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "mvr.start_compute": {
+   "value": 0.0,
+   "low": 0.0,
+   "high": 0.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "mvr.start_writer": {
+   "value": 0.0,
+   "low": 0.0,
+   "high": 0.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "mvr.rd_cpb": {
+   "value": 3.86346e-08,
+   "low": 3.67029e-08,
+   "high": 4.05664e-08,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.wr_cpb": {
+   "value": 1.82838e-05,
+   "low": 1.73697e-05,
+   "high": 1.9198e-05,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.rd_setup": {
+   "value": 946.903,
+   "low": 899.558,
+   "high": 994.248,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.wr_setup": {
+   "value": 1800.82,
+   "low": 1710.78,
+   "high": 1890.86,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.rd_fixed": {
+   "value": 74.4019,
+   "low": 70.6818,
+   "high": 78.122,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.rd_tail": {
+   "value": 630.528,
+   "low": 599.002,
+   "high": 662.055,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.wr_fixed": {
+   "value": 0.0334248,
+   "low": 0.0317535,
+   "high": 0.035096,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.wr_tail": {
+   "value": 843.225,
+   "low": 801.064,
+   "high": 885.386,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.sync_up": {
+   "value": 951.807,
+   "low": 904.217,
+   "high": 999.398,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.sync_core": {
+   "value": 0.106646,
+   "low": 0.101313,
+   "high": 0.111978,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.mc": {
+   "value": 119.379,
+   "low": 113.41,
+   "high": 125.348,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.rd_cpb_l1g": {
+   "value": 2.66192e-08,
+   "low": 2.52882e-08,
+   "high": 2.79501e-08,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.rd_npow2_setup": {
+   "value": 292.605,
+   "low": 277.975,
+   "high": 307.235,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.rd_npow2": {
+   "value": 0.00211917,
+   "low": 0.00201322,
+   "high": 0.00222513,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.wr_npow2": {
+   "value": 0.0229417,
+   "low": 0.0217946,
+   "high": 0.0240888,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.rd_cpb_l1": {
+   "value": 0.0514678,
+   "low": 0.0488944,
+   "high": 0.0540412,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.wr_cpb_l1": {
+   "value": 0.0014859,
+   "low": 0.00141161,
+   "high": 0.0015602,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.rd_lat_l1": {
+   "value": 287.4,
+   "low": 273.03,
+   "high": 301.77,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
+  },
+  "mvr.wr_lat_l1": {
+   "value": 0.00433662,
+   "low": 0.00411979,
+   "high": 0.00455345,
+   "class": "measurement-fit",
+   "source": "fitted on move runs (perf), calibration/fit_layout.py"
   }
  },
  "compute_variants": {
