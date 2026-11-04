@@ -14,7 +14,7 @@ than 1). The model picks the measured-best configuration in every group, except 
 (`lll` at 32 tiles: 23% regret). Known misses: R1C1W1 (+7%),
 and the default config at 256+ tiles per cluster (-3%).
 
-### tilize / untilize
+### tilize / untilize and the padding variants
 
 Fitted per factory with `calibration/fit_layout.py` (least squares on the span and the DM threads' end times; every
 4th run held out). Mean error over all runs (held-out mean in brackets):
@@ -26,6 +26,9 @@ Fitted per factory with `calibration/fit_layout.py` (least squares on the span a
 | tilize Sharded | 0.5% (0.7%) | 0.4% (0.4%) |
 | untilize MultiCore | 0.4% (0.8%) | DRAM 0.8%, L1 3.8% (2.5%) |
 | untilize SingleCore | 0.8% (0.7%) | 2.3% (1.9%) |
+| tilize_with_val_padding Default | 0.7% (0.9%) | 0.4% (0.6%) |
+| untilize_with_unpadding Interleaved | 0.6% (0.6%) | 0.2% (0.2%) |
+| untilize Block / untilize_with_unpadding BlockInterleaved (shared kernels) | 0.5% / 1.3% (1.4%) | 0.7% / 0.7% (1.0%) |
 
 Known gaps: untilize from L1 on ttsim-perf (up to 11%), single-tile-high untilize SingleCore on ttsim-perf (up to
 14%), widths with a prime tile count (13 tiles: 5%). craq-sim cannot run tilize wider than 64 tiles.

@@ -1,8 +1,8 @@
 # qperf
 
-Performance model of Quasar ops (binary_ng eltwise, tilize, untilize) for Claude Code and other agents. Ask a
-performance question in plain words; the answer is backed by a model of the real kernel schedule, in seconds,
-without a simulator or hardware.
+Performance model of Quasar ops (binary_ng eltwise, tilize/untilize and their padding variants) for Claude Code and
+other agents. Ask a performance question in plain words; the answer is backed by a model of the real kernel
+schedule, in seconds, without a simulator or hardware.
 
 ## Install
 
@@ -66,7 +66,7 @@ Token use per question (`python bench/tokens.py`):
 
 | | Covered | Not yet |
 |---|---|---|
-| Ops | binary_ng `add`, `multiply`; `tilize` (Default, SingleCore, Sharded), `untilize` (MultiCore, SingleCore); bf16 | `subtract`, `rsub`, `divide`, fp32 (no costs yet); tilize/untilize padding variants and Block factories (next); addalpha, activations, broadcast, matmul |
+| Ops | binary_ng `add`, `multiply`; `tilize` (Default, SingleCore, Sharded), `untilize` (MultiCore, SingleCore, Block), `tilize_with_val_padding` (Default), `untilize_with_unpadding` (Interleaved, BlockInterleaved); bf16 | `subtract`, `rsub`, `divide`, fp32 (no costs yet); padding-variant SingleCore (next); addalpha, activations, broadcast, matmul |
 | Layout | each operand in DRAM, L1 (interleaved) or borrowed (resident shard), any mix | tail rings of uneven slices |
 | Knobs | reader/compute/writer threads, `dm_batch`, `tiles_per_cycle`, `entries_per_thread` (`TTNN_QSR_*`) | |
 | Kernel changes | per-thread NoC barriers, dynamic work queue (hypothetical: no simulator can confirm) | other schedules |

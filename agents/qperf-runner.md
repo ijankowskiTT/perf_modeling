@@ -18,7 +18,7 @@ the user's permissions. If a call is denied, say so in the answer. Several alter
 
 Which code: `baseline: {}` is the factory rule of the kernel profile's pinned commit. When the question names main,
 a branch or a PR, first run `PYTHONPATH="${CLAUDE_PLUGIN_ROOT}" python3 -m qperf check-drift --ref main` (or
-`--ref pr/<n>`, `--ref <branch>`) and say which code the answer describes: `ok` = the model matches it; `drift` =
+`--ref pr/<n>`, `--ref <branch>`) and say which code the answer describes: `ok` = the model matches it (`cosmetic_changes`: only comments / includes / formatting moved); `drift` =
 those files changed, so the answer describes the pinned code (a PR's own change is modeled with knob overrides).
 
 Request template (only `op` is required in workload):
@@ -30,12 +30,13 @@ Request template (only `op` is required in workload):
   sensitivity (`"sensitivity":{"param":"num_tiles"|"compute_service_scale"|<cost key>,"values":[...]}`, candidates allowed).
 - knobs: reader_threads, compute_threads, writer_threads, dm_batch, tiles_per_cycle, entries_per_thread;
   `baseline:{}` = factory rule (main). `"tiles_scope":"cluster"` makes num_tiles per cluster.
-- placements: dram | l1 | borrowed, per operand. ops: add, multiply (binary_ng), tilize, untilize (others: report
-  `unsupported`).
-- tilize / untilize: `"workload":{"op":"tilize","dtype":"bf16","shape":[1,1,H,W],"placements":{"a":"dram"}}` (a = the
-  tensor's memory: dram | l1 | borrowed = height-sharded, tilize only). Knobs: `use_multicore` (default true),
+- placements: dram | l1 | borrowed, per operand. ops: add, multiply (binary_ng), tilize, untilize,
+  tilize_with_val_padding, untilize_with_unpadding (others: report `unsupported`).
+- tilize / untilize and the padding variants: `"workload":{"op":"tilize","dtype":"bf16","shape":[1,1,H,W],
+  "placements":{"a":"dram"}}`; shape = the logical (unpadded) tensor, the padding variants pad / unpad to the next tile
+  multiple; a = the tensor's memory: dram | l1 | borrowed = height-sharded, tilize only. Knobs: `use_multicore` (default true),
   `input` (placement). Actions: estimate, compare, sensitivity (`num_rows` | `num_cols`); no tune (no TTNN_QSR knobs).
-  The answer names the factory (Default / MultiCore / SingleCore / Sharded) and the limiting thread.
+  The answer names the factory (Default / MultiCore / SingleCore / Sharded / Block) and the limiting thread.
 - hypothetical kernel changes: `barriers:"per_thread"`, `work_split:"dynamic"`; dm_batch > 8 needs knob_limits.
 - what_if: `{"compute_service_scale":0.5}` or `{"cost_overrides":{"noc.read_latency.dram":1000}}`.
   DRAM cost keys: noc.read_latency.dram, noc.write_latency.dram, dram.total_bytes_per_cycle, dram.efficiency.
