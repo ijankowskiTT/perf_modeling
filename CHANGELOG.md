@@ -7,6 +7,8 @@
 - Data movement on a generic engine (`qperf/engine.py`): tilize, untilize, tilize_with_val_padding,
   untilize_with_unpadding (Default / MultiCore / SingleCore / Sharded / Block factories), interleaved_to_sharded,
   sharded_to_interleaved (TILE and ROW_MAJOR), move (overlap path, the only one Quasar runs); bf16 and fp32.
+- reshard: SameWidth / SameHeight (and their write variants), Generic, CopyPages; TILE and ROW_MAJOR, L1 and DRAM;
+  NoC port and link contention on ttsim-perf. <= 1.9% on craq-sim; ttsim-perf SameHeight / Generic are a flagged gap.
   <= 2.5% mean per factory on craq-sim, <= 3% on ttsim-perf.
 - binary_ng fp32 (add, multiply): ~1.4% held-out on craq-sim.
 - Claude Code plugin: the `quasar-perf` skill delegates to a Haiku runner agent (~$0.15 per question); follow-ups keep

@@ -51,6 +51,7 @@ def _text(res):
         if r.get("roles"):
             s += "\n      " + "  ".join(f"{k}: busy {v['useful_busy_frac']:.0%} starved {v['starved_frac']:.0%} "
                                       f"backpressure {v['backpressure_frac']:.0%}" for k, v in r["roles"].items())
+        s += "".join(f"\n      warning: {w}" for w in r.get("warnings", []))
         return s
 
     if "baseline" in res:

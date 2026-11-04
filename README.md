@@ -1,7 +1,7 @@
 # qperf
 
-Performance model of Quasar ops (binary_ng eltwise, tilize/untilize and their padding variants) for Claude Code and
-other agents. Ask a performance question in plain words; the answer is backed by a model of the real kernel
+Performance model of Quasar ops (binary_ng eltwise, tilize/untilize and their padding variants, sharding, move,
+reshard) for Claude Code and other agents. Ask a performance question in plain words; the answer is backed by a model of the real kernel
 schedule, in seconds, without a simulator or hardware.
 
 ## Install
@@ -29,6 +29,7 @@ Which 3 configs should I benchmark for a 4k-tile multiply in L1?
 How long does tilize of a 3136x64 tensor take, and would height-sharding it help?
 How does untilize time grow with width? Where does it stop being writer-bound?
 Is it worth sharding this 1024x256 tensor over 32 cores instead of 8?
+How long does resharding a 1024x1024 tensor from 8 to 4 height shards in L1 take? Which factory runs?
 How does it change if DRAM latency doubles? Does a deeper ring hide it?
 Use the quasar-perf skill on PR <link>: compare main vs the PR's batching and other options.
 ```
@@ -74,6 +75,7 @@ Token use per question (`python bench/tokens.py`):
 | `untilize_with_unpadding` | Interleaved, BlockInterleaved, SingleCore | <=2.5% | <=2.5% |
 | `interleaved_to_sharded`, `sharded_to_interleaved` | TILE and ROW_MAJOR; height / width / block; uneven last shards | <=1.8% | <=2.0% |
 | `move` | interleaved, overlapping output (the only path Quasar runs); TILE, ROW_MAJOR | <=0.4% | <=1.5% |
+| `reshard` | SameWidth, SameWidthWrite, SameHeight, SameHeightWrite, Generic, CopyPages; TILE, ROW_MAJOR; L1 / DRAM | <=1.9% | <=3.3%; SameHeight ~16%, Generic ~10% (flagged) |
 
 Data-movement ops: bf16 and fp32 (fp32 within the same bounds, untilize_with_unpadding SingleCore on craq-sim
 2.8%). Mean error per factory over all calibration runs (held-out runs within the same bounds; details in
@@ -82,7 +84,8 @@ are hypothetical: no simulator can confirm them.
 
 **Not covered** (answers `unsupported` or `needs_input`, never a number): other ops (matmul, conv, reductions,
 activations, broadcast, `subtract` / `rsub` / `divide` costs), move with a separate output (Quasar rejects it),
-sharded move, dtype conversion inside sharding ops, silicon. craq-sim cannot run tilize wider than 64 tiles.
+sharded move, reshard CopyLocal (L1 -> DRAM with a layout change) and Generic from DRAM, dtype conversion inside
+sharding ops, silicon. craq-sim cannot run tilize wider than 64 tiles.
 
 No Quasar silicon exists yet: times are simulator cycles. Confirm close calls (<3%) with one simulator run.
 

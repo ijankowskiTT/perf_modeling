@@ -15,40 +15,7 @@ from qperf.validate import validate_response
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Proposed schema fragment: request.schema.json workload.properties.reshard (until the schema carries it).
-RESHARD_SIDE = {"type": "object", "additionalProperties": False, "required": ["strategy"],
-                "properties": {"strategy": {"enum": ["height", "width", "block"]},
-                               "cores": {"type": "integer", "minimum": 1},
-                               "grid": {"type": "array", "items": {"type": "integer", "minimum": 1}},
-                               "memory": {"enum": ["l1", "dram"]}}}
-RESHARD_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["from", "to"],
-                  "properties": {"layout": {"enum": ["tile", "row_major"]}, "from": RESHARD_SIDE, "to": RESHARD_SIDE}}
-
-
-def _overlay(profile):
-    """The profile with calibration/out/reshard-<profile>.json merged in, registered in memory."""
-    prof = copy.deepcopy(load("costs", profile)[0])
-    path = os.path.join(ROOT, "calibration", "out", f"reshard-{profile}.json")
-    prof["params"].update(json.load(open(path)))
-    prof["name"] = f"{profile}-reshard-test"
-    return prof
-
-
-@pytest.fixture
-def api():
-    validate._validate({}, "request.schema.json")  # load and cache the schema
-    schema = validate._schemas["request.schema.json"]
-    saved = copy.deepcopy(schema)
-    schema["properties"]["workload"]["properties"].setdefault("reshard", RESHARD_SCHEMA)
-    for name in ("craq-sim", "ttsim-perf"):
-        profiles.register("costs", _overlay(name))
-    yield
-    validate._schemas["request.schema.json"] = saved
-    for name in ("craq-sim", "ttsim-perf"):
-        profiles.unregister("costs", f"{name}-reshard-test")
-
-
-def req(frm, to, shape=(1, 1, 1024, 1024), layout="tile", costs="craq-sim-reshard-test", **kw):
+def req(frm, to, shape=(1, 1, 1024, 1024), layout="tile", costs="craq-sim", **kw):
     r = {"schema_version": "1", "action": "estimate", "profiles": {"costs": costs},
          "workload": {"op": "reshard", "dtype": "bf16", "shape": list(shape),
                       "reshard": {"layout": layout, "from": frm, "to": to}}}
@@ -64,26 +31,26 @@ H2D = {"strategy": "height", "cores": 2, "memory": "dram"}
 @pytest.mark.parametrize("frm,to,layout", [(H8, H4, "tile"), (H2D, H8, "tile"), (H8, H2D, "tile"),
                                            ({"strategy": "width", "cores": 4, "memory": "l1"},
                                             {"strategy": "width", "cores": 8, "memory": "l1"}, "row_major")])
-def test_estimate_conforms_and_is_positive(api, frm, to, layout):
-    for costs in ("craq-sim-reshard-test", "ttsim-perf-reshard-test"):
+def test_estimate_conforms_and_is_positive(frm, to, layout):
+    for costs in ("craq-sim", "ttsim-perf"):
         r = analyze(req(frm, to, layout=layout, costs=costs))
         assert r["status"] == "ok" and validate_response(r) == [], r
         t = r["baseline"]["time_ns"]
         assert 0 < t["low"] <= t["nominal"] <= t["high"]
 
 
-def test_more_cores_is_faster(api):
+def test_more_cores_is_faster():
     # ttsim-perf times L1 transfers: 2 output cores each take 512 KB through their NoC port, 16 take 64 KB
     t = lambda n: analyze(req(H8, {"strategy": "height", "cores": n, "memory": "l1"},  # noqa: E731
-                              costs="ttsim-perf-reshard-test"))["baseline"]["time_ns"]["nominal"]
+                              costs="ttsim-perf"))["baseline"]["time_ns"]["nominal"]
     assert t(16) < t(2)
 
 
 @pytest.mark.parametrize("request_, status", [
-    (req(H8, H4, costs="craq-sim"), "needs_input"),  # a profile without reshard costs carries no numbers
+    (req(H8, H4, costs="silicon-hypothesis"), "needs_input"),  # a profile without reshard costs: no numbers
     (req(H8, {"strategy": "height", "cores": 4, "memory": "dram"}), "invalid"),  # 4 DRAM banks: there are 2
 ])
-def test_errors_carry_no_numbers(api, request_, status):
+def test_errors_carry_no_numbers(request_, status):
     r = analyze(request_)
     assert r["status"] == status and "baseline" not in r and validate_response(r) == []
 
@@ -141,7 +108,7 @@ KNOWN_GAPS = {("ttsim-perf", "Generic"): 0.10, ("ttsim-perf", "SameHeight"): 0.1
     ("ttsim-perf", "reshard-ttsim-perf.jsonl", 0.03),
 ])
 def test_accuracy_per_factory(profile, data, limit):
-    prof = _overlay(profile)
+    prof = load("costs", profile)[0]
     c = {k: _pick(v, "nominal") for k, v in prof["params"].items()}
     errs = {}
     for line in open(os.path.join(ROOT, "calibration", "data", data)):
@@ -151,3 +118,22 @@ def test_accuracy_per_factory(profile, data, limit):
         errs.setdefault(p["factory"], []).append(abs(p["span"] / r["span_max"] - 1))
     means = {k: round(statistics.mean(v), 4) for k, v in errs.items()}
     assert len(means) == 6 and all(m <= KNOWN_GAPS.get((profile, k), limit) for k, m in means.items()), means
+
+
+def test_compare_specs_and_untimed_sides():
+    r = analyze(req(H8, H4, costs="ttsim-perf", action="compare", candidates=[
+        {"id": "to16", "overrides": {"reshard": {"to": {"strategy": "height", "cores": 16, "memory": "l1"}}}},
+        {"id": "dram", "overrides": {"reshard": {"to": {"strategy": "height", "cores": 2, "memory": "dram"}}}}]))
+    assert r["status"] == "ok" and validate_response(r) == []
+    to16, dram = r["candidates"]
+    assert to16["comparison"]["verdict"] == "faster" and "hs16l" in to16["label"]
+    assert dram["comparison"]["verdict"] == "inconclusive" and "DRAM" in dram["warnings"][0]  # ttsim-perf: DRAM untimed
+    assert [x["id"] for x in r["recommendations"]] == ["to16"]
+
+
+def test_profile_notes_and_known_gaps():
+    craq = analyze(req(H8, H4))["baseline"]
+    assert "per request" in craq["warnings"][0] and craq["config"] == {"factory": "SameWidth"}
+    w4 = {"strategy": "width", "cores": 4, "memory": "l1"}
+    sh = analyze(req(w4, dict(w4, cores=8), layout="row_major", costs="ttsim-perf"))["baseline"]
+    assert sh["config"]["factory"] == "SameHeight" and any("known gap" in w for w in sh["warnings"])

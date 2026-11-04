@@ -31,6 +31,9 @@ QUESTIONS = {  # question, regex an answer backed by the model must contain
                 r"\d[\d,.]*\s*(ns|µs|cycles)"),
     "shard_cores": ("Is it worth height-sharding a 1024x256 bf16 tensor from DRAM onto 32 cores instead of 8 on Quasar?",
                     r"2[.,]\d\s*[x×]|faster"),
+    "reshard": ("On Quasar, is resharding a 1024x1024 bf16 tensor from 8 to 16 height shards in L1 faster than to 4? "
+                "Which factory runs?", r"SameWidth"),
+    "move": ("How long does ttnn move of a 1024x1024 bf16 tile tensor in DRAM take on Quasar?", r"\d[\d,.]*\s*(ns|µs|cycles)"),
     "unsupported": ("How long does a Quasar matmul of 1024x1024 by 1024x1024 take?", r"(not|un)\s*supported|cannot|no model"),
 }
 TOOLS = ["Bash(PYTHONPATH=*)", "Bash(python3 *)", "Write", "Read", "Skill", "Agent"]

@@ -87,6 +87,12 @@ def _workload(w, knobs):
             "placement": place, "use_multicore": knobs.get("use_multicore", True)}
 
 
+def _own_api(wl):
+    """An op module that builds its own memory string (move, reshard): no use_multicore / input knobs."""
+    m = registry.module_for(wl["op"])
+    return bool(m and hasattr(m, "mem_of"))
+
+
 def _result(wl, profile, what_if):
     op, H, W = wl["op"], wl["H"], wl["W"]
     try:
@@ -95,11 +101,20 @@ def _result(wl, profile, what_if):
         raise LayoutError("unsupported", str(e))
     p = prefix_of(op, factory)
     if op in SHARD_OPS or wl.get("shard"):
-        label = f"{op} ({wl['shard']}, interleaved side {wl['placement']})" if op in SHARD_OPS else f"{op} ({wl['shard']})"
+        label = f"{op} ({wl['shard']}, interleaved side {wl['placement']})" if op in SHARD_OPS else f"{op} {factory} ({wl['shard']})"
     else:
         label = f"{op} {factory} ({'multicore' if wl['use_multicore'] else 'single core'}, input {wl['placement']})"
-    res = {"label": label, "config": {"factory": factory, "use_multicore": wl["use_multicore"], "input": wl["placement"]},
-           "valid": True, "errors": [], "warnings": []}
+    mod = registry.module_for(op)
+    config = {"factory": factory} if _own_api(wl) else \
+        {"factory": factory, "use_multicore": wl["use_multicore"], "input": wl["placement"]}
+    res = {"label": label, "config": config, "valid": True, "errors": [], "warnings": []}
+    if hasattr(mod, "notes"):  # what this profile cannot time for the op
+        warn, res["untimed"] = mod.notes(profile["name"], wl["mem"])
+        res["warnings"] += warn
+    gap = getattr(mod, "KNOWN_GAPS", {}).get((profile["name"], factory))
+    if gap:  # a factory a simulator times worse than the target (mean error over the calibration runs)
+        res["warnings"].append(f"{op} {factory} on {profile['name']}: known gap, {gap:.0%} mean error over the calibration "
+                               f"runs (target 3%); treat as indicative and confirm with one simulator run")
     if p is None or f"{p}.start_reader" not in profile["params"]:  # every calibrated factory has its kernel starts
         raise LayoutError("needs_input", f"cost profile '{profile['name']}' has no costs for {op} {factory}; calibrate it "
                                          f"(calibration/fit_layout.py)")
@@ -175,8 +190,9 @@ def analyze_layout(req, t_start):
         base = _result(wl, costs, what_if)
         result = {"schema_version": SCHEMA_VERSION, "engine_version": ENGINE_VERSION, "status": "ok",
                   "profiles": {"architecture": arch_id, "kernel": kernel_id, "costs": costs_id},
-                  "applied_defaults": [] if "use_multicore" in base_knobs else ["use_multicore=true (default)"],
-                  "assumptions": [f"{wl['op']}: one reader, one compute, one writer thread per core (the factory's kernels)"],
+                  "applied_defaults": [] if "use_multicore" in base_knobs or _own_api(wl) else ["use_multicore=true (default)"],
+                  "assumptions": [getattr(registry.module_for(wl["op"]), "ASSUMPTION", None) or
+                                  f"{wl['op']}: one reader, one compute, one writer thread per core (the factory's kernels)"],
                   "warnings": [], "result_kind": "finite_buffer_estimate", "baseline": _compact(base, detail)}
         if costs.get("platform_scope"):
             result["platform_scope"] = costs["platform_scope"]
@@ -190,6 +206,8 @@ def analyze_layout(req, t_start):
                     r = {"label": str(knobs), "config": {}, "valid": False, "errors": [e.message]}
                 r["id"] = c.get("id", r["label"])
                 r["comparison"] = _compare(base, r)
+                if r.get("valid") and (base.get("untimed") or r.get("untimed")):  # the profile cannot rank them
+                    r["comparison"]["verdict"] = "inconclusive"
                 rows.append(_compact(r, detail))
             result["candidates"] = rows
             result["recommendations"] = _recommend(base, rows, analysis.get("top_k", 3))

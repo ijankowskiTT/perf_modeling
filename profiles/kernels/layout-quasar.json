@@ -2,8 +2,8 @@
  "kind": "kernel",
  "name": "layout-quasar",
  "revision": "f3ef8f22aaa",
- "description": "Quasar layout / data-movement ops (ttnn.experimental.quasar): tilize, untilize, their padding variants, interleaved_to_sharded, sharded_to_interleaved; modeled in qperf/ops/layout.py",
- "calibration_tree": "0fff850f3c6 (same kernels; untilize_with_unpadding differs, not modeled)",
+ "description": "Quasar layout / data-movement ops (ttnn.experimental.quasar): tilize, untilize, their padding variants, interleaved_to_sharded, sharded_to_interleaved, move, reshard; modeled in qperf/ops/layout.py, move.py, reshard.py",
+ "calibration_tree": "0fff850f3c6 (same kernels; untilize_with_unpadding differs, not modeled; move / reshard: includes only)",
  "factories": {
   "tilize": [
    "Default",
@@ -25,20 +25,34 @@
    "SingleCore"
   ],
   "interleaved_to_sharded": [
-   "Default (TILE)"
+   "Default (TILE)",
+   "Default (ROW_MAJOR)"
   ],
   "sharded_to_interleaved": [
-   "Default (TILE)"
+   "Default (TILE)",
+   "Default (ROW_MAJOR)"
+  ],
+  "move": [
+   "Overlap (TILE)",
+   "Overlap (ROW_MAJOR)"
+  ],
+  "reshard": [
+   "SameWidth",
+   "SameWidthWrite",
+   "SameHeight",
+   "SameHeightWrite",
+   "Generic",
+   "CopyPages"
   ]
  },
  "unsupported": [
-  "fp32 tilize/untilize (not calibrated)",
   "craq-sim cannot run tilize wider than 64 tiles (mop_expander inner_loop_len > 64)",
   "padding beyond the next tile multiple; non-zero pad values",
   "untilize ParallelizeColumn, SubCoreGrids, Identical/ND-shard factories; tilize Block / WidthSharded",
   "tilize_with_val_padding / untilize_with_unpadding Sharded",
-  "interleaved_to_sharded / sharded_to_interleaved ROW_MAJOR, uneven last shard, dtype conversion",
-  "move (legacy path: its kernels emit no profiler zones on Quasar), reshard"
+  "dtype conversion inside interleaved_to_sharded / sharded_to_interleaved",
+  "move with a separate output (MoveProgramFactory: Quasar rejects it), sharded move",
+  "reshard CopyLocal (wrong output on both simulators), Generic from a DRAM input, unaligned HEIGHT->HEIGHT rows, row-major width changes (differing page sizes)"
  ],
  "source_blobs": {
   "commit": "f3ef8f22aaa",
@@ -94,7 +108,38 @@
    "ttnn/cpp/ttnn/operations/experimental/quasar/tilize_with_val_padding/device/kernels/dataflow/reader_unary_pad_dims_split_rows.cpp": "1a7fb835064426f46d6b8014b66d25206449d893",
    "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/factories/untilize_with_unpadding_single_core_program_factory.cpp": "5097a60ba904e1b7c41a4d8933f5c843b3bdb5af",
    "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/kernels/dataflow/reader_unary_sharded.cpp": "7b03a60a9a4d338fda4dc135613b2707abbb45f2",
-   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/kernels/dataflow/writer_unary_unpad_dims_split_rows.cpp": "b2d3698097ee8fbc9fcdf65b0bc8ca01aa4bdc68"
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/kernels/dataflow/writer_unary_unpad_dims_split_rows.cpp": "b2d3698097ee8fbc9fcdf65b0bc8ca01aa4bdc68",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/move/device/kernels/dataflow/move_interleaved_with_overlap.cpp": "d623345e4bcc4691390c87e4485c986dd1339cfa",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/move/device/kernels/dataflow/move_interleaved_with_overlap_writer.cpp": "e7b4f8a6bd4115aeaaeceb57d2152c9badd5d7d7",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/move/device/kernels/dataflow/move_stick_layout_interleaved_with_overlap.cpp": "804ac9323f8f41c2f3771ae92d9226101fe355d2",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/move/device/kernels/dataflow/move_stick_layout_interleaved_with_overlap_writer.cpp": "cbd25d96e2bc592d439e6608d29e6e11d25a9a9b",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/move/device/move_device_operation.cpp": "a79b8d70bbe796c922eefedb1c26bf6b2a4bfe78",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/move/device/move_device_operation.hpp": "ebafd3248fed17d42cb3a04d62855ed1bce93f47",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/move/device/move_device_operation_types.hpp": "49f09a4876d6c743b2da5f7287d95e70f1cb791e",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/move/device/move_overlap_program_factory.cpp": "472bb14c9d88d229e62e1ccc531c66b8b2441634",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/move/device/move_overlap_program_factory.hpp": "7ddef063009b91f2c59354cc93bb6c0dd122dc4a",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/kernels/dataflow/reshard_reader.cpp": "cf77bf7eb92850959fd41125feda27c527a56cf7",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/kernels/dataflow/reshard_reader_diff_width.cpp": "a05214f48e1b3cf5ef864672611497763cbebaa3",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/kernels/dataflow/reshard_same_height_reader.cpp": "befa1e6e6f4296f7822d4d33b99ebce91051be04",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/kernels/dataflow/reshard_same_height_writer.cpp": "3e38090283bf82a0adf87eec6bb0ae70315b36f8",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/kernels/dataflow/reshard_same_width_reader.cpp": "fe8de8b2f19acbc2db1bcb169b1ec24ee5256ab7",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/kernels/dataflow/reshard_same_width_writer.cpp": "450bf27e28e8db6f7844ad8dc4dbfbfaa956c626",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/kernels/nd_reshard_copy_local_shards.cpp": "9ae575ba5601e884e56ca4b591909c4525d4ec29",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/kernels/nd_reshard_copy_pages_reader.cpp": "4f31c61a05a03db52f101a919bc5831f3910f5c1",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/kernels/nd_reshard_copy_pages_writer.cpp": "0f70ecc21447f305c623c66a73926b4cca99b4f3",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/nd_reshard_program_factory_copy_local.cpp": "b006a821e5ec08614d0620cb787946583185f45d",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/nd_reshard_program_factory_copy_local.hpp": "330f9eeaf54fce0a227647bb1a2c7272616b0e68",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/nd_reshard_program_factory_copy_pages.cpp": "d09e07e28bcd974245cc8e581096b54619e6840c",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/nd_reshard_program_factory_copy_pages.hpp": "c7f407e3bad497954d2cf3116816a8c4ce7cd867",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/reshard_device_operation.cpp": "36db74f706e2373a7802ff7cbf60f5cb24c6a057",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/reshard_device_operation.hpp": "1ceb686d8589dc9029dbd0b2fa18b4280477eb8e",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/reshard_device_operation_types.hpp": "fe201363ff2c5e5d8c384f13f8d2b5352cef4778",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/reshard_program_factory_generic.cpp": "315c06fbdd655e8da8fe6f52ee0d9e9a091af08a",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/reshard_program_factory_generic.hpp": "b169edcb684306796a6228388ee08603b18e63e6",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/reshard_program_factory_same_height.cpp": "736f416cf3a0b627746575be8e332a79a69186f9",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/reshard_program_factory_same_height.hpp": "e6a6ad1896e15a3bc0c611fac9465c45c2122f06",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/reshard_program_factory_same_width.cpp": "d51bbe5e496da167338e9f92f1fd81f3bc62763f",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/reshard/device/reshard_program_factory_same_width.hpp": "3cfaac0562c6558953c28a76b7fe5a88e6d8cbe1"
   }
  }
 }

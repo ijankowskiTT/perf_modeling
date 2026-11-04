@@ -31,11 +31,17 @@ Request template (only `op` is required in workload):
 - knobs: reader_threads, compute_threads, writer_threads, dm_batch, tiles_per_cycle, entries_per_thread;
   `baseline:{}` = factory rule (main). `"tiles_scope":"cluster"` makes num_tiles per cluster.
 - placements: dram | l1 | borrowed, per operand. ops: add, multiply (binary_ng), tilize, untilize,
-  tilize_with_val_padding, untilize_with_unpadding, interleaved_to_sharded, sharded_to_interleaved (others: report
-  `unsupported`).
+  tilize_with_val_padding, untilize_with_unpadding, interleaved_to_sharded, sharded_to_interleaved, move, reshard
+  (others: report `unsupported`).
 - interleaved_to_sharded / sharded_to_interleaved (TILE): add `"shard":{"strategy":"height"|"width"|"block","cores":N}`;
   placements.a = the interleaved side (dram | l1); `"layout":"row_major"` for ROW_MAJOR tensors (default tile).
   Knobs: `shard_strategy`, `shard_cores`, `input`.
+- move: `"workload":{"op":"move","dtype":"bf16","shape":[1,1,H,W],"placements":{"a":"dram"|"l1"},"layout":"tile"|"row_major"}`
+  (overlapping output; `"output":"separate"` is rejected by Quasar).
+- reshard: `"workload":{"op":"reshard","dtype":"bf16","shape":[1,1,H,W],"reshard":{"layout":"tile"|"row_major",
+  "from":{"strategy":"height"|"width"|"block","cores":N,"memory":"l1"|"dram"},"to":{...}}}`; block: `"grid":[rows,cols]`;
+  DRAM side: cores <= 2 (banks). Compare specs with candidates `{"id":"to16","overrides":{"reshard":{"to":{...}}}}`
+  (replaces from / to / layout). Relay any `known gap` warning.
 - tilize / untilize and the padding variants: `"workload":{"op":"tilize","dtype":"bf16","shape":[1,1,H,W],
   "placements":{"a":"dram"}}`; shape = the logical (unpadded) tensor, the padding variants pad / unpad to the next tile
   multiple; a = the tensor's memory: dram | l1 | borrowed = height-sharded, tilize only. Knobs: `use_multicore` (default true),
@@ -45,8 +51,8 @@ Request template (only `op` is required in workload):
 - what_if: `{"compute_service_scale":0.5}` or `{"cost_overrides":{"noc.read_latency.dram":1000}}`.
   DRAM cost keys: noc.read_latency.dram, noc.write_latency.dram, dram.total_bytes_per_cycle, dram.efficiency.
 - costs: craq-sim (default) has NO NoC latency or contention: L1 vs DRAM placement, NoC barriers (incl. per-thread
-  barriers), latency or bandwidth questions MUST use ttsim-perf (it times L1 NoC transfers; neither simulator times
-  DRAM) - run both if useful and say which answers what. silicon-hypothesis: assumed DRAM latency/bandwidth (call it
+  barriers), latency or bandwidth questions, and reshard (craq-sim charges its transfers per request, not per byte)
+  MUST use ttsim-perf (it times L1 NoC transfers; neither simulator times DRAM) - run both if useful and say which answers what. silicon-hypothesis: assumed DRAM latency/bandwidth (call it
   a hypothesis).
 
 Report only if asked: rerun with `--format html --out <scratch>/qperf-report.html` and return the path.

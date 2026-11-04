@@ -52,7 +52,7 @@
       "properties": {
         "op": {
           "type": "string",
-          "description": "add | multiply (binary_ng) | tilize | untilize | tilize_with_val_padding | untilize_with_unpadding | interleaved_to_sharded | sharded_to_interleaved | move"
+          "description": "add | multiply (binary_ng) | tilize | untilize | tilize_with_val_padding | untilize_with_unpadding | interleaved_to_sharded | sharded_to_interleaved | move | reshard"
         },
         "kernel_variant": {
           "type": "string",
@@ -141,12 +141,107 @@
           }
         },
         "layout": {
-          "enum": ["tile", "row_major"],
-          "description": "interleaved_to_sharded / sharded_to_interleaved and move: tensor layout (default tile). Sharding ops, row_major: sticks, shard ceil(H/n) x W, H x ceil(W/n) rounded up to 16 B, or ceil(H/k) x ceil(W/k), the last shard may be partial"
+          "enum": [
+            "tile",
+            "row_major"
+          ],
+          "description": "interleaved_to_sharded / sharded_to_interleaved move and reshard: tensor layout (default tile). Sharding ops, row_major: sticks, shard ceil(H/n) x W, H x ceil(W/n) rounded up to 16 B, or ceil(H/k) x ceil(W/k), the last shard may be partial"
         },
         "output": {
-          "enum": ["overlap", "separate"],
+          "enum": [
+            "overlap",
+            "separate"
+          ],
           "description": "move: where the output lands relative to the input (default overlap; separate = MoveProgramFactory, which Quasar rejects)"
+        },
+        "reshard": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "description": "reshard: the input and output shard specs",
+          "properties": {
+            "layout": {
+              "enum": [
+                "tile",
+                "row_major"
+              ]
+            },
+            "from": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "strategy"
+              ],
+              "properties": {
+                "strategy": {
+                  "enum": [
+                    "height",
+                    "width",
+                    "block"
+                  ]
+                },
+                "cores": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "grid": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "description": "[rows, cols] of the core grid (block sharding)"
+                },
+                "memory": {
+                  "enum": [
+                    "l1",
+                    "dram"
+                  ]
+                }
+              }
+            },
+            "to": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "strategy"
+              ],
+              "properties": {
+                "strategy": {
+                  "enum": [
+                    "height",
+                    "width",
+                    "block"
+                  ]
+                },
+                "cores": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "grid": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "description": "[rows, cols] of the core grid (block sharding)"
+                },
+                "memory": {
+                  "enum": [
+                    "l1",
+                    "dram"
+                  ]
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -335,6 +430,91 @@
           "type": "integer",
           "minimum": 1,
           "description": "sharding ops: override workload.shard.cores"
+        },
+        "reshard": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "reshard: replaces workload.reshard's layout / from / to (compare candidates)",
+          "properties": {
+            "layout": {
+              "enum": [
+                "tile",
+                "row_major"
+              ]
+            },
+            "from": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "strategy"
+              ],
+              "properties": {
+                "strategy": {
+                  "enum": [
+                    "height",
+                    "width",
+                    "block"
+                  ]
+                },
+                "cores": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "grid": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "description": "[rows, cols] of the core grid (block sharding)"
+                },
+                "memory": {
+                  "enum": [
+                    "l1",
+                    "dram"
+                  ]
+                }
+              }
+            },
+            "to": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "strategy"
+              ],
+              "properties": {
+                "strategy": {
+                  "enum": [
+                    "height",
+                    "width",
+                    "block"
+                  ]
+                },
+                "cores": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "grid": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "description": "[rows, cols] of the core grid (block sharding)"
+                },
+                "memory": {
+                  "enum": [
+                    "l1",
+                    "dram"
+                  ]
+                }
+              }
+            }
+          }
         }
       }
     }

@@ -38,6 +38,19 @@ multicast per region), and only then the writer writes. The controller sets the 
 are evaluated alongside it. On both simulators a page read costs the same for any page size, writes are nearly free;
 on ttsim-perf L1 reads of 32 cores cost ~6x DRAM reads. Sharded move is not modeled yet.
 
+**reshard** (`qperf/ops/reshard.py`): sharded to sharded, TILE or ROW_MAJOR, height / width / block, L1 or the 2
+DRAM banks on either side. Factory selection mirrors `ReshardDeviceOperation::select_program_factory`:
+HEIGHT->HEIGHT SameWidth (the output cores read) or SameWidthWrite (DRAM output: the input cores write); ROW_MAJOR
+WIDTH->WIDTH SameHeight / SameHeightWrite; other L1-output cases Generic (each output core gathers strided page
+runs, grouped as `create_map_for_reshard` does); DRAM->DRAM CopyPages (all 32 cores, page by page through a 1-entry
+DFB). Both DM kernels of a core run the same source on their half of the segments, one request per segment (per row
+for SameHeight, per stride run for Generic) and one barrier at the end. craq-sim charges a transfer per request, not
+per byte (answers on it say so and comparisons are inconclusive); ttsim-perf does not time DRAM (same). On
+ttsim-perf L1 reads are paced by NoC contention: each core's NoC port and each directed link moves 64 B/cycle, and a
+core's reads end when the busiest port or link on its response paths has moved its bytes. Not modeled: CopyLocal (L1
+-> DRAM with a layout change; its output is wrong on both simulators), Generic from a DRAM input (neither simulator
+runs it), unaligned HEIGHT->HEIGHT rows, row-major width changes.
+
 **fp32** runs the same kernels and loops: tiles are 4096 B and rows twice as many bytes, the compute unpacks straight
 to DEST (`UnpackToDest`) with fp32 DEST, so untilize sub-blocks hold <= 4 tiles (half of bf16's 8), and tilize uses
 the standard (lossless) path. Request counts are unchanged; the fp32 runs measured that craq-sim's DM time per
@@ -59,8 +72,8 @@ barrier on its own transfers only (transaction IDs); `work_split: dynamic` lets 
 batches from one shared queue, paying `dq.claim` (assumed 30 cycles) per batch. The completion queue stays shared
 and serves transfers in time order, so variants and the pinned schedule are evaluated the same way.
 
-**Not modeled**: NoC routing and link contention, L1 bank conflicts (except the sharding moves' lockstep conflict
-above), dynamic arbitration, launch skew.
+**Not modeled**: NoC routing and link contention (except reshard on ttsim-perf), L1 bank conflicts (except the
+sharding moves' lockstep conflict above), dynamic arbitration, launch skew.
 
 **Costs**: every parameter in `profiles/costs/*.json` has `value`, `low`, `high`, `class` and `source`.
 `low`/`high` move all costs together (scenarios, shared by baseline and candidates), not confidence intervals.

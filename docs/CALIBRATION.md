@@ -83,6 +83,35 @@ of 4 sub-blocks +10%), untilize Block on craq-sim with single-block DFBs (S = 15
 with the interleaved side in L1 on ttsim-perf (bank conflicts are linear in the conflicting cores; up to 17%), wide
 tilize from L1 on ttsim-perf (-12%).
 
+### reshard
+
+`calibration/runners/reshard.py` (one run per case, `mem` = `<t|r>_<from>_<to>`, e.g. `t_hs8l_hs4l`); 320 runs on
+craq-sim and 315 on ttsim-perf in `calibration/data/reshard-<profile>.jsonl`, all outputs exact. Terms per factory
+(`rsw`, `rsww`, `rsh`, `rshw`, `rgen`, `rcp`): kernel starts, prologue / epilogue, per segment and per request
+costs, DMA cycles per byte, a DRAM-input set-up and, on ttsim-perf, the L1 latency / service and port / link rates.
+`fit_layout.py` takes a module's `FIT_INIT` (initial values) and `l1_fit_keys` (which L1 terms a simulator can
+identify). Mean error, fit / held-out (every 4th run):
+
+| Factory | craq-sim | ttsim-perf |
+|---|---|---|
+| SameWidth | 1.7% / 1.8% | 3.3% / 2.6% |
+| SameWidthWrite | 0.2% / 0.2% | 0.0% / 0.0% |
+| SameHeight | 0.0% / 0.0% | 17.5% / 12.4% |
+| SameHeightWrite | 0.0% / 0.0% | 0.0% / 0.0% |
+| Generic | 0.5% / 0.4% | 8.5% / 12.5% |
+| CopyPages | 1.9% / 2.0% | 1.5% / 1.3% |
+
+```bash
+python calibration/fit_layout.py --data calibration/data/reshard-craq-sim.jsonl --sim craq-b702fd90 --op reshard \
+    --emit calibration/out/reshard-craq-sim.json            # and --sim perf / ttsim-perf
+python calibration/merge_params.py calibration/out/reshard-craq-sim.json craq-sim
+```
+
+Known gap: SameHeight and Generic on ttsim-perf (many small L1 responses pass ports and links faster than the
+64 B/cycle that fits SameWidth's large transfers). Answers for them carry a warning; `tests/test_reshard.py` bounds
+them (17%, 10%) so they cannot regress. craq-sim residuals up to ~5% on spans under 250 cycles (DM2 start offset
+varies by +-12 cycles between builds).
+
 ## Data
 
 `calibration/data/<profile>.jsonl` (binary_ng) and `layout-<profile>.jsonl` (tilize/untilize, from

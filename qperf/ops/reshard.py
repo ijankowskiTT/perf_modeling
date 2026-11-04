@@ -604,10 +604,27 @@ def _spec_token(s, H, W):
     return body + ("l" if place == "l1" else "d")
 
 
+ASSUMPTION = "reshard: two data-movement kernels per core running the same source, no compute (the factory's kernels)"
+def notes(profile_name, mem):
+    """What a profile cannot time for this reshard -> (warnings, untimed). untimed: comparisons with it are
+    inconclusive."""
+    if profile_name == "craq-sim":
+        return ["craq-sim times a reshard transfer per request, not per byte (a 512 KB segment costs about what a 2 KB "
+                "one does): it ranks request counts only; use ttsim-perf for size, core-count and placement questions"], True
+    if profile_name == "ttsim-perf" and "d_" in mem + "_":
+        return ["ttsim-perf does not time DRAM transfers: the DRAM side of this reshard is nearly free here, so L1 vs "
+                "DRAM comparisons are not meaningful (only L1 -> L1 specs compare on ttsim-perf)"], True
+    return [], False
+
+
+# Mean error over the calibration runs where a simulator is timed worse than the 3% target (tests/test_reshard.py
+# bounds them): ttsim-perf L1 reads of many small responses (see _contention).
+KNOWN_GAPS = {("ttsim-perf", "SameHeight"): 0.16, ("ttsim-perf", "Generic"): 0.095}
+
 def mem_of(workload, knobs):
     """workload.reshard = {"layout": "tile"|"row_major" (default tile), "from": {strategy, cores | grid, memory},
     "to": {...}} -> (mem string, label)."""
-    r = workload.get("reshard") or {}
+    r = {**(workload.get("reshard") or {}), **((knobs or {}).get("reshard") or {})}  # a candidate may replace from / to
     if "from" not in r or "to" not in r:
         raise ValueError("reshard needs workload.reshard {from: {strategy, cores, memory}, to: {...}}")
     shape = workload["shape"]

@@ -1,7 +1,7 @@
 ---
 name: quasar-perf
 description: >-
-  Answer performance questions about Quasar ops with the deterministic qperf model - binary_ng eltwise (R/C/W thread allocation, DM batch, tiles_per_cycle, ring depth, compute or DRAM/L1 what-ifs, kernel-change ideas) and tilize / untilize (factory choice, single vs multi core, sharded vs interleaved, how time scales with height and width). "would X help this add?", "how long does this tilize take?", "which configs should I benchmark?". Use instead of estimating cycles yourself. Read-only: never runs hardware, simulators or kernel changes.
+  Answer performance questions about Quasar ops with the deterministic qperf model - binary_ng eltwise (R/C/W thread allocation, DM batch, tiles_per_cycle, ring depth, compute or DRAM/L1 what-ifs, kernel-change ideas) and data movement - tilize / untilize and their padding variants, interleaved_to_sharded / sharded_to_interleaved, move, reshard (factory choice, single vs multi core, shard strategy and core count, how time scales with height and width). "would X help this add?", "how long does this tilize take?", "is resharding to 16 cores faster?", "which configs should I benchmark?". Use instead of estimating cycles yourself. Read-only: never runs hardware, simulators or kernel changes.
 ---
 
 # quasar-perf
