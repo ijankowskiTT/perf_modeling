@@ -24,13 +24,13 @@ QUESTIONS = {  # question, regex an answer backed by the model must contain
     "barriers": ("Is it worth implementing per-thread (transaction-ID) NoC barriers for a 4k-tile bf16 add on Quasar, "
                  "with tensors in DRAM vs L1?", r"1\.1[5-7]\s*[x×]|1[5-7]\s*%"),
     "tilize": ("How long does tilize of a 1x1x3136x64 bf16 tensor from DRAM take on Quasar, and would height-sharded "
-               "input be faster?", r"4[.,]\d\s*µs|4,?6\d\d|3(\.\d)?\s*[x×]"),
+               "input be faster?", r"4[.,]\d\s*µs|4,?6\d\d|3(\.\d)?\s*[x×]|9[.,]6\s*µs|9,?6\d\d"),  # craq-sim | ttsim-perf
     "untilize_wide": ("On Quasar, which untilize factory runs for a 256x4096 bf16 tensor in DRAM, and what limits it?",
                       r"[Bb]lock"),
     "padding": ("How long does tilize_with_val_padding of a 3000x1000 bf16 tensor from DRAM take on Quasar?",
                 r"\d[\d,.]*\s*(ns|µs|cycles)"),
     "shard_cores": ("Is it worth height-sharding a 1024x256 bf16 tensor from DRAM onto 32 cores instead of 8 on Quasar?",
-                    r"2[.,]\d\s*[x×]|faster"),
+                    r"2[.,]\d\s*[x×]|1[.,]3\d\s*[x×]|faster"),  # craq-sim 2.4x | ttsim-perf 1.35x
     "reshard": ("On Quasar, is resharding a 1024x1024 bf16 tensor from 8 to 16 height shards in L1 faster than to 4? "
                 "Which factory runs?", r"SameWidth"),
     "move": ("How long does ttnn move of a 1024x1024 bf16 tile tensor in DRAM take on Quasar?", r"\d[\d,.]*\s*(ns|µs|cycles)"),

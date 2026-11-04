@@ -31,7 +31,7 @@ def _set(req, assignment):
 
 
 def _text(res):
-    out = [f"status: {res['status']}  kind: {res.get('result_kind')}  runtime: {res.get('runtime_ms')} ms"]
+    out = [f"status: {res['status']}  kind: {res.get('result_kind')}  model computed in {res.get('runtime_ms')} ms (not the op's time)"]
     if res.get("message"):
         out.append(f"message: {res['message']}")
     if "profiles" in res:

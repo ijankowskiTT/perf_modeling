@@ -42,6 +42,7 @@ Request template (only `op` is required in workload):
   "from":{"strategy":"height"|"width"|"block","cores":N,"memory":"l1"|"dram"},"to":{...}}}`; block: `"grid":[rows,cols]`;
   DRAM side: cores <= 2 (banks). Compare specs with candidates `{"id":"to16","overrides":{"reshard":{"to":{...}}}}`
   (replaces from / to / layout). Relay any `known gap` warning.
+- `runtime_ms` is how long the model took to compute, never the op's time (that is `time_ns`).
 - tilize / untilize and the padding variants: `"workload":{"op":"tilize","dtype":"bf16","shape":[1,1,H,W],
   "placements":{"a":"dram"}}`; shape = the logical (unpadded) tensor, the padding variants pad / unpad to the next tile
   multiple; a = the tensor's memory: dram | l1 | borrowed = height-sharded, tilize only. Knobs: `use_multicore` (default true),
