@@ -3,7 +3,7 @@
  "name": "craq-sim",
  "revision": "2026-11-03.fit6",
  "platform": "craq-sim (tt-blaze), branch quasar @b702fd90, release_qsr build",
- "platform_scope": "craq-sim (tt-blaze craq-sim, branch quasar @b702fd90, 2026-10-24): DM RISC-V at 1 instr/cycle, Tensix instruction timing incl. busy-status waits; NO NoC/DRAM transfer timing, barriers pre-satisfied, no contention, so l1/dram placements predict the same. Times are simulator cycles reported as ns (1 cycle = 1 ns by convention), not silicon.",
+ "platform_scope": "craq-sim (tt-blaze craq-sim, branch quasar @b702fd90, 2026-10-24): DM RISC-V at 1 instr/cycle, Tensix instruction timing incl. busy-status waits; each DM thread's DMA moves ~56 B/cycle, but no NoC/DRAM latency or contention, so l1/dram placements predict the same. Times are simulator cycles reported as ns (1 cycle = 1 ns by convention), not silicon.",
  "calibration": {
   "commit": "0fff850f3c6",
   "sim_build": "craq-sim quasar@b702fd90",
@@ -215,6 +215,748 @@
    "high": 100.0,
    "class": "assumption",
    "source": "assumed: one atomic increment on a cluster semaphore per claimed batch (work_split=dynamic only); no kernel implements it, so it is not measured"
+  },
+  "tz.start_reader": {
+   "value": 498.0,
+   "low": 473.1,
+   "high": 522.9,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tz.start_compute": {
+   "value": 558.0,
+   "low": 530.1,
+   "high": 585.9,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tz.start_writer": {
+   "value": 464.0,
+   "low": 440.8,
+   "high": 487.2,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tz.rd_cpb": {
+   "value": 0.00752197,
+   "low": 0.00714587,
+   "high": 0.00789807,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.wr_cpb": {
+   "value": 0.0124168,
+   "low": 0.0117959,
+   "high": 0.0130376,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.rd_setup": {
+   "value": 153.994,
+   "low": 146.294,
+   "high": 161.693,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.wr_setup": {
+   "value": 1143.74,
+   "low": 1086.55,
+   "high": 1200.93,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.rd_fixed": {
+   "value": 547.617,
+   "low": 520.236,
+   "high": 574.998,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.rd_issue": {
+   "value": 8.62152,
+   "low": 8.19044,
+   "high": 9.05259,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.rd_first": {
+   "value": 10.1789,
+   "low": 9.66998,
+   "high": 10.6879,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.rd_tail": {
+   "value": 23.5956,
+   "low": 22.4158,
+   "high": 24.7753,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.cu_fixed": {
+   "value": 66.7585,
+   "low": 63.4205,
+   "high": 70.0964,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.cu_per_tile": {
+   "value": 22.2474,
+   "low": 21.1351,
+   "high": 23.3598,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.cu_first": {
+   "value": 1.26458,
+   "low": 1.20135,
+   "high": 1.32781,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.wr_fixed": {
+   "value": 0.198485,
+   "low": 0.188561,
+   "high": 0.20841,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.wr_issue": {
+   "value": 50.1287,
+   "low": 47.6223,
+   "high": 52.6351,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.wr_first": {
+   "value": 0.180866,
+   "low": 0.171823,
+   "high": 0.18991,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.wr_tail": {
+   "value": 62.2291,
+   "low": 59.1177,
+   "high": 65.3406,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.cu_tail": {
+   "value": 62.0779,
+   "low": 58.974,
+   "high": 65.1818,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.drain": {
+   "value": 4.85603,
+   "low": 4.61323,
+   "high": 5.09883,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.rd_cpb_l1": {
+   "value": 0.000349137,
+   "low": 0.00033168,
+   "high": 0.000366594,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.wr_cpb_l1": {
+   "value": 1.03771e-06,
+   "low": 9.85827e-07,
+   "high": 1.0896e-06,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.rd_lat_l1": {
+   "value": 7.7471,
+   "low": 7.35974,
+   "high": 8.13445,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tz.wr_lat_l1": {
+   "value": 0.0355895,
+   "low": 0.03381,
+   "high": 0.037369,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.start_reader": {
+   "value": 403.0,
+   "low": 382.85,
+   "high": 423.15,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tzh.start_compute": {
+   "value": 558.0,
+   "low": 530.1,
+   "high": 585.9,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tzh.start_writer": {
+   "value": 365.0,
+   "low": 346.75,
+   "high": 383.25,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tzh.rd_setup": {
+   "value": 112.454,
+   "low": 106.831,
+   "high": 118.076,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.wr_setup": {
+   "value": 521.739,
+   "low": 495.653,
+   "high": 547.826,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.rd_fixed": {
+   "value": 112.453,
+   "low": 106.831,
+   "high": 118.076,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.rd_tail": {
+   "value": 0.00594115,
+   "low": 0.00564409,
+   "high": 0.00623821,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.cu_fixed": {
+   "value": 75.0646,
+   "low": 71.3114,
+   "high": 78.8178,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.cu_per_tile": {
+   "value": 37.3193,
+   "low": 35.4533,
+   "high": 39.1852,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.cu_first": {
+   "value": 144.138,
+   "low": 136.931,
+   "high": 151.345,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.wr_fixed": {
+   "value": 140.203,
+   "low": 133.193,
+   "high": 147.213,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.wr_tail": {
+   "value": 62.0917,
+   "low": 58.9871,
+   "high": 65.1963,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.cu_tail": {
+   "value": 118.753,
+   "low": 112.816,
+   "high": 124.691,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzh.drain": {
+   "value": 2.0479,
+   "low": 1.94551,
+   "high": 2.1503,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.start_reader": {
+   "value": 440.0,
+   "low": 418.0,
+   "high": 462.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tzs.start_compute": {
+   "value": 558.0,
+   "low": 530.1,
+   "high": 585.9,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tzs.start_writer": {
+   "value": 468.0,
+   "low": 444.6,
+   "high": 491.4,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tzs.rd_cpb": {
+   "value": 0.0101726,
+   "low": 0.00966399,
+   "high": 0.0106813,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.wr_cpb": {
+   "value": 0.0140362,
+   "low": 0.0133344,
+   "high": 0.014738,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.rd_setup": {
+   "value": 46.7692,
+   "low": 44.4307,
+   "high": 49.1076,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.wr_setup": {
+   "value": 1361.31,
+   "low": 1293.25,
+   "high": 1429.38,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.rd_fixed": {
+   "value": 915.467,
+   "low": 869.694,
+   "high": 961.241,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.rd_issue": {
+   "value": 7.92932,
+   "low": 7.53285,
+   "high": 8.32578,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.rd_first": {
+   "value": 41.818,
+   "low": 39.7271,
+   "high": 43.9089,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.rd_tail": {
+   "value": 169.95,
+   "low": 161.453,
+   "high": 178.448,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.cu_fixed": {
+   "value": 7.88161,
+   "low": 7.48753,
+   "high": 8.27569,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.cu_per_tile": {
+   "value": 10.1399,
+   "low": 9.63293,
+   "high": 10.6469,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.cu_first": {
+   "value": 14.2016,
+   "low": 13.4915,
+   "high": 14.9116,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.wr_fixed": {
+   "value": 0.128009,
+   "low": 0.121609,
+   "high": 0.13441,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.wr_issue": {
+   "value": 60.4768,
+   "low": 57.453,
+   "high": 63.5007,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.wr_first": {
+   "value": 1.06768,
+   "low": 1.01429,
+   "high": 1.12106,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.wr_tail": {
+   "value": 16.9139,
+   "low": 16.0682,
+   "high": 17.7596,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.cu_tail": {
+   "value": 16.7311,
+   "low": 15.8946,
+   "high": 17.5677,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "tzs.drain": {
+   "value": 11.7424,
+   "low": 11.1552,
+   "high": 12.3295,
+   "class": "measurement-fit",
+   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+  },
+  "utz.start_reader": {
+   "value": 493.0,
+   "low": 468.35,
+   "high": 517.65,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utz.start_compute": {
+   "value": 547.5,
+   "low": 520.125,
+   "high": 574.875,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utz.start_writer": {
+   "value": 478.0,
+   "low": 454.1,
+   "high": 501.9,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utz.rd_cpb": {
+   "value": 0.00684636,
+   "low": 0.00650405,
+   "high": 0.00718868,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.wr_cpb": {
+   "value": 0.0049946,
+   "low": 0.00474487,
+   "high": 0.00524433,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.rd_setup": {
+   "value": 44.8628,
+   "low": 42.6196,
+   "high": 47.1059,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.wr_setup": {
+   "value": 550.252,
+   "low": 522.74,
+   "high": 577.765,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.rd_fixed": {
+   "value": 36.9531,
+   "low": 35.1054,
+   "high": 38.8007,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.rd_issue": {
+   "value": 4.97551,
+   "low": 4.72674,
+   "high": 5.22429,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.rd_first": {
+   "value": 2.33551,
+   "low": 2.21873,
+   "high": 2.45228,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.rd_tail": {
+   "value": 0.00324897,
+   "low": 0.00308652,
+   "high": 0.00341142,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.um_fixed": {
+   "value": 146.75,
+   "low": 139.413,
+   "high": 154.088,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.um_per_tile": {
+   "value": 0.00139561,
+   "low": 0.00132583,
+   "high": 0.0014654,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.pk_fixed": {
+   "value": 2.48043,
+   "low": 2.35641,
+   "high": 2.60446,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.pk_per_tile": {
+   "value": 0.000859449,
+   "low": 0.000816477,
+   "high": 0.000902422,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.cu_first": {
+   "value": 65.0605,
+   "low": 61.8075,
+   "high": 68.3135,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.wr_fixed": {
+   "value": 41.7873,
+   "low": 39.6979,
+   "high": 43.8767,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.wr_issue": {
+   "value": 60.6224,
+   "low": 57.5913,
+   "high": 63.6536,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.wr_first": {
+   "value": 3.97379,
+   "low": 3.7751,
+   "high": 4.17248,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.wr_tail": {
+   "value": 53.2816,
+   "low": 50.6175,
+   "high": 55.9457,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.cu_tail": {
+   "value": 16.2739,
+   "low": 15.4602,
+   "high": 17.0876,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.drain": {
+   "value": 1.96907,
+   "low": 1.87061,
+   "high": 2.06752,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.rd_cpb_l1": {
+   "value": 1.71494e-05,
+   "low": 1.62919e-05,
+   "high": 1.80069e-05,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.wr_cpb_l1": {
+   "value": 0.00502182,
+   "low": 0.00477073,
+   "high": 0.00527291,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.rd_lat_l1": {
+   "value": 0.0087923,
+   "low": 0.00835268,
+   "high": 0.00923191,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utz.wr_lat_l1": {
+   "value": 0.134817,
+   "low": 0.128077,
+   "high": 0.141558,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.start_reader": {
+   "value": 493.0,
+   "low": 468.35,
+   "high": 517.65,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utzs.start_compute": {
+   "value": 558.0,
+   "low": 530.1,
+   "high": 585.9,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utzs.start_writer": {
+   "value": 398.0,
+   "low": 378.1,
+   "high": 417.9,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utzs.rd_cpb": {
+   "value": 0.000106809,
+   "low": 0.000101469,
+   "high": 0.00011215,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.wr_cpb": {
+   "value": 1.30314e-08,
+   "low": 1.23798e-08,
+   "high": 1.36829e-08,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.rd_setup": {
+   "value": 0.00233717,
+   "low": 0.00222031,
+   "high": 0.00245403,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.wr_setup": {
+   "value": 498.49,
+   "low": 473.565,
+   "high": 523.414,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.rd_fixed": {
+   "value": 27.7023,
+   "low": 26.3172,
+   "high": 29.0874,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.rd_issue": {
+   "value": 27.7023,
+   "low": 26.3172,
+   "high": 29.0874,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.rd_first": {
+   "value": 0.00233717,
+   "low": 0.00222031,
+   "high": 0.00245403,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.rd_tail": {
+   "value": 164.546,
+   "low": 156.318,
+   "high": 172.773,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.um_fixed": {
+   "value": 103.173,
+   "low": 98.0141,
+   "high": 108.331,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.um_per_tile": {
+   "value": 0.00921701,
+   "low": 0.00875616,
+   "high": 0.00967786,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.pk_fixed": {
+   "value": 9.55821e-06,
+   "low": 9.0803e-06,
+   "high": 1.00361e-05,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.pk_per_tile": {
+   "value": 8.89605,
+   "low": 8.45125,
+   "high": 9.34085,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.cu_first": {
+   "value": 58.6116,
+   "low": 55.681,
+   "high": 61.5422,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.wr_fixed": {
+   "value": 585.022,
+   "low": 555.771,
+   "high": 614.273,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.wr_issue": {
+   "value": 19.7255,
+   "low": 18.7392,
+   "high": 20.7117,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.wr_first": {
+   "value": 0.0183217,
+   "low": 0.0174056,
+   "high": 0.0192378,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.wr_tail": {
+   "value": 0.471902,
+   "low": 0.448307,
+   "high": 0.495497,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.cu_tail": {
+   "value": 0.0146019,
+   "low": 0.0138718,
+   "high": 0.015332,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "utzs.drain": {
+   "value": 0.00045249,
+   "low": 0.000429865,
+   "high": 0.000475114,
+   "class": "measurement-fit",
+   "source": "fitted on 65 untilize runs (craq-b702fd90)"
   }
  },
  "compute_variants": {

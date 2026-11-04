@@ -30,7 +30,12 @@ Request template (only `op` is required in workload):
   sensitivity (`"sensitivity":{"param":"num_tiles"|"compute_service_scale"|<cost key>,"values":[...]}`, candidates allowed).
 - knobs: reader_threads, compute_threads, writer_threads, dm_batch, tiles_per_cycle, entries_per_thread;
   `baseline:{}` = factory rule (main). `"tiles_scope":"cluster"` makes num_tiles per cluster.
-- placements: dram | l1 | borrowed, per operand. ops: add, multiply (others: report `unsupported`).
+- placements: dram | l1 | borrowed, per operand. ops: add, multiply (binary_ng), tilize, untilize (others: report
+  `unsupported`).
+- tilize / untilize: `"workload":{"op":"tilize","dtype":"bf16","shape":[1,1,H,W],"placements":{"a":"dram"}}` (a = the
+  tensor's memory: dram | l1 | borrowed = height-sharded, tilize only). Knobs: `use_multicore` (default true),
+  `input` (placement). Actions: estimate, compare, sensitivity (`num_rows` | `num_cols`); no tune (no TTNN_QSR knobs).
+  The answer names the factory (Default / MultiCore / SingleCore / Sharded) and the limiting thread.
 - hypothetical kernel changes: `barriers:"per_thread"`, `work_split:"dynamic"`; dm_batch > 8 needs knob_limits.
 - what_if: `{"compute_service_scale":0.5}` or `{"cost_overrides":{"noc.read_latency.dram":1000}}`.
   DRAM cost keys: noc.read_latency.dram, noc.write_latency.dram, dram.total_bytes_per_cycle, dram.efficiency.
@@ -41,4 +46,5 @@ Report only if asked: rerun with `--format html --out <scratch>/qperf-report.htm
 
 Answer format (short): bottleneck; a small table of the options with time, speedup and verdict; the best choice and
 why; limits (hypothetical variants, assumed DRAM, unsupported parts). Give the request file path so it can be rerun.
-Accuracy: craq-sim ~1-2% mean; ttsim-perf DRAM ~1.4%, L1 ~8%. No silicon exists: times are simulator cycles.
+Accuracy: binary_ng craq-sim ~1-2% mean, ttsim-perf DRAM ~1.4%, L1 ~8%; tilize/untilize <=2% mean on held-out runs.
+No silicon exists: times are simulator cycles. Drift for tilize/untilize: `check-drift --kernel layout-quasar --ref main`.

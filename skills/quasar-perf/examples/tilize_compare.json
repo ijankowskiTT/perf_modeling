@@ -1,0 +1,11 @@
+{
+  "schema_version": "1",
+  "action": "compare",
+  "profiles": {"costs": "craq-sim"},
+  "workload": {"op": "tilize", "dtype": "bf16", "shape": [1, 1, 3136, 64], "placements": {"a": "dram"}},
+  "baseline": {},
+  "candidates": [
+    {"id": "single_core", "overrides": {"use_multicore": false}},
+    {"id": "height_sharded", "overrides": {"input": "borrowed"}}
+  ]
+}

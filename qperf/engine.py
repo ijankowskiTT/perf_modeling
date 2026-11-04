@@ -9,7 +9,8 @@ A Program has:
   next batch, paying `claim` cycles.
 
 Thread steps:
-- ("wait", "space"|"data", ring, tiles, counted)   block until slots are free / entries are pushed
+- ("wait", "space"|"data"|"popped", ring, tiles, counted)   until slots are free / entries pushed / entries popped
+                                                    ("popped": a producer's kernel exits only once its DFB is drained)
 - ("busy", cycles, counted)                         own service time
 - ("push"|"pop", ring, tiles, delay)                publish entries / free slots, visible after `delay`
 - ("count", tiles, batches)
@@ -60,6 +61,17 @@ class Ring:
                     return None
                 if p > t:
                     t = p
+        return t
+
+    def popped_time(self, tiles):
+        """Time the consumer has popped all of `tiles`, or None if not yet known."""
+        t = 0.0
+        for i in tiles:
+            p = self.pop_t[i]
+            if p is None:
+                return None
+            if p > t:
+                t = p
         return t
 
     def data_time(self, tiles):
@@ -158,6 +170,7 @@ class DMBatch:
     release: str  # "push" | "pop"
     delay: float
     max_inflight: int = 0
+    dma: bool = False  # True: transfers queue on the thread's DMA engine, each taking `gap`, across batches
 
 
 class Thread:
@@ -169,6 +182,7 @@ class Thread:
         self.bar = None  # parked batch: (barrier arrival time, DMBatch)
         self.sets_end = sets_end
         self.ran = False
+        self.dma_free = -INF  # when the thread's DMA engine finishes its last transfer (DMBatch.dma)
 
     @property
     def done(self):
@@ -204,7 +218,8 @@ def _step(th, prog):
     op = s[0]
     if op == "wait":
         _, kind, ring, tiles, counted = s
-        r = ring.slot_free_time(tiles) if kind == "space" else ring.data_time(tiles)
+        r = (ring.slot_free_time(tiles) if kind == "space" else ring.data_time(tiles) if kind == "data"
+             else ring.popped_time(tiles))
         if r is None:
             return False
         if r > th.t:
@@ -255,7 +270,11 @@ def _start_batch(th, b, prog):
             if b.max_inflight and j >= b.max_inflight:
                 issue = max(issue, completes[j - b.max_inflight])
             issue_end = issue + b.issue
-            comp = max(issue_end + lat, comp_prev + gap)
+            if b.dma:  # the DMA engine moves one transfer at a time: start when issued and the engine is free
+                th.dma_free = max(issue_end, th.dma_free) + gap
+                comp = th.dma_free + lat
+            else:
+                comp = max(issue_end + lat, comp_prev + gap)
             if svc:
                 comp = prog.queues[q].serve(comp, svc)
             completes.append(comp)

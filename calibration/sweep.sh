@@ -3,6 +3,8 @@
 #   case  = sim:layout:op:dtype:tpc:knobs   (e.g. craq-b702fd90:ddd:add:bf16:128:R4,C4,W2,B8,T8,E16)
 #   sim   = a directory under $QPERF_SIM_DIR holding env.sh (sets TT_METAL_SIMULATOR etc.)
 #   knobs = R/C/W threads, B dm_batch, T tiles_per_cycle, E entries_per_thread (any subset) or -
+#   data-movement ops (tilize, untilize, tilize_with_val_padding, untilize_with_unpadding):
+#   case = sim:mem:op:dtype:HxW:multicore, mem = dram | l1 | hs (e.g. craq-b702fd90:dram:tilize:bf16:256x512:1)
 # Env: TREE (tt-metal worktree with its own build), QPERF_SIM_DIR, QPERF_RUNS (logs/cache, default ./runs).
 # One process per case, so the program cache never blends configurations.
 OUT=$1; PAR=$2; shift 2
@@ -22,7 +24,7 @@ run_one() {
     export TT_METAL_LOGS_PATH=$H/runs/$tag
     export TT_METAL_PROFILER_DIR=$TT_METAL_LOGS_PATH/generated/profiler
     rm -rf $TT_METAL_LOGS_PATH; mkdir -p $TT_METAL_LOGS_PATH $TT_METAL_CACHE
-    if [ "$knobs" != "-" ]; then
+    if [ "$knobs" != "-" ] && [[ "$knobs" != [01] ]]; then
         IFS=, read -ra kv <<< "$knobs"
         for k in "${kv[@]}"; do
             v=${k:1}
@@ -37,7 +39,12 @@ run_one() {
     export TT_METAL_HOME=$TREE PYTHONPATH=$TREE:$TREE/ttnn:$TREE/tools${PYTHONPATH:+:$PYTHONPATH}
     cd $TREE
     local t_start=$(date +%s)
-    timeout ${QPERF_TIMEOUT:-5400} python $HERE/run_case.py $op $dtype $tpc $layout > $TT_METAL_LOGS_PATH/stdout.log 2> $TT_METAL_LOGS_PATH/stderr.log
+    case $op in
+        tilize|untilize|tilize_with_val_padding|untilize_with_unpadding)  # data-movement ops: layout = mem, tpc = HxW, knobs = multicore
+            timeout ${QPERF_TIMEOUT:-5400} python $HERE/run_dm_case.py $op $dtype ${tpc%x*} ${tpc#*x} $layout $knobs > $TT_METAL_LOGS_PATH/stdout.log 2> $TT_METAL_LOGS_PATH/stderr.log ;;
+        *)
+            timeout ${QPERF_TIMEOUT:-5400} python $HERE/run_case.py $op $dtype $tpc $layout > $TT_METAL_LOGS_PATH/stdout.log 2> $TT_METAL_LOGS_PATH/stderr.log ;;
+    esac
     local line=$(grep '^JSON ' $TT_METAL_LOGS_PATH/stdout.log)
     local wall=$(( $(date +%s) - t_start ))
     local commit=$(git -C $TREE rev-parse --short=11 HEAD)
@@ -50,7 +57,7 @@ d.update(sim=os.environ['SIM'], knobspec=os.environ['KN'], wall_s=int(os.environ
          factory_log=open(os.environ['FL']).read().splitlines()[:6])
 print(json.dumps(d))" >> $OUT
     else
-        echo "{\"sim\": \"$sim\", \"layout\": \"$layout\", \"op\": \"$op\", \"dtype\": \"$dtype\", \"tpc\": $tpc, \"knobspec\": \"$knobs\", \"error\": true, \"wall_s\": $wall, \"log\": \"$TT_METAL_LOGS_PATH\"}" >> $OUT
+        echo "{\"sim\": \"$sim\", \"layout\": \"$layout\", \"op\": \"$op\", \"dtype\": \"$dtype\", \"tpc\": \"$tpc\", \"knobspec\": \"$knobs\", \"error\": true, \"wall_s\": $wall, \"log\": \"$TT_METAL_LOGS_PATH\"}" >> $OUT
     fi
 }
 export -f run_one; export OUT

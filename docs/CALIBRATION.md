@@ -14,9 +14,26 @@ than 1). The model picks the measured-best configuration in every group, except 
 (`lll` at 32 tiles: 23% regret). Known misses: R1C1W1 (+7%),
 and the default config at 256+ tiles per cluster (-3%).
 
+### tilize / untilize
+
+Fitted per factory with `calibration/fit_layout.py` (least squares on the span and the DM threads' end times; every
+4th run held out). Mean error over all runs (held-out mean in brackets):
+
+| Factory | craq-sim | ttsim-perf |
+|---|---|---|
+| tilize Default | 1.3% (2.1%) | DRAM 0.7%, L1 1.2% (1.1%) |
+| tilize SingleCore | 1.6% (1.0%) | 1.1% (1.4%) |
+| tilize Sharded | 0.5% (0.7%) | 0.4% (0.4%) |
+| untilize MultiCore | 0.4% (0.8%) | DRAM 0.8%, L1 3.8% (2.5%) |
+| untilize SingleCore | 0.8% (0.7%) | 2.3% (1.9%) |
+
+Known gaps: untilize from L1 on ttsim-perf (up to 11%), single-tile-high untilize SingleCore on ttsim-perf (up to
+14%), widths with a prime tile count (13 tiles: 5%). craq-sim cannot run tilize wider than 64 tiles.
+
 ## Data
 
-`calibration/data/<profile>.jsonl`, one simulator run per line: `layout` (`ddd`/`lll`/`hhh`/`lld`/`ddl`: a, b,
+`calibration/data/<profile>.jsonl` (binary_ng) and `layout-<profile>.jsonl` (tilize/untilize, from
+`calibration/run_dm_case.py`), one simulator run per line. binary_ng records: `layout` (`ddd`/`lll`/`hhh`/`lld`/`ddl`: a, b,
 out in DRAM, L1 or borrowed), `op`, `tpc` (tiles per cluster), `knobspec`, `span_med` (cycles), `src` (campaign;
 `B` is the holdout).
 
@@ -27,6 +44,8 @@ python -m qperf calibrate report --data calibration/data/craq-sim.jsonl --sim cr
 python -m qperf calibrate fit --data calibration/data/craq-sim.jsonl --sim craq-b702fd90 --costs craq-sim \
     --keys rd.issue,rd.fixed,wr.issue,wr.fixed,cu.per_tile --revision <new> --filter op=add
 python calibration/make_silicon_hypothesis.py        # after refitting ttsim-perf
+python calibration/fit_layout.py --data calibration/data/layout-craq-sim.jsonl --sim craq-b702fd90 --op tilize \
+    --write craq-sim                                  # tilize/untilize (scipy: use the tt-metal venv)
 ```
 
 ## After a simulator update

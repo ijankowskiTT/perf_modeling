@@ -347,14 +347,6 @@
     },
     "config": {
       "type": "object",
-      "required": [
-        "R",
-        "C",
-        "W",
-        "dm_batch",
-        "tiles_per_cycle",
-        "entries_per_thread"
-      ],
       "additionalProperties": false,
       "properties": {
         "R": {
@@ -390,8 +382,22 @@
           "enum": [
             "dynamic"
           ]
+        },
+        "factory": {
+          "type": "string"
+        },
+        "use_multicore": {
+          "type": "boolean"
+        },
+        "input": {
+          "enum": [
+            "dram",
+            "l1",
+            "borrowed"
+          ]
         }
-      }
+      },
+      "description": "binary_ng: R, C, W, dm_batch, tiles_per_cycle, entries_per_thread (+ variants); tilize/untilize: factory, use_multicore, input"
     },
     "result": {
       "type": "object",

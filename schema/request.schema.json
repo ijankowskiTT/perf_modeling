@@ -51,7 +51,8 @@
       "additionalProperties": false,
       "properties": {
         "op": {
-          "type": "string"
+          "type": "string",
+          "description": "add | multiply (binary_ng) | tilize | untilize"
         },
         "kernel_variant": {
           "type": "string",
@@ -77,7 +78,8 @@
           "items": {
             "type": "integer",
             "minimum": 1
-          }
+          },
+          "description": "tilize/untilize: [..., H, W] (leading dims fold into rows)"
         },
         "tiles_scope": {
           "type": "string",
@@ -182,7 +184,7 @@
       "properties": {
         "param": {
           "type": "string",
-          "description": "a cost key (e.g. noc.read_latency), compute_service_scale or num_tiles"
+          "description": "a cost key (e.g. noc.read_latency), compute_service_scale or num_tiles; tilize/untilize: num_rows | num_cols"
         },
         "values": {
           "type": "array",
@@ -282,6 +284,18 @@
             "dynamic"
           ],
           "description": "hypothetical: dynamic = DM threads claim batches from a shared queue (default static)"
+        },
+        "use_multicore": {
+          "type": "boolean",
+          "description": "tilize/untilize: use_multicore (default true)"
+        },
+        "input": {
+          "enum": [
+            "dram",
+            "l1",
+            "borrowed"
+          ],
+          "description": "tilize/untilize: the tensor's memory (borrowed = height-sharded L1)"
         }
       }
     }

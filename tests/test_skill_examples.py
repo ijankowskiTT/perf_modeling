@@ -33,6 +33,9 @@ def test_example_reports_render(path):
     md, page = to_markdown(req, out), to_html(req, out)
     assert md.startswith("# qperf report") and "## Key points" in md
     assert page.startswith("<!doctype html>") and "<svg" in page and "<script" not in page
+    from qperf.cli import _text
+
+    assert _text(out).startswith("status: ok")
     assert out["baseline"]["label"] in page
 
 

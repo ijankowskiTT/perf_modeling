@@ -44,7 +44,7 @@ def _text(res):
             return f"  {tag:14s} {r.get('label', '')}  INVALID: {'; '.join(r.get('errors', []))}"
         t = r["time_ns"]
         s = f"  {tag:14s} {r['label']}\n      time {t['nominal']:.0f} ns  [{t['low']:.0f} .. {t['high']:.0f}]"
-        s += f"  bound {r['lower_bound_ns']:.0f}  bottleneck {r['bottleneck']['resource']}"
+        s += (f"  bound {r['lower_bound_ns']:.0f}" if r.get('lower_bound_ns') is not None else "") + f"  bottleneck {r['bottleneck']['resource']}"
         if r.get("comparison"):
             c = r["comparison"]
             s += f"\n      speedup {c['speedup_vs_baseline']['nominal']:.2f}x [{c['speedup_vs_baseline']['low']:.2f}..{c['speedup_vs_baseline']['high']:.2f}]  -> {c['verdict']}"

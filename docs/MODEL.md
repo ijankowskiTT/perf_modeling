@@ -16,6 +16,12 @@ that builds threads and rings; one generic engine evaluates them.
 | Op description | `qperf/ops/binary_ng.py` | the kernels' thread programs: DM batches, compute chunks, rings |
 | Engine | `qperf/engine.py` | generic fixed-schedule recurrence over any op description |
 
+**tilize / untilize** (`qperf/ops/layout.py`): one reader, compute and writer thread per core, work split by
+tile-rows (`split_blocks_for_tilize`), the factory chosen as the device op does. Rules the simulator runs showed:
+each DM thread's DMA moves one transfer at a time at ~56 B/cycle (craq-sim); a DM kernel has a prologue before its
+first DFB wait; a producer kernel exits only once its DFB is drained; untilize's unpack and pack TRISCs run as two
+stages over DEST sections (sub-blocks of <= 8 tiles), tilize's as one step per tile-row.
+
 **Pipeline**: reader, compute and writer threads run their kernels' own loops over the DFB's strided tile
 counters with finite rings and a half-sync DST. Per batch: fixed cost, one request per tile, one barrier.
 Barriers are cluster-wide, as in the firmware; timed transfers complete through one per-cluster queue.

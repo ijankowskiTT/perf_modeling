@@ -54,6 +54,9 @@ def _best(res):
 def _workload(req):
     w = req.get("workload", {})
     p = w.get("placements", {})
+    if w.get("op") in ("tilize", "untilize"):
+        shape = "x".join(str(d) for d in w.get("shape", []))
+        return f"{w['op']} {w.get('dtype', 'bf16')}, shape {shape}, input in {p.get('a', 'dram')}"
     return (f"{w.get('op')} {w.get('dtype')}, {w.get('num_tiles'):,} tiles"
             f"{' per cluster' if w.get('tiles_scope') == 'cluster' else ''}, {w.get('clusters', 32)} "
             f"cluster{'' if w.get('clusters', 32) == 1 else 's'}, "

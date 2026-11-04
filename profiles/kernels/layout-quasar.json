@@ -1,0 +1,54 @@
+{
+ "kind": "kernel",
+ "name": "layout-quasar",
+ "revision": "f3ef8f22aaa",
+ "description": "Quasar tilize / untilize (ttnn.experimental.quasar): factories modeled in qperf/ops/layout.py",
+ "calibration_tree": "0fff850f3c6 (same kernels; untilize_with_unpadding differs, not modeled)",
+ "factories": {
+  "tilize": [
+   "Default",
+   "SingleCore",
+   "Sharded"
+  ],
+  "untilize": [
+   "MultiCore",
+   "SingleCore"
+  ]
+ },
+ "unsupported": [
+  "tilize Block / WidthSharded factories",
+  "untilize Block, ParallelizeColumn, SubCoreGrids, Identical/ND-shard factories",
+  "tilize_with_val_padding, untilize_with_unpadding (next)",
+  "fp32 tilize/untilize (not calibrated)",
+  "craq-sim cannot run tilize wider than 64 tiles (mop_expander inner_loop_len > 64)"
+ ],
+ "source_blobs": {
+  "commit": "f3ef8f22aaa",
+  "files": {
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/compute/tilize.cpp": "7181ef4c6f8eabdaae85b2522a38ebb59a346ee8",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/reader_unary_sharded.cpp": "e94a8bbc6e1fe80ba5efd79e8d5dbfe760e25754",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/reader_unary_stick_layout_split_rows_multicore.cpp": "b19b5dc75da2863933641afb6c530fd2cf9b9953",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/reader_unary_stick_layout_split_rows_singlecore.cpp": "ce099c8f7f4701cafe505af15176b088655295f7",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/writer_unary_interleaved_start_id.cpp": "ac0abe5046a5ad8bdd8033300c17268ab912a3d8",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/writer_unary_sharded.cpp": "ac198a55b23a3a02b2e4e177c19ca7982c568a40",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/tilize_device_operation.cpp": "04e34971ba87f1829986dee7f18b92cc77064234",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/tilize_multi_core_default_program_factory.cpp": "57e214a15c5c9623fe4c3b2961517241b38794dc",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/tilize_multi_core_sharded_program_factory.cpp": "ced161373810c5659b6600eafe4bd23049c1da24",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/tilize_single_core_program_factory.cpp": "0c45ca4025a031607be083fd9fb00f126bd47168",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/factories/untilize_multi_core_program_factory.cpp": "503ddae6b1e6518b26a1434bcb081788966f9021",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/factories/untilize_single_core_program_factory.cpp": "dd0273cd756210c4df9cfc0036dc708e5e1653a2",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/kernels/compute/untilize_metal2.cpp": "ca16f4a028b283a2ca88ea2968c401a5236518fd",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/kernels/compute/untilize_variable_num_blocks_metal2.cpp": "b18939768be0263cae13980b1be63df7c9a2232e",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/kernels/dataflow/reader_unary_sharded.cpp": "454b5e35ae476f66f9efd8d4b169bd7133eec00e",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/kernels/dataflow/reader_unary_start_id_metal2.cpp": "f0d0294884141a01c1f79165f6d68c9376161209",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/kernels/dataflow/writer_unary_sharded.cpp": "456043d44164e5c8febdc6d006c3be83f95fc3aa",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/kernels/dataflow/writer_unary_stick_layout_split_rows_multi_core_metal2.cpp": "f6d9a5f7c109b53ffd4bda7d21311c39fc57c4a5",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/kernels/dataflow/writer_unary_stick_layout_split_rows_single_core.cpp": "18aaa8f30baf7a9e6698834b64593e9ea4c16d5b",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/untilize_device_operation.cpp": "c4be8201571e84f6b1289e48837808bfd257b4d5",
+   "ttnn/cpp/ttnn/kernel_lib/tilize_helpers.inl": "e4616d13d04e01463ad3c4e6750cdd681d07783d",
+   "ttnn/cpp/ttnn/kernel_lib/untilize_helpers.inl": "5eb27b127f0b6eb2657cd90e3704c740401da212",
+   "ttnn/cpp/ttnn/kernel_lib/dest_helpers.hpp": "342b4efd18380c436c1907f66671080ec7c8de9b",
+   "ttnn/cpp/ttnn/operations/core/work_split/work_split_tilize.hpp": "c59bbc3e34e773fb19211be9dbea4d38989585ea"
+  }
+ }
+}

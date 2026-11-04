@@ -1,0 +1,211 @@
+"""Fit tilize/untilize cost terms (qperf/ops/layout.py) to simulator runs of calibration/run_dm_case.py.
+
+  python calibration/fit_layout.py --data runs.jsonl --sim craq-b702fd90 --op tilize [--holdout H=1280] [--write craq-sim]
+
+Coordinate descent (golden section per key, 4 sweeps) on mean squared log(pred/meas) over the fit runs; prints
+fit and holdout error per factory. --write stores the values in profiles/costs/<profile>.json.
+"""
+import argparse
+import json
+import math
+import os
+import statistics
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from qperf.ops.layout import estimate  # noqa: E402
+
+FIT_KEYS = ["rd_cpb", "wr_cpb", "rd_setup", "wr_setup", "rd_fixed", "rd_issue", "rd_first", "rd_tail", "um_fixed", "um_per_tile", "pk_fixed", "pk_per_tile", "cu_first", "wr_fixed", "wr_issue",
+            "wr_first", "wr_tail", "cu_tail", "drain"]
+def keys_for(op, fac):
+    """Cost terms a factory's kernels actually have (others stay at their initial value)."""
+    cu = ["cu_fixed", "cu_per_tile"] if op == "tilize" else ["um_fixed", "um_per_tile", "pk_fixed", "pk_per_tile"]
+    if fac == "Sharded":  # no NoC traffic: publish all, compute, pop all
+        return ["rd_setup", "wr_setup", "rd_fixed", "rd_tail"] + cu + ["cu_first", "cu_tail", "wr_fixed", "wr_tail", "drain"]
+    return [k for k in FIT_KEYS if not k.startswith(("um_", "pk_", "cu_fixed", "cu_per_tile"))] + cu
+
+
+INIT = {"rd_cpb": 0.018, "wr_cpb": 0.018, "rd_setup": 50, "wr_setup": 50, "rd_fixed": 100, "rd_issue": 20, "rd_first": 0, "rd_tail": 50, "cu_fixed": 100, "cu_per_tile": 50, "um_fixed": 30, "um_per_tile": 20, "pk_fixed": 30, "pk_per_tile": 20, "cu_first": 0,
+        "wr_fixed": 40, "wr_issue": 20, "wr_first": 0, "wr_tail": 50, "cu_tail": 20, "drain": 10}
+
+
+def load(path, sim, op):
+    rs = [json.loads(l) for l in open(path)]
+    return [r for r in rs if not r.get("error") and r["sim"] == sim and r["op"] == op and r["max_abs_err"] < 0.05]
+
+
+def predict(r, c):
+    return estimate(r["op"], r["H"], r["W"], c, r["dtype"], r["mem"], r["multicore"], trace=3)
+
+
+ROLE_OF = {"reader": "QUASAR_DM2", "writer": "QUASAR_DM3"}
+# The pack TRISC's kernel end is consistent only where compute ends last (borrowed DFBs, e.g. tilize Sharded).
+ROLE_OF_SHARDED = dict(ROLE_OF, compute="QUASAR_NEO0_TRISC2")
+
+
+def role_ends(r):
+    """Measured end of each role on a fully loaded core (relative to the core's first kernel start)."""
+    core = next(iter(r.get("core_detail", {}).values()), None)
+    roles = ROLE_OF_SHARDED if r["mem"] == "hs" else ROLE_OF
+    return {k: core["roles"][v][1] for k, v in roles.items() if core and v in core["roles"]}
+
+
+def objective(rs, c, role_weight=0.5):
+    """Mean squared log error of the busiest core's span, plus each role's end on a full core: the role ends tie
+    every cost term to the thread that pays it."""
+    e = []
+    for r in rs:
+        p = predict(r, c)
+        e.append(math.log(p["span"] / r["span_max"]) ** 2)
+        model_ends = {s["role"]: s["end"] for s in p["loads"][0][2]["threads"]}
+        for role, meas in role_ends(r).items():
+            if meas > 0 and model_ends.get(role, 0) > 0:
+                e.append(role_weight * math.log(model_ends[role] / meas) ** 2)
+    return sum(e) / len(e)
+
+
+def golden(f, lo, hi, it=24):
+    g = (math.sqrt(5) - 1) / 2
+    a, b = lo, hi
+    x1, x2 = b - g * (b - a), a + g * (b - a)
+    f1, f2 = f(x1), f(x2)
+    for _ in range(it):
+        if f1 < f2:
+            b, x2, f2 = x2, x1, f1
+            x1 = b - g * (b - a)
+            f1 = f(x1)
+        else:
+            a, x1, f1 = x1, x2, f2
+            x2 = a + g * (b - a)
+            f2 = f(x2)
+    return (a + b) / 2
+
+
+def residuals(rs, c, role_weight=0.5):
+    out = []
+    for r in rs:
+        p = predict(r, c)
+        out.append(math.log(p["span"] / r["span_max"]))
+        model_ends = {s["role"]: s["end"] for s in p["loads"][0][2]["threads"]}
+        for role, meas in role_ends(r).items():
+            if meas > 0 and model_ends.get(role, 0) > 0:
+                out.append(math.sqrt(role_weight) * math.log(model_ends[role] / meas))
+    return out
+
+
+def fit(rs, c, keys, sweeps=8):
+    """Bounded least squares on the log residuals (scipy, as in the tt-metal venv); coordinate descent without it."""
+    try:
+        from scipy.optimize import least_squares
+    except ImportError:
+        return fit_cd(rs, c, keys, sweeps)
+    c = dict(c)
+    hi = [0.2 if "_cpb" in k else 5000.0 for k in keys]
+
+    def f(x):
+        c.update(zip(keys, x))
+        return residuals(rs, c)
+
+    best = None
+    for start in ([min(c[k], h) for k, h in zip(keys, hi)], [h * 0.1 for h in hi]):  # two starts: initial values, flat
+        res = least_squares(f, start, bounds=([0.0] * len(keys), hi), x_scale=[h / 50 for h in hi], diff_step=1e-3)
+        if best is None or res.cost < best.cost:
+            best = res
+    c.update(zip(keys, best.x))
+    return c
+
+
+def fit_cd(rs, c, keys, sweeps=8):
+    c = dict(c)
+    for _ in range(sweeps):
+        for k in keys:
+            def f(v):
+                c[k] = v
+                return objective(rs, c)
+            c[k] = golden(f, 0.0, 0.1 if k.endswith("_cpb") else max(3 * c[k], 2000.0))
+    return c
+
+
+def report(name, rs, c, worst=0):
+    by, rows = {}, []
+    for r in rs:
+        p = predict(r, c)
+        err = p["span"] / r["span_max"] - 1
+        by.setdefault(p["factory"], []).append(abs(err))
+        rows.append((err, f"{r['mem']} {r['H']}x{r['W']} {'mc' if r['multicore'] else 'sc'} meas {r['span_max']} pred {p['span']:.0f}"))
+    for fac, e in sorted(by.items()):
+        print(f"  {name:8s} {fac:11s} n={len(e):3d} mean {100 * statistics.mean(e):5.2f}%  max {100 * max(e):5.2f}%")
+    for err, txt in sorted(rows, key=lambda x: -abs(x[0]))[:worst]:
+        print(f"      {100 * err:+6.1f}%  {txt}")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data", required=True, help="one or more jsonl files, comma-separated")
+    ap.add_argument("--sim", required=True)
+    ap.add_argument("--op", required=True)
+    ap.add_argument("--holdout", default="every4", help="every4, or key=value (e.g. H=1280)")
+    ap.add_argument("--write")
+    a = ap.parse_args()
+    rs = []
+    for path in a.data.split(","):
+        rs += load(path, a.sim, a.op)
+    if a.holdout == "every4":  # every 4th run of each factory, in a fixed order
+        from qperf.ops.layout import plan
+        rs.sort(key=lambda r: (plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0], r["mem"], r["H"], r["W"]))
+        seen, hold = {}, []
+        for r in rs:
+            fac = plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0]
+            seen[fac] = seen.get(fac, 0) + 1
+            if seen[fac] % 4 == 2:
+                hold.append(r)
+    else:
+        hk, hv = a.holdout.split("=")
+        hold = [r for r in rs if str(r[hk]) == hv]
+    fitset = [r for r in rs if r not in hold]
+    from qperf.ops.layout import PREFIX, plan
+    fac_of = lambda r: plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0]  # noqa: E731
+    c = {}
+    for fac in sorted({fac_of(r) for r in rs}):
+        p = PREFIX[(a.op, fac)]
+        fs = [r for r in fitset if fac_of(r) == fac]
+        hs = [r for r in hold if fac_of(r) == fac]
+        if not fs:  # nothing to fit on: fit on all of this factory's runs
+            fs, hs = hs, []
+        # kernel starts read off the profiler (median role start on a full core, relative to its first kernel)
+        starts = {"reader": [], "compute": [], "writer": []}
+        for r in fs:
+            for core in list(r.get("core_detail", {}).values())[:1]:
+                roles = core["roles"]
+                starts["reader"].append(roles.get("QUASAR_DM2", [0])[0])
+                starts["writer"].append(roles.get("QUASAR_DM3", [0])[0])
+                starts["compute"].append(roles.get("QUASAR_NEO0_TRISC0", [0])[0])
+        cf = {f"{p}.start_{k}": statistics.median(v) for k, v in starts.items()}
+        cf.update({f"{p}.{k}": v for k, v in INIT.items()})
+        keys = keys_for(a.op, fac)
+        if any(r["mem"] == "l1" for r in fs):  # L1 transfer terms only where the runs can identify them
+            keys += ["rd_cpb_l1", "wr_cpb_l1", "rd_lat_l1", "wr_lat_l1"]
+            cf.update({f"{p}.rd_cpb_l1": 0.01, f"{p}.wr_cpb_l1": 0.01, f"{p}.rd_lat_l1": 50.0, f"{p}.wr_lat_l1": 50.0})
+        cf = fit(fs, cf, [f"{p}.{k}" for k in keys])
+        print(f"{a.op} {fac} ({p}) on {a.sim}: {len(fs)} fit runs, {len(hs)} holdout ({a.holdout})")
+        print("  " + ", ".join(f"{k.split('.')[1]}={v:.1f}" for k, v in cf.items()))
+        report("fit", fs, cf, worst=3)
+        if hs:
+            report("holdout", hs, cf, worst=2)
+        c.update({k: v for k, v in cf.items() if ".start_" in k or k.split(".", 1)[1] in keys})
+    if a.write:
+        path = os.path.join(ROOT, "profiles", "costs", a.write + ".json")
+        prof = json.load(open(path))
+        for k, v in c.items():
+            src = "profiler: median kernel start" if ".start_" in k else f"fitted on {len(fitset)} {a.op} runs ({a.sim})"
+            sig = lambda x: float(f"{x:.6g}")  # noqa: E731  (cycles-per-byte terms are ~0.007: keep 6 significant digits)
+            prof["params"][k] = {"value": sig(v), "low": sig(v * 0.95), "high": sig(v * 1.05),
+                                 "class": "measurement" if ".start_" in k else "measurement-fit", "source": src}
+        json.dump(prof, open(path, "w"), indent=1)
+        open(path, "a").write("\n")
+        print("  wrote", path)
+
+
+if __name__ == "__main__":
+    main()

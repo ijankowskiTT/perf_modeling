@@ -1,0 +1,8 @@
+{
+  "schema_version": "1",
+  "action": "sensitivity",
+  "profiles": {"costs": "craq-sim"},
+  "workload": {"op": "untilize", "dtype": "bf16", "shape": [1, 1, 2048, 1024], "placements": {"a": "dram"}},
+  "baseline": {},
+  "sensitivity": {"param": "num_cols", "values": [64, 256, 512, 1024, 2048, 4096]}
+}

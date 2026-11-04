@@ -1,8 +1,8 @@
 # qperf
 
-Performance model of Quasar binary_ng eltwise ops for Claude Code and other agents. Ask a performance question in
-plain words; the answer is backed by a model of the real kernel schedule, in seconds, without a simulator or
-hardware.
+Performance model of Quasar ops (binary_ng eltwise, tilize, untilize) for Claude Code and other agents. Ask a
+performance question in plain words; the answer is backed by a model of the real kernel schedule, in seconds,
+without a simulator or hardware.
 
 ## Install
 
@@ -26,6 +26,8 @@ Would dm_batch 16 help a 128k-tile bf16 add from DRAM?
 For a 64k-tile add from DRAM, would 2 more reader threads or 30% faster compute help?
 Is it worth implementing per-thread NoC barriers? When would it help?
 Which 3 configs should I benchmark for a 4k-tile multiply in L1?
+How long does tilize of a 3136x64 tensor take, and would height-sharding it help?
+How does untilize time grow with width? Where does it stop being writer-bound?
 How does it change if DRAM latency doubles? Does a deeper ring hide it?
 Use the quasar-perf skill on PR <link>: compare main vs the PR's batching and other options.
 ```
@@ -64,11 +66,11 @@ Token use per question (`python bench/tokens.py`):
 
 | | Covered | Not yet |
 |---|---|---|
-| Ops | `add`, `multiply` (bf16) | `subtract`, `rsub`, `divide`, fp32 (no costs yet); addalpha, activations, broadcast, tilize/untilize, matmul |
+| Ops | binary_ng `add`, `multiply`; `tilize` (Default, SingleCore, Sharded), `untilize` (MultiCore, SingleCore); bf16 | `subtract`, `rsub`, `divide`, fp32 (no costs yet); tilize/untilize padding variants and Block factories (next); addalpha, activations, broadcast, matmul |
 | Layout | each operand in DRAM, L1 (interleaved) or borrowed (resident shard), any mix | tail rings of uneven slices |
 | Knobs | reader/compute/writer threads, `dm_batch`, `tiles_per_cycle`, `entries_per_thread` (`TTNN_QSR_*`) | |
 | Kernel changes | per-thread NoC barriers, dynamic work queue (hypothetical: no simulator can confirm) | other schedules |
-| Platform | craq-sim (~1-2% error), ttsim-perf (DRAM 1.4%, L1 ~8%), silicon as a hypothesis | silicon, DRAM timing in either simulator |
+| Platform | craq-sim (binary_ng ~1-2%, tilize/untilize <=2% held out), ttsim-perf (binary_ng DRAM 1.4%, L1 ~8%), silicon as a hypothesis | silicon, DRAM timing in either simulator; craq-sim cannot run tilize wider than 64 tiles |
 
 No Quasar silicon exists yet: times are simulator cycles. Confirm close calls (<3%) with one simulator run.
 

@@ -396,6 +396,10 @@ def _analyze(req, t_start):
     errs = validate_request(req)
     if errs:
         raise RequestError("invalid", "; ".join(errs))
+    from .layout_api import LAYOUT_OPS, analyze_layout
+
+    if req["workload"]["op"] in LAYOUT_OPS:
+        return analyze_layout(req, t_start)
     action = req["action"]
     prof = req.get("profiles", {})
     arch, arch_id = load("architecture", prof.get("architecture", "quasar"))
