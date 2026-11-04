@@ -2,7 +2,7 @@
  "kind": "kernel",
  "name": "layout-quasar",
  "revision": "f3ef8f22aaa",
- "description": "Quasar tilize / untilize (ttnn.experimental.quasar): factories modeled in qperf/ops/layout.py",
+ "description": "Quasar tilize / untilize / tilize_with_val_padding / untilize_with_unpadding (ttnn.experimental.quasar): factories modeled in qperf/ops/layout.py",
  "calibration_tree": "0fff850f3c6 (same kernels; untilize_with_unpadding differs, not modeled)",
  "factories": {
   "tilize": [
@@ -12,15 +12,23 @@
   ],
   "untilize": [
    "MultiCore",
-   "SingleCore"
+   "SingleCore",
+   "Block"
+  ],
+  "tilize_with_val_padding": [
+   "Default"
+  ],
+  "untilize_with_unpadding": [
+   "Interleaved",
+   "BlockInterleaved"
   ]
  },
  "unsupported": [
-  "tilize Block / WidthSharded factories",
-  "untilize Block, ParallelizeColumn, SubCoreGrids, Identical/ND-shard factories",
-  "tilize_with_val_padding, untilize_with_unpadding (next)",
   "fp32 tilize/untilize (not calibrated)",
-  "craq-sim cannot run tilize wider than 64 tiles (mop_expander inner_loop_len > 64)"
+  "craq-sim cannot run tilize wider than 64 tiles (mop_expander inner_loop_len > 64)",
+  "padding beyond the next tile multiple; non-zero pad values",
+  "untilize ParallelizeColumn, SubCoreGrids, Identical/ND-shard factories; tilize Block / WidthSharded",
+  "tilize_with_val_padding / untilize_with_unpadding SingleCore and Sharded"
  ],
  "source_blobs": {
   "commit": "f3ef8f22aaa",
@@ -48,7 +56,23 @@
    "ttnn/cpp/ttnn/kernel_lib/tilize_helpers.inl": "e4616d13d04e01463ad3c4e6750cdd681d07783d",
    "ttnn/cpp/ttnn/kernel_lib/untilize_helpers.inl": "5eb27b127f0b6eb2657cd90e3704c740401da212",
    "ttnn/cpp/ttnn/kernel_lib/dest_helpers.hpp": "342b4efd18380c436c1907f66671080ec7c8de9b",
-   "ttnn/cpp/ttnn/operations/core/work_split/work_split_tilize.hpp": "c59bbc3e34e773fb19211be9dbea4d38989585ea"
+   "ttnn/cpp/ttnn/operations/core/work_split/work_split_tilize.hpp": "c59bbc3e34e773fb19211be9dbea4d38989585ea",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize_with_val_padding/device/factories/tilize_with_val_padding_multi_core_default_program_factory.cpp": "8f4374b5cfecafbdb479be2d7ac660a1560a024b",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize_with_val_padding/device/kernels/compute/tilize_metal2.cpp": "28295d5fd7f8c792f57f0c3b8224886f94886cf0",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize_with_val_padding/device/kernels/dataflow/reader_unary_pad_dims_split_rows_multicore.cpp": "4eab7bcde94dc605b6fc297897ffe6bc447e4598",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize_with_val_padding/device/kernels/dataflow/writer_unary_interleaved_start_id_metal2.cpp": "05b8cef6fa608275274a97cf885c1bb4f75fa7df",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/tilize_with_val_padding/device/tilize_with_val_padding_device_operation.cpp": "d065f09ac01d5b111c08a5a6d3c12e37dc185b86",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/factories/untilize_with_unpadding_multi_core_interleaved_program_factory.cpp": "244e6263b1a1f99c0cd042ea0b0f28436943c9e3",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/kernels/compute/untilize_metal2.cpp": "576aaa8172f3478ee937db66223d6e1ccf0b0547",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/kernels/dataflow/reader_unary_interleaved_start_id.cpp": "49aff4db760ff21349c01075218eb28a2bc149a6",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/kernels/dataflow/writer_unary_stick_layout_split_rows_multicore.cpp": "2ccbb4224439b22a6bc50f44fbcdc3a4f62b774f",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/untilize_with_unpadding_device_operation.cpp": "cb4cc742685de3ec601724b797ab3f2a6e3ef985",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/factories/untilize_multi_core_block_program_factory.cpp": "cadf83ec0a8222fcd31d32aea342fce71e9ff0a8",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize/device/kernels/dataflow/reader_unary_interleaved_wh_multicore.cpp": "f837e42f3990d79f500744703573d2aa5a6a9210",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/factories/untilize_with_unpadding_multi_core_block_interleaved_program_factory.cpp": "427534ad247880afc13bc0d2622a4484cb429449",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/kernels/compute/untilize_wh.cpp": "da3201b800a9f98f56d89af9bcafe723509c6692",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/kernels/dataflow/reader_unary_interleaved_wh_multicore.cpp": "a77f073b745821005a8c9505cd48a30172cbb607",
+   "ttnn/cpp/ttnn/operations/experimental/quasar/untilize_with_unpadding/device/kernels/dataflow/writer_unary_stick_layout_wh_multicore.cpp": "e876ae0264a253324db9f8479d62e65783a3b94b"
   }
  }
 }

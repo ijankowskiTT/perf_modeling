@@ -20,14 +20,20 @@ FIT_KEYS = ["rd_cpb", "wr_cpb", "rd_setup", "wr_setup", "rd_fixed", "rd_issue", 
             "wr_first", "wr_tail", "cu_tail", "drain"]
 def keys_for(op, fac):
     """Cost terms a factory's kernels actually have (others stay at their initial value)."""
-    cu = ["cu_fixed", "cu_per_tile"] if op == "tilize" else ["um_fixed", "um_per_tile", "pk_fixed", "pk_per_tile"]
+    from qperf.ops.layout import FAMILY
+
+    cu = ["cu_fixed", "cu_per_tile"] if FAMILY[op] == "tilize" else ["um_fixed", "um_per_tile", "pk_fixed", "pk_per_tile"]
     if fac == "Sharded":  # no NoC traffic: publish all, compute, pop all
         return ["rd_setup", "wr_setup", "rd_fixed", "rd_tail"] + cu + ["cu_first", "cu_tail", "wr_fixed", "wr_tail", "drain"]
-    return [k for k in FIT_KEYS if not k.startswith(("um_", "pk_", "cu_fixed", "cu_per_tile"))] + cu
+    extra = ["rd_zcpb"] if op == "tilize_with_val_padding" else []  # zero-fill of pad columns / rows (DMA)
+    return [k for k in FIT_KEYS if not k.startswith(("um_", "pk_", "cu_fixed", "cu_per_tile"))] + cu + extra
 
 
-INIT = {"rd_cpb": 0.018, "wr_cpb": 0.018, "rd_setup": 50, "wr_setup": 50, "rd_fixed": 100, "rd_issue": 20, "rd_first": 0, "rd_tail": 50, "cu_fixed": 100, "cu_per_tile": 50, "um_fixed": 30, "um_per_tile": 20, "pk_fixed": 30, "pk_per_tile": 20, "cu_first": 0,
-        "wr_fixed": 40, "wr_issue": 20, "wr_first": 0, "wr_tail": 50, "cu_tail": 20, "drain": 10}
+INIT = {  # realistic starting values (cycles): a flat start lets least squares settle in poor local minima
+    "rd_zcpb": 0.01, "rd_cpb": 0.018, "wr_cpb": 0.018, "rd_setup": 100, "wr_setup": 500, "rd_fixed": 20, "rd_issue": 25,
+    "rd_first": 0, "rd_tail": 50, "cu_fixed": 100, "cu_per_tile": 50, "um_fixed": 100, "um_per_tile": 5, "pk_fixed": 50,
+    "pk_per_tile": 10, "cu_first": 0, "wr_fixed": 20, "wr_issue": 35, "wr_first": 0, "wr_tail": 50, "cu_tail": 20,
+    "drain": 10}
 
 
 def load(path, sim, op):
@@ -148,9 +154,24 @@ def main():
     ap.add_argument("--holdout", default="every4", help="every4, or key=value (e.g. H=1280)")
     ap.add_argument("--write")
     a = ap.parse_args()
+    ops = a.op.split(",")  # several ops when their factories share kernels (untilize Block, ..._unpadding BlockInterleaved)
     rs = []
     for path in a.data.split(","):
-        rs += load(path, a.sim, a.op)
+        for op in ops:
+            rs += load(path, a.sim, op)
+
+    def modeled(r):
+        try:
+            plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])
+            return True
+        except ValueError:
+            return False
+
+    from qperf.ops.layout import plan
+    skipped = [r for r in rs if not modeled(r)]
+    rs = [r for r in rs if modeled(r)]
+    if skipped:
+        print(f"  ({len(skipped)} runs use factories not modeled yet, skipped)")
     if a.holdout == "every4":  # every 4th run of each factory, in a fixed order
         from qperf.ops.layout import plan
         rs.sort(key=lambda r: (plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0], r["mem"], r["H"], r["W"]))
@@ -165,12 +186,15 @@ def main():
         hold = [r for r in rs if str(r[hk]) == hv]
     fitset = [r for r in rs if r not in hold]
     from qperf.ops.layout import PREFIX, plan
+    # group by cost prefix: factories that share kernels share one set of cost terms
+    pre_of = lambda r: PREFIX[(r["op"], plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0])]  # noqa: E731
     fac_of = lambda r: plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0]  # noqa: E731
     c = {}
-    for fac in sorted({fac_of(r) for r in rs}):
-        p = PREFIX[(a.op, fac)]
-        fs = [r for r in fitset if fac_of(r) == fac]
-        hs = [r for r in hold if fac_of(r) == fac]
+    for p in sorted({pre_of(r) for r in rs}):
+        fac = fac_of(next(r for r in rs if pre_of(r) == p))
+        op0 = next(r for r in rs if pre_of(r) == p)["op"]
+        fs = [r for r in fitset if pre_of(r) == p]
+        hs = [r for r in hold if pre_of(r) == p]
         if not fs:  # nothing to fit on: fit on all of this factory's runs
             fs, hs = hs, []
         # kernel starts read off the profiler (median role start on a full core, relative to its first kernel)
@@ -183,12 +207,12 @@ def main():
                 starts["compute"].append(roles.get("QUASAR_NEO0_TRISC0", [0])[0])
         cf = {f"{p}.start_{k}": statistics.median(v) for k, v in starts.items()}
         cf.update({f"{p}.{k}": v for k, v in INIT.items()})
-        keys = keys_for(a.op, fac)
+        keys = keys_for(op0, fac)
         if any(r["mem"] == "l1" for r in fs):  # L1 transfer terms only where the runs can identify them
             keys += ["rd_cpb_l1", "wr_cpb_l1", "rd_lat_l1", "wr_lat_l1"]
             cf.update({f"{p}.rd_cpb_l1": 0.01, f"{p}.wr_cpb_l1": 0.01, f"{p}.rd_lat_l1": 50.0, f"{p}.wr_lat_l1": 50.0})
         cf = fit(fs, cf, [f"{p}.{k}" for k in keys])
-        print(f"{a.op} {fac} ({p}) on {a.sim}: {len(fs)} fit runs, {len(hs)} holdout ({a.holdout})")
+        print(f"{op0} {fac} ({p}) on {a.sim}: {len(fs)} fit runs, {len(hs)} holdout ({a.holdout})")
         print("  " + ", ".join(f"{k.split('.')[1]}={v:.1f}" for k, v in cf.items()))
         report("fit", fs, cf, worst=3)
         if hs:
@@ -198,7 +222,7 @@ def main():
         path = os.path.join(ROOT, "profiles", "costs", a.write + ".json")
         prof = json.load(open(path))
         for k, v in c.items():
-            src = "profiler: median kernel start" if ".start_" in k else f"fitted on {len(fitset)} {a.op} runs ({a.sim})"
+            src = "profiler: median kernel start" if ".start_" in k else f"fitted on {a.op} runs ({a.sim}), calibration/fit_layout.py"
             sig = lambda x: float(f"{x:.6g}")  # noqa: E731  (cycles-per-byte terms are ~0.007: keep 6 significant digits)
             prof["params"][k] = {"value": sig(v), "low": sig(v * 0.95), "high": sig(v * 1.05),
                                  "class": "measurement" if ".start_" in k else "measurement-fit", "source": src}

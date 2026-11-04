@@ -1,7 +1,8 @@
 """analyze() for Quasar tilize / untilize requests (qperf/ops/layout.py). Same response shape as binary_ng.
 
-Workload: op tilize | untilize, dtype, shape [..., H, W] (leading dims fold into rows), placements.a = the tensor's
-memory (dram | l1 interleaved, borrowed = height-sharded L1, tilize only). Knobs: use_multicore (default true),
+Workload: op tilize | untilize | tilize_with_val_padding | untilize_with_unpadding, dtype, shape [..., H, W] = the
+logical (unpadded) tensor, leading dims fold into rows; the padding variants pad to / unpad from the next tile
+multiple. placements.a = the tensor's memory (dram | l1 interleaved, borrowed = height-sharded L1, tilize only). Knobs: use_multicore (default true),
 input (overrides placements.a). Actions: estimate, compare, sensitivity (param num_rows | num_cols).
 """
 
@@ -11,10 +12,10 @@ import math
 import time
 
 from . import ENGINE_VERSION, SCHEMA_VERSION
-from .ops.layout import GRID, PREFIX, TILE, estimate, plan
+from .ops.layout import FAMILY, GRID, PREFIX, TILE, estimate, plan
 from .profiles import SCENARIOS, _pick, load, sha256
 
-LAYOUT_OPS = ("tilize", "untilize")
+LAYOUT_OPS = ("tilize", "untilize", "tilize_with_val_padding", "untilize_with_unpadding")
 MEM_OF = {"dram": "dram", "l1": "l1", "borrowed": "hs"}
 
 
@@ -61,7 +62,7 @@ def _result(wl, profile, what_if):
                                          f"(calibration/fit_layout.py)")
     if wl["dtype"] != "bf16":
         res["warnings"].append("fp32 is not calibrated for tilize/untilize: costs are the bf16 fit")
-    if op == "tilize" and math.ceil(W / TILE) > 64 and profile["name"] == "craq-sim":
+    if FAMILY[op] == "tilize" and math.ceil(W / TILE) > 64 and profile["name"] == "craq-sim":
         res["warnings"].append("craq-sim cannot run tilize wider than 64 tiles (mop_expander); this is an extrapolation")
     ghz = profile["clock"]["GHz"]
     times, nominal = {}, None

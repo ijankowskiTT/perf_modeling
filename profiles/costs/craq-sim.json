@@ -957,6 +957,545 @@
    "high": 0.000475114,
    "class": "measurement-fit",
    "source": "fitted on 65 untilize runs (craq-b702fd90)"
+  },
+  "tvp.start_reader": {
+   "value": 668.0,
+   "low": 634.6,
+   "high": 701.4,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tvp.start_compute": {
+   "value": 553.0,
+   "low": 525.35,
+   "high": 580.65,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tvp.start_writer": {
+   "value": 464.0,
+   "low": 440.8,
+   "high": 487.2,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tvp.rd_zcpb": {
+   "value": 0.0200391,
+   "low": 0.0190372,
+   "high": 0.0210411,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.rd_cpb": {
+   "value": 0.0201385,
+   "low": 0.0191316,
+   "high": 0.0211454,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.wr_cpb": {
+   "value": 0.00332399,
+   "low": 0.00315779,
+   "high": 0.00349019,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.rd_setup": {
+   "value": 3.11589,
+   "low": 2.9601,
+   "high": 3.27168,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.wr_setup": {
+   "value": 852.788,
+   "low": 810.148,
+   "high": 895.427,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.rd_fixed": {
+   "value": 4.0148,
+   "low": 3.81406,
+   "high": 4.21554,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.rd_issue": {
+   "value": 33.9467,
+   "low": 32.2494,
+   "high": 35.6441,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.rd_first": {
+   "value": 3.11589,
+   "low": 2.9601,
+   "high": 3.27168,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.rd_tail": {
+   "value": 313.518,
+   "low": 297.842,
+   "high": 329.194,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.cu_fixed": {
+   "value": 1.8268,
+   "low": 1.73546,
+   "high": 1.91814,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.cu_per_tile": {
+   "value": 26.7878,
+   "low": 25.4484,
+   "high": 28.1272,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.cu_first": {
+   "value": 3.11589,
+   "low": 2.9601,
+   "high": 3.27168,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.wr_fixed": {
+   "value": 34.0733,
+   "low": 32.3696,
+   "high": 35.777,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.wr_issue": {
+   "value": 34.0731,
+   "low": 32.3694,
+   "high": 35.7767,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.wr_first": {
+   "value": 0.833259,
+   "low": 0.791596,
+   "high": 0.874922,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.wr_tail": {
+   "value": 297.098,
+   "low": 282.243,
+   "high": 311.953,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.cu_tail": {
+   "value": 299.938,
+   "low": 284.941,
+   "high": 314.935,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.drain": {
+   "value": 1.04282,
+   "low": 0.990682,
+   "high": 1.09496,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.rd_cpb_l1": {
+   "value": 0.00822464,
+   "low": 0.0078134,
+   "high": 0.00863587,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.wr_cpb_l1": {
+   "value": 1.86912e-05,
+   "low": 1.77566e-05,
+   "high": 1.96258e-05,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.rd_lat_l1": {
+   "value": 341.799,
+   "low": 324.709,
+   "high": 358.889,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "tvp.wr_lat_l1": {
+   "value": 0.446766,
+   "low": 0.424428,
+   "high": 0.469105,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (craq-b702fd90)"
+  },
+  "uwp.start_reader": {
+   "value": 498.0,
+   "low": 473.1,
+   "high": 522.9,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "uwp.start_compute": {
+   "value": 555.0,
+   "low": 527.25,
+   "high": 582.75,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "uwp.start_writer": {
+   "value": 517.0,
+   "low": 491.15,
+   "high": 542.85,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "uwp.rd_cpb": {
+   "value": 5.80706e-06,
+   "low": 5.51671e-06,
+   "high": 6.09742e-06,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.wr_cpb": {
+   "value": 8.43407e-05,
+   "low": 8.01236e-05,
+   "high": 8.85577e-05,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.rd_setup": {
+   "value": 33.8673,
+   "low": 32.1739,
+   "high": 35.5606,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.wr_setup": {
+   "value": 517.088,
+   "low": 491.233,
+   "high": 542.942,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.rd_fixed": {
+   "value": 28.0565,
+   "low": 26.6537,
+   "high": 29.4593,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.rd_issue": {
+   "value": 28.0573,
+   "low": 26.6544,
+   "high": 29.4602,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.rd_first": {
+   "value": 33.8673,
+   "low": 32.1739,
+   "high": 35.5606,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.rd_tail": {
+   "value": 105.673,
+   "low": 100.389,
+   "high": 110.957,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.um_fixed": {
+   "value": 29.3618,
+   "low": 27.8937,
+   "high": 30.8299,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.um_per_tile": {
+   "value": 0.139273,
+   "low": 0.13231,
+   "high": 0.146237,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.pk_fixed": {
+   "value": 105.014,
+   "low": 99.7628,
+   "high": 110.264,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.pk_per_tile": {
+   "value": 0.190162,
+   "low": 0.180654,
+   "high": 0.19967,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.cu_first": {
+   "value": 46.2265,
+   "low": 43.9152,
+   "high": 48.5378,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.wr_fixed": {
+   "value": 4.78729,
+   "low": 4.54792,
+   "high": 5.02665,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.wr_issue": {
+   "value": 33.1126,
+   "low": 31.457,
+   "high": 34.7682,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.wr_first": {
+   "value": 0.902279,
+   "low": 0.857165,
+   "high": 0.947393,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.wr_tail": {
+   "value": 287.105,
+   "low": 272.75,
+   "high": 301.46,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.cu_tail": {
+   "value": 288.474,
+   "low": 274.051,
+   "high": 302.898,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.drain": {
+   "value": 2.73924,
+   "low": 2.60228,
+   "high": 2.8762,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.rd_cpb_l1": {
+   "value": 5.21025e-05,
+   "low": 4.94974e-05,
+   "high": 5.47076e-05,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.wr_cpb_l1": {
+   "value": 1.85949e-05,
+   "low": 1.76651e-05,
+   "high": 1.95246e-05,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.rd_lat_l1": {
+   "value": 0.0509395,
+   "low": 0.0483925,
+   "high": 0.0534865,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "uwp.wr_lat_l1": {
+   "value": 0.409785,
+   "low": 0.389295,
+   "high": 0.430274,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (craq-b702fd90)"
+  },
+  "utzb.start_reader": {
+   "value": 502.0,
+   "low": 476.9,
+   "high": 527.1,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utzb.start_compute": {
+   "value": 558.0,
+   "low": 530.1,
+   "high": 585.9,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utzb.start_writer": {
+   "value": 490.0,
+   "low": 465.5,
+   "high": 514.5,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utzb.rd_cpb": {
+   "value": 0.0109336,
+   "low": 0.0103869,
+   "high": 0.0114802,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.wr_cpb": {
+   "value": 0.000502242,
+   "low": 0.00047713,
+   "high": 0.000527354,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.rd_setup": {
+   "value": 29.2237,
+   "low": 27.7625,
+   "high": 30.6849,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.wr_setup": {
+   "value": 461.616,
+   "low": 438.535,
+   "high": 484.697,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.rd_fixed": {
+   "value": 16.3844,
+   "low": 15.5652,
+   "high": 17.2036,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.rd_issue": {
+   "value": 16.2969,
+   "low": 15.4821,
+   "high": 17.1118,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.rd_first": {
+   "value": 0.867219,
+   "low": 0.823858,
+   "high": 0.910579,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.rd_tail": {
+   "value": 20.3555,
+   "low": 19.3377,
+   "high": 21.3732,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.um_fixed": {
+   "value": 116.487,
+   "low": 110.663,
+   "high": 122.311,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.um_per_tile": {
+   "value": 0.0652916,
+   "low": 0.062027,
+   "high": 0.0685561,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.pk_fixed": {
+   "value": 1.3593,
+   "low": 1.29133,
+   "high": 1.42726,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.pk_per_tile": {
+   "value": 0.127468,
+   "low": 0.121094,
+   "high": 0.133841,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.cu_first": {
+   "value": 0.155415,
+   "low": 0.147644,
+   "high": 0.163186,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.wr_fixed": {
+   "value": 307.59,
+   "low": 292.21,
+   "high": 322.969,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.wr_issue": {
+   "value": 30.4794,
+   "low": 28.9554,
+   "high": 32.0033,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.wr_first": {
+   "value": 3.18092,
+   "low": 3.02188,
+   "high": 3.33997,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.wr_tail": {
+   "value": 123.82,
+   "low": 117.629,
+   "high": 130.011,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.cu_tail": {
+   "value": 126.828,
+   "low": 120.486,
+   "high": 133.169,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.drain": {
+   "value": 6.70647,
+   "low": 6.37115,
+   "high": 7.0418,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.rd_cpb_l1": {
+   "value": 8.6936e-05,
+   "low": 8.25892e-05,
+   "high": 9.12828e-05,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.wr_cpb_l1": {
+   "value": 8.48259e-05,
+   "low": 8.05846e-05,
+   "high": 8.90671e-05,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.rd_lat_l1": {
+   "value": 0.386268,
+   "low": 0.366954,
+   "high": 0.405581,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "utzb.wr_lat_l1": {
+   "value": 0.242249,
+   "low": 0.230136,
+   "high": 0.254361,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (craq-b702fd90), calibration/fit_layout.py"
   }
  },
  "compute_variants": {

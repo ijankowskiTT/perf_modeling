@@ -52,7 +52,7 @@
       "properties": {
         "op": {
           "type": "string",
-          "description": "add | multiply (binary_ng) | tilize | untilize"
+          "description": "add | multiply (binary_ng) | tilize | untilize | tilize_with_val_padding | untilize_with_unpadding"
         },
         "kernel_variant": {
           "type": "string",
@@ -79,7 +79,7 @@
             "type": "integer",
             "minimum": 1
           },
-          "description": "tilize/untilize: [..., H, W] (leading dims fold into rows)"
+          "description": "layout ops: [..., H, W], the logical (unpadded) tensor; leading dims fold into rows"
         },
         "tiles_scope": {
           "type": "string",

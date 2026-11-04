@@ -1024,6 +1024,545 @@
    "high": 16.4335,
    "class": "measurement-fit",
    "source": "fitted on 65 untilize runs (perf)"
+  },
+  "tvp.start_reader": {
+   "value": 4041.0,
+   "low": 3838.95,
+   "high": 4243.05,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tvp.start_compute": {
+   "value": 904.0,
+   "low": 858.8,
+   "high": 949.2,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tvp.start_writer": {
+   "value": 3960.0,
+   "low": 3762.0,
+   "high": 4158.0,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "tvp.rd_zcpb": {
+   "value": 0.0217533,
+   "low": 0.0206656,
+   "high": 0.022841,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.rd_cpb": {
+   "value": 0.0217693,
+   "low": 0.0206809,
+   "high": 0.0228578,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.wr_cpb": {
+   "value": 0.0170978,
+   "low": 0.0162429,
+   "high": 0.0179527,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.rd_setup": {
+   "value": 963.618,
+   "low": 915.437,
+   "high": 1011.8,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.wr_setup": {
+   "value": 0.320117,
+   "low": 0.304111,
+   "high": 0.336123,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.rd_fixed": {
+   "value": 81.3876,
+   "low": 77.3182,
+   "high": 85.457,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.rd_issue": {
+   "value": 36.2021,
+   "low": 34.392,
+   "high": 38.0122,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.rd_first": {
+   "value": 0.197934,
+   "low": 0.188037,
+   "high": 0.20783,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.rd_tail": {
+   "value": 661.105,
+   "low": 628.05,
+   "high": 694.161,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.cu_fixed": {
+   "value": 23.3295,
+   "low": 22.163,
+   "high": 24.496,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.cu_per_tile": {
+   "value": 52.6258,
+   "low": 49.9945,
+   "high": 55.257,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.cu_first": {
+   "value": 1035.11,
+   "low": 983.35,
+   "high": 1086.86,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.wr_fixed": {
+   "value": 40.7228,
+   "low": 38.6867,
+   "high": 42.7589,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.wr_issue": {
+   "value": 32.9839,
+   "low": 31.3347,
+   "high": 34.6331,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.wr_first": {
+   "value": 195.318,
+   "low": 185.552,
+   "high": 205.084,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.wr_tail": {
+   "value": 528.557,
+   "low": 502.129,
+   "high": 554.984,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.cu_tail": {
+   "value": 43.4179,
+   "low": 41.247,
+   "high": 45.5888,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.drain": {
+   "value": 12.8833,
+   "low": 12.2391,
+   "high": 13.5274,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.rd_cpb_l1": {
+   "value": 0.0100002,
+   "low": 0.00950022,
+   "high": 0.0105002,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.wr_cpb_l1": {
+   "value": 6.47089e-05,
+   "low": 6.14735e-05,
+   "high": 6.79444e-05,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.rd_lat_l1": {
+   "value": 50.0,
+   "low": 47.5,
+   "high": 52.5,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "tvp.wr_lat_l1": {
+   "value": 104.451,
+   "low": 99.2287,
+   "high": 109.674,
+   "class": "measurement-fit",
+   "source": "fitted on 23 tilize_with_val_padding runs (perf)"
+  },
+  "uwp.start_reader": {
+   "value": 3973.0,
+   "low": 3774.35,
+   "high": 4171.65,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "uwp.start_compute": {
+   "value": 912.0,
+   "low": 866.4,
+   "high": 957.6,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "uwp.start_writer": {
+   "value": 3771.0,
+   "low": 3582.45,
+   "high": 3959.55,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "uwp.rd_cpb": {
+   "value": 0.000839368,
+   "low": 0.0007974,
+   "high": 0.000881336,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.wr_cpb": {
+   "value": 0.00124736,
+   "low": 0.00118499,
+   "high": 0.00130973,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.rd_setup": {
+   "value": 472.174,
+   "low": 448.566,
+   "high": 495.783,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.wr_setup": {
+   "value": 1379.92,
+   "low": 1310.92,
+   "high": 1448.91,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.rd_fixed": {
+   "value": 0.14473,
+   "low": 0.137494,
+   "high": 0.151967,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.rd_issue": {
+   "value": 74.9847,
+   "low": 71.2355,
+   "high": 78.7339,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.rd_first": {
+   "value": 498.369,
+   "low": 473.451,
+   "high": 523.288,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.rd_tail": {
+   "value": 268.529,
+   "low": 255.103,
+   "high": 281.956,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.um_fixed": {
+   "value": 123.897,
+   "low": 117.702,
+   "high": 130.091,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.um_per_tile": {
+   "value": 9.64713,
+   "low": 9.16477,
+   "high": 10.1295,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.pk_fixed": {
+   "value": 15.1573,
+   "low": 14.3995,
+   "high": 15.9152,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.pk_per_tile": {
+   "value": 32.7271,
+   "low": 31.0908,
+   "high": 34.3635,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.cu_first": {
+   "value": 0.732497,
+   "low": 0.695872,
+   "high": 0.769121,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.wr_fixed": {
+   "value": 190.169,
+   "low": 180.66,
+   "high": 199.677,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.wr_issue": {
+   "value": 41.1614,
+   "low": 39.1034,
+   "high": 43.2195,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.wr_first": {
+   "value": 0.000379496,
+   "low": 0.000360521,
+   "high": 0.000398471,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.wr_tail": {
+   "value": 1078.16,
+   "low": 1024.25,
+   "high": 1132.06,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.cu_tail": {
+   "value": 446.427,
+   "low": 424.105,
+   "high": 468.748,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.drain": {
+   "value": 5.89008,
+   "low": 5.59557,
+   "high": 6.18458,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.rd_cpb_l1": {
+   "value": 0.10133,
+   "low": 0.096263,
+   "high": 0.106396,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.wr_cpb_l1": {
+   "value": 0.046278,
+   "low": 0.0439641,
+   "high": 0.0485919,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.rd_lat_l1": {
+   "value": 16.68,
+   "low": 15.846,
+   "high": 17.514,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "uwp.wr_lat_l1": {
+   "value": 107.985,
+   "low": 102.586,
+   "high": 113.384,
+   "class": "measurement-fit",
+   "source": "fitted on 22 untilize_with_unpadding runs (perf)"
+  },
+  "utzb.start_reader": {
+   "value": 4051.0,
+   "low": 3848.45,
+   "high": 4253.55,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utzb.start_compute": {
+   "value": 916.0,
+   "low": 870.2,
+   "high": 961.8,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utzb.start_writer": {
+   "value": 3728.0,
+   "low": 3541.6,
+   "high": 3914.4,
+   "class": "measurement",
+   "source": "profiler: median kernel start"
+  },
+  "utzb.rd_cpb": {
+   "value": 0.0232824,
+   "low": 0.0221183,
+   "high": 0.0244465,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.wr_cpb": {
+   "value": 0.00183299,
+   "low": 0.00174134,
+   "high": 0.00192464,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.rd_setup": {
+   "value": 611.208,
+   "low": 580.647,
+   "high": 641.768,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.wr_setup": {
+   "value": 546.207,
+   "low": 518.896,
+   "high": 573.517,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.rd_fixed": {
+   "value": 23.7902,
+   "low": 22.6007,
+   "high": 24.9797,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.rd_issue": {
+   "value": 5.7915,
+   "low": 5.50193,
+   "high": 6.08108,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.rd_first": {
+   "value": 177.703,
+   "low": 168.818,
+   "high": 186.588,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.rd_tail": {
+   "value": 212.566,
+   "low": 201.938,
+   "high": 223.195,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.um_fixed": {
+   "value": 102.539,
+   "low": 97.4116,
+   "high": 107.665,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.um_per_tile": {
+   "value": 43.5176,
+   "low": 41.3417,
+   "high": 45.6935,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.pk_fixed": {
+   "value": 0.0328215,
+   "low": 0.0311804,
+   "high": 0.0344626,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.pk_per_tile": {
+   "value": 30.3716,
+   "low": 28.853,
+   "high": 31.8902,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.cu_first": {
+   "value": 5.57948e-06,
+   "low": 5.30051e-06,
+   "high": 5.85846e-06,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.wr_fixed": {
+   "value": 340.613,
+   "low": 323.582,
+   "high": 357.643,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.wr_issue": {
+   "value": 39.0607,
+   "low": 37.1077,
+   "high": 41.0138,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.wr_first": {
+   "value": 1.31098,
+   "low": 1.24543,
+   "high": 1.37653,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.wr_tail": {
+   "value": 912.02,
+   "low": 866.419,
+   "high": 957.621,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.cu_tail": {
+   "value": 883.632,
+   "low": 839.45,
+   "high": 927.814,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.drain": {
+   "value": 8.37442,
+   "low": 7.9557,
+   "high": 8.79314,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.rd_cpb_l1": {
+   "value": 0.0234282,
+   "low": 0.0222568,
+   "high": 0.0245996,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.wr_cpb_l1": {
+   "value": 0.0147334,
+   "low": 0.0139967,
+   "high": 0.0154701,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.rd_lat_l1": {
+   "value": 440.366,
+   "low": 418.347,
+   "high": 462.384,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
+  },
+  "utzb.wr_lat_l1": {
+   "value": 144.52,
+   "low": 137.294,
+   "high": 151.746,
+   "class": "measurement-fit",
+   "source": "fitted on untilize,untilize_with_unpadding runs (perf), calibration/fit_layout.py"
   }
  },
  "compute_variants": {
