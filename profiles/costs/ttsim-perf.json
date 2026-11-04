@@ -1,7 +1,7 @@
 {
  "kind": "costs",
  "name": "ttsim-perf",
- "revision": "2026-11-03.fit8",
+ "revision": "2026-11-03.fit8+fp32",
  "platform": "ttsim-perf (ENABLE_PERF=1)",
  "platform_scope": "cycle-approximate Tensix and Rocket timing (incl. cold first-iteration costs); L1-interleaved NoC transfers ARE timed (8.5% mean error), DRAM transfers are NOT. Times are simulator cycles reported as ns (1 cycle = 1 ns by convention), not silicon.",
  "calibration": {
@@ -2343,6 +2343,168 @@
     "low": 46.429,
     "high": 51.317,
     "range_note": "+-5% scenario range (holdout p90 error)"
+   }
+  },
+  "sfpu:add:fp32": {
+   "_source": "eltwise_binary_sfpu_no_bcast_dfb.cpp with fp32: UnpackToDest copy_tile of both operands, SFPU op on the math TRISC, 1 pack; at most 2 tiles per DST section (32-bit DST)",
+   "_dm_note": "keys outside cu/cm/cp are fp32-specific data-movement terms: a variant key overrides the shared one (resolve_costs), and the shared DM costs were fitted on 2 KB bf16 tiles",
+   "start.compute": {
+    "value": 1333.0,
+    "class": "measurement",
+    "source": "TRISC0 KERNEL start, median of the fp32 add runs (perf)"
+   },
+   "cu.fixed": {
+    "value": 419.276,
+    "low": 406.698,
+    "high": 431.854,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 add fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cu.per_tile": {
+    "value": 101.848,
+    "low": 98.793,
+    "high": 104.903,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 add fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cu.first_chunk_extra": {
+    "value": 1741.743,
+    "low": 1689.491,
+    "high": 1793.995,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 add fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.fixed": {
+    "value": 0.621,
+    "low": 0.602,
+    "high": 0.64,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 add fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.per_tile": {
+    "value": 250.339,
+    "low": 242.829,
+    "high": 257.849,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 add fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.fixed": {
+    "value": 152.403,
+    "low": 147.831,
+    "high": 156.975,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 add fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.per_tile": {
+    "value": 98.846,
+    "low": 95.881,
+    "high": 101.811,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 add fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "noc.read_service.l1": {
+    "value": 129.449,
+    "low": 125.566,
+    "high": 133.332,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 add fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "noc.write_service.l1": {
+    "value": 47.762,
+    "low": 46.329,
+    "high": 49.195,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 add fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   }
+  },
+  "sfpu:multiply:fp32": {
+   "_source": "eltwise_binary_sfpu_no_bcast_dfb.cpp with fp32: UnpackToDest copy_tile of both operands, SFPU op on the math TRISC, 1 pack; at most 2 tiles per DST section (32-bit DST)",
+   "_dm_note": "keys outside cu/cm/cp are fp32-specific data-movement terms: a variant key overrides the shared one (resolve_costs), and the shared DM costs were fitted on 2 KB bf16 tiles",
+   "start.compute": {
+    "value": 1333.0,
+    "class": "measurement",
+    "source": "TRISC0 KERNEL start, median of the fp32 multiply runs (perf)"
+   },
+   "cu.fixed": {
+    "value": 419.276,
+    "low": 406.698,
+    "high": 431.854,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 multiply fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cu.per_tile": {
+    "value": 101.848,
+    "low": 98.793,
+    "high": 104.903,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 multiply fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cu.first_chunk_extra": {
+    "value": 1741.743,
+    "low": 1689.491,
+    "high": 1793.995,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 multiply fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.fixed": {
+    "value": 0.621,
+    "low": 0.602,
+    "high": 0.64,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 multiply fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.per_tile": {
+    "value": 250.339,
+    "low": 242.829,
+    "high": 257.849,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 multiply fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.fixed": {
+    "value": 152.403,
+    "low": 147.831,
+    "high": 156.975,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 multiply fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.per_tile": {
+    "value": 98.846,
+    "low": 95.881,
+    "high": 101.811,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 multiply fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "noc.read_service.l1": {
+    "value": 129.449,
+    "low": 125.566,
+    "high": 133.332,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 multiply fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "noc.write_service.l1": {
+    "value": 47.762,
+    "low": 46.329,
+    "high": 49.195,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-ttsim-perf.jsonl (perf, 26 multiply fp32 runs; B-holdout 1.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
    }
   }
  }

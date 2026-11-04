@@ -67,7 +67,7 @@ Token use per question (`python bench/tokens.py`):
 
 | | Covered | Not yet |
 |---|---|---|
-| Ops | binary_ng `add`, `multiply`; `tilize` (Default, SingleCore, Sharded), `untilize` (MultiCore, SingleCore, Block), `tilize_with_val_padding` (Default, SingleCore), `untilize_with_unpadding` (Interleaved, BlockInterleaved, SingleCore), `interleaved_to_sharded` / `sharded_to_interleaved` (TILE, height/width/block); bf16 | `subtract`, `rsub`, `divide`, fp32 (no costs yet); move, reshard (next); addalpha, activations, broadcast, matmul |
+| Ops | binary_ng `add`, `multiply` (bf16, fp32); `tilize` (Default, SingleCore, Sharded), `untilize` (MultiCore, SingleCore, Block), `tilize_with_val_padding` (Default, SingleCore), `untilize_with_unpadding` (Interleaved, BlockInterleaved, SingleCore), `interleaved_to_sharded` / `sharded_to_interleaved` (TILE, height/width/block); bf16 | `subtract`, `rsub`, `divide` (no costs yet); move, reshard (next); addalpha, activations, broadcast, matmul |
 | Layout | each operand in DRAM, L1 (interleaved) or borrowed (resident shard), any mix | tail rings of uneven slices |
 | Knobs | reader/compute/writer threads, `dm_batch`, `tiles_per_cycle`, `entries_per_thread` (`TTNN_QSR_*`) | |
 | Kernel changes | per-thread NoC barriers, dynamic work queue (hypothetical: no simulator can confirm) | other schedules |
