@@ -65,13 +65,23 @@ Token use per question (`python bench/tokens.py`):
 
 ## Coverage
 
-| | Covered | Not yet |
-|---|---|---|
-| Ops | binary_ng `add`, `multiply` (bf16, fp32); `tilize` (Default, SingleCore, Sharded), `untilize` (MultiCore, SingleCore, Block), `tilize_with_val_padding` (Default, SingleCore), `untilize_with_unpadding` (Interleaved, BlockInterleaved, SingleCore), `interleaved_to_sharded` / `sharded_to_interleaved` (TILE and ROW_MAJOR, height/width/block, uneven last shards); bf16 | `subtract`, `rsub`, `divide` (no costs yet); move, reshard (next); addalpha, activations, broadcast, matmul |
-| Layout | each operand in DRAM, L1 (interleaved) or borrowed (resident shard), any mix | tail rings of uneven slices |
-| Knobs | reader/compute/writer threads, `dm_batch`, `tiles_per_cycle`, `entries_per_thread` (`TTNN_QSR_*`) | |
-| Kernel changes | per-thread NoC barriers, dynamic work queue (hypothetical: no simulator can confirm) | other schedules |
-| Platform | craq-sim (binary_ng ~1-2%, tilize/untilize <=2% held out), ttsim-perf (binary_ng DRAM 1.4%, L1 ~8%), silicon as a hypothesis | silicon, DRAM timing in either simulator; craq-sim cannot run tilize wider than 64 tiles |
+| Op | Factories / paths | craq-sim | ttsim-perf |
+|---|---|---|---|
+| binary_ng `add`, `multiply` | native factory; any R/C/W, batch, tiles_per_cycle, ring depth; bf16, fp32 | ~1-2% | DRAM ~1.4%, L1 ~8% |
+| `tilize` | Default, SingleCore, Sharded | <=1.7% | <=1.2% |
+| `untilize` | MultiCore, SingleCore, Block | <=0.9% | <=1.1% |
+| `tilize_with_val_padding` | Default, SingleCore | <=2.4% | <=2.8% |
+| `untilize_with_unpadding` | Interleaved, BlockInterleaved, SingleCore | <=2.5% | <=2.5% |
+| `interleaved_to_sharded`, `sharded_to_interleaved` | TILE and ROW_MAJOR; height / width / block; uneven last shards | <=1.8% | <=2.0% |
+| `move` | interleaved, overlapping output (the only path Quasar runs); TILE, ROW_MAJOR | <=0.4% | <=1.5% |
+
+Mean error per factory over all calibration runs (held-out runs within the same bounds; details in
+[docs/CALIBRATION.md](docs/CALIBRATION.md)). Kernel changes for binary_ng (per-thread barriers, dynamic work queue)
+are hypothetical: no simulator can confirm them.
+
+**Not covered** (answers `unsupported` or `needs_input`, never a number): other ops (matmul, conv, reductions,
+activations, broadcast, `subtract` / `rsub` / `divide` costs), move with a separate output (Quasar rejects it),
+sharded move, dtype conversion inside sharding ops, silicon. craq-sim cannot run tilize wider than 64 tiles.
 
 No Quasar silicon exists yet: times are simulator cycles. Confirm close calls (<3%) with one simulator run.
 
