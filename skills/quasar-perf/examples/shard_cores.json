@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "action": "compare",
+  "profiles": {"costs": "craq-sim"},
+  "workload": {"op": "interleaved_to_sharded", "dtype": "bf16", "shape": [1, 1, 1024, 256],
+               "placements": {"a": "dram"}, "shard": {"strategy": "height", "cores": 8}},
+  "baseline": {},
+  "candidates": [
+    {"id": "32_cores", "overrides": {"shard_cores": 32}},
+    {"id": "width_sharded", "overrides": {"shard_strategy": "width"}}
+  ]
+}

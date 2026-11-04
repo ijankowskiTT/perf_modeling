@@ -49,7 +49,6 @@ def test_sensitivity_wider_is_slower():
     (req("untilize", place="borrowed"), "unsupported"),
     (req(action="tune"), "unsupported"),
     (req(costs="silicon-hypothesis"), "needs_input"),
-    (req("tilize_with_val_padding", baseline={"use_multicore": False}), "unsupported"),  # SingleCore, not modeled yet
 ])
 def test_unsupported_and_missing_costs_carry_no_numbers(request_, status):
     r = analyze(request_)
@@ -90,4 +89,4 @@ def test_accuracy_per_factory(profile, data, limit):
             continue
         errs.setdefault((r["op"], p["factory"]), []).append(abs(p["span"] / r["span_max"] - 1))
     means = {k: round(statistics.mean(v), 4) for k, v in errs.items()}
-    assert len(means) == 9 and all(m <= limit for m in means.values()), means
+    assert len(means) == 13 and all(m <= limit for m in means.values()), means

@@ -52,7 +52,7 @@
       "properties": {
         "op": {
           "type": "string",
-          "description": "add | multiply (binary_ng) | tilize | untilize | tilize_with_val_padding | untilize_with_unpadding"
+          "description": "add | multiply (binary_ng) | tilize | untilize | tilize_with_val_padding | untilize_with_unpadding | interleaved_to_sharded | sharded_to_interleaved"
         },
         "kernel_variant": {
           "type": "string",
@@ -119,6 +119,24 @@
                 "l1",
                 "borrowed"
               ]
+            }
+          }
+        },
+        "shard": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "interleaved_to_sharded / sharded_to_interleaved: the L1 shard layout (even shards)",
+          "properties": {
+            "strategy": {
+              "enum": [
+                "height",
+                "width",
+                "block"
+              ]
+            },
+            "cores": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         }
@@ -296,6 +314,19 @@
             "borrowed"
           ],
           "description": "tilize/untilize: the tensor's memory (borrowed = height-sharded L1)"
+        },
+        "shard_strategy": {
+          "enum": [
+            "height",
+            "width",
+            "block"
+          ],
+          "description": "sharding ops: override workload.shard.strategy"
+        },
+        "shard_cores": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "sharding ops: override workload.shard.cores"
         }
       }
     }

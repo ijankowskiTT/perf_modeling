@@ -20,17 +20,27 @@ FIT_KEYS = ["rd_cpb", "wr_cpb", "rd_setup", "wr_setup", "rd_fixed", "rd_issue", 
             "wr_first", "wr_tail", "cu_tail", "drain"]
 def keys_for(op, fac):
     """Cost terms a factory's kernels actually have (others stay at their initial value)."""
-    from qperf.ops.layout import FAMILY
+    from qperf.ops import registry
+    from qperf.ops.layout import family_of
 
-    cu = ["cu_fixed", "cu_per_tile"] if FAMILY[op] == "tilize" else ["um_fixed", "um_per_tile", "pk_fixed", "pk_per_tile"]
+    m = registry.module_for(op)
+    if m and hasattr(m, "fit_keys"):
+        return list(m.fit_keys(op, fac))
+    if family_of(op) == "move":  # no compute; only the interleaved side moves data
+        common = ["rd_setup", "rd_tail", "wr_setup", "wr_fixed", "wr_tail", "drain"]
+        if op == "interleaved_to_sharded":
+            return common + ["rd_fixed", "rd_issue", "rd_first", "rd_cpb"]
+        return common + ["wr_issue", "wr_first", "wr_cpb"]
+    cu = ["cu_fixed", "cu_per_tile"] if family_of(op) == "tilize" else ["um_fixed", "um_per_tile", "pk_fixed", "pk_per_tile"]
     if fac == "Sharded":  # no NoC traffic: publish all, compute, pop all
         return ["rd_setup", "wr_setup", "rd_fixed", "rd_tail"] + cu + ["cu_first", "cu_tail", "wr_fixed", "wr_tail", "drain"]
-    extra = ["rd_zcpb"] if op == "tilize_with_val_padding" else []  # zero-fill of pad columns / rows (DMA)
+    # padding fill: DMA zero-fill (multicore) or a CPU store loop (SingleCore)
+    extra = (["rd_pcpb", "rd_pfix"] if fac == "SingleCore" else ["rd_zcpb"]) if op == "tilize_with_val_padding" else []
     return [k for k in FIT_KEYS if not k.startswith(("um_", "pk_", "cu_fixed", "cu_per_tile"))] + cu + extra
 
 
 INIT = {  # realistic starting values (cycles): a flat start lets least squares settle in poor local minima
-    "rd_zcpb": 0.01, "rd_cpb": 0.018, "wr_cpb": 0.018, "rd_setup": 100, "wr_setup": 500, "rd_fixed": 20, "rd_issue": 25,
+    "rd_zcpb": 0.01, "rd_pcpb": 0.25, "rd_pfix": 30, "rd_cpb": 0.018, "wr_cpb": 0.018, "rd_setup": 100, "wr_setup": 500, "rd_fixed": 20, "rd_issue": 25,
     "rd_first": 0, "rd_tail": 50, "cu_fixed": 100, "cu_per_tile": 50, "um_fixed": 100, "um_per_tile": 5, "pk_fixed": 50,
     "pk_per_tile": 10, "cu_first": 0, "wr_fixed": 20, "wr_issue": 35, "wr_first": 0, "wr_tail": 50, "cu_tail": 20,
     "drain": 10}
@@ -152,7 +162,8 @@ def main():
     ap.add_argument("--sim", required=True)
     ap.add_argument("--op", required=True)
     ap.add_argument("--holdout", default="every4", help="every4, or key=value (e.g. H=1280)")
-    ap.add_argument("--write")
+    ap.add_argument("--write", help="store the fitted terms in profiles/costs/<profile>.json")
+    ap.add_argument("--emit", help="write the fitted terms (profile param entries) to this JSON file instead")
     a = ap.parse_args()
     ops = a.op.split(",")  # several ops when their factories share kernels (untilize Block, ..._unpadding BlockInterleaved)
     rs = []
@@ -185,10 +196,17 @@ def main():
         hk, hv = a.holdout.split("=")
         hold = [r for r in rs if str(r[hk]) == hv]
     fitset = [r for r in rs if r not in hold]
-    from qperf.ops.layout import PREFIX, plan
+    from qperf.ops.layout import plan, prefix_of
     # group by cost prefix: factories that share kernels share one set of cost terms
-    pre_of = lambda r: PREFIX[(r["op"], plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0])]  # noqa: E731
+    pre_of = lambda r: prefix_of(r["op"], plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0])  # noqa: E731
     fac_of = lambda r: plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0]  # noqa: E731
+    # profile-wide flags the layout model reads (e.g. noc.barrier_all_kinds: shared L1 queue and barrier): fit with
+    # the same values the predictions will use
+    prof_name = a.write or {"craq-b702fd90": "craq-sim", "perf": "ttsim-perf"}.get(a.sim)
+    flags = {}
+    if prof_name:
+        params = json.load(open(os.path.join(ROOT, "profiles", "costs", prof_name + ".json")))["params"]
+        flags = {k: v["value"] for k, v in params.items() if k in ("noc.barrier_all_kinds",)}
     c = {}
     for p in sorted({pre_of(r) for r in rs}):
         fac = fac_of(next(r for r in rs if pre_of(r) == p))
@@ -205,19 +223,35 @@ def main():
                 starts["reader"].append(roles.get("QUASAR_DM2", [0])[0])
                 starts["writer"].append(roles.get("QUASAR_DM3", [0])[0])
                 starts["compute"].append(roles.get("QUASAR_NEO0_TRISC0", [0])[0])
-        cf = {f"{p}.start_{k}": statistics.median(v) for k, v in starts.items()}
+        cf = dict(flags)
+        cf.update({f"{p}.start_{k}": statistics.median(v) for k, v in starts.items()})
         cf.update({f"{p}.{k}": v for k, v in INIT.items()})
         keys = keys_for(op0, fac)
-        if any(r["mem"] == "l1" for r in fs):  # L1 transfer terms only where the runs can identify them
-            keys += ["rd_cpb_l1", "wr_cpb_l1", "rd_lat_l1", "wr_lat_l1"]
-            cf.update({f"{p}.rd_cpb_l1": 0.01, f"{p}.wr_cpb_l1": 0.01, f"{p}.rd_lat_l1": 50.0, f"{p}.wr_lat_l1": 50.0})
+        def in_l1(r):  # an operand moved over the NoC from / to L1 (the plan's placements, not the mem string)
+            cfg = plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[1][0][0]
+            return "l1" in (cfg["in_place"], cfg["out_place"])
+
+        if any(in_l1(r) for r in fs):  # L1 transfer terms only where the runs can identify them
+            keys += ["rd_cpb_l1", "wr_cpb_l1", "rd_lat_l1", "wr_lat_l1", "rd_svc_l1", "wr_svc_l1", "l1_gbw"]
+            cf.update({f"{p}.rd_cpb_l1": 0.01, f"{p}.wr_cpb_l1": 0.01, f"{p}.rd_lat_l1": 50.0, f"{p}.wr_lat_l1": 50.0,
+                       f"{p}.rd_svc_l1": 20.0, f"{p}.wr_svc_l1": 20.0, f"{p}.l1_gbw": 500.0})
         cf = fit(fs, cf, [f"{p}.{k}" for k in keys])
         print(f"{op0} {fac} ({p}) on {a.sim}: {len(fs)} fit runs, {len(hs)} holdout ({a.holdout})")
         print("  " + ", ".join(f"{k.split('.')[1]}={v:.1f}" for k, v in cf.items()))
         report("fit", fs, cf, worst=3)
         if hs:
             report("holdout", hs, cf, worst=2)
-        c.update({k: v for k, v in cf.items() if ".start_" in k or k.split(".", 1)[1] in keys})
+        c.update({k: v for k, v in cf.items() if k not in flags and (".start_" in k or k.split(".", 1)[1] in keys)})
+    if a.emit:  # for parallel work: merge into a profile later (calibration/merge_params.py)
+        sig = lambda x: float(f"{x:.6g}")  # noqa: E731
+        out = {k: {"value": sig(v), "low": sig(v * 0.95), "high": sig(v * 1.05),
+                   "class": "measurement" if ".start_" in k else "measurement-fit",
+                   "source": "profiler: median kernel start" if ".start_" in k else
+                   f"fitted on {a.op} runs ({a.sim}), calibration/fit_layout.py"} for k, v in c.items()}
+        old = json.load(open(a.emit)) if os.path.exists(a.emit) else {}
+        old.update(out)
+        json.dump(old, open(a.emit, "w"), indent=1)
+        print("  emitted", len(out), "terms to", a.emit)
     if a.write:
         path = os.path.join(ROOT, "profiles", "costs", a.write + ".json")
         prof = json.load(open(path))

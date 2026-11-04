@@ -396,9 +396,9 @@ def _analyze(req, t_start):
     errs = validate_request(req)
     if errs:
         raise RequestError("invalid", "; ".join(errs))
-    from .layout_api import LAYOUT_OPS, analyze_layout
+    from .layout_api import analyze_layout, layout_ops
 
-    if req["workload"]["op"] in LAYOUT_OPS:
+    if req["workload"]["op"] in layout_ops():
         return analyze_layout(req, t_start)
     action = req["action"]
     prof = req.get("profiles", {})

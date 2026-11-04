@@ -39,12 +39,17 @@ run_one() {
     export TT_METAL_HOME=$TREE PYTHONPATH=$TREE:$TREE/ttnn:$TREE/tools${PYTHONPATH:+:$PYTHONPATH}
     cd $TREE
     local t_start=$(date +%s)
+    if [ -f $HERE/runners/$op.py ]; then  # an op with its own runner: same arguments as run_dm_case.py
+        timeout ${QPERF_TIMEOUT:-5400} python $HERE/runners/$op.py $op $dtype ${tpc%x*} ${tpc#*x} $layout $knobs > $TT_METAL_LOGS_PATH/stdout.log 2> $TT_METAL_LOGS_PATH/stderr.log
+    else
     case $op in
-        tilize|untilize|tilize_with_val_padding|untilize_with_unpadding)  # data-movement ops: layout = mem, tpc = HxW, knobs = multicore
+        tilize|untilize|tilize_with_val_padding|untilize_with_unpadding|interleaved_to_sharded|sharded_to_interleaved|move)
+            # data-movement ops: layout = mem (or shard spec, e.g. hs8), tpc = HxW, knobs = multicore
             timeout ${QPERF_TIMEOUT:-5400} python $HERE/run_dm_case.py $op $dtype ${tpc%x*} ${tpc#*x} $layout $knobs > $TT_METAL_LOGS_PATH/stdout.log 2> $TT_METAL_LOGS_PATH/stderr.log ;;
         *)
             timeout ${QPERF_TIMEOUT:-5400} python $HERE/run_case.py $op $dtype $tpc $layout > $TT_METAL_LOGS_PATH/stdout.log 2> $TT_METAL_LOGS_PATH/stderr.log ;;
     esac
+    fi
     local line=$(grep '^JSON ' $TT_METAL_LOGS_PATH/stdout.log)
     local wall=$(( $(date +%s) - t_start ))
     local commit=$(git -C $TREE rev-parse --short=11 HEAD)

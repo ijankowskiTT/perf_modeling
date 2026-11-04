@@ -12,10 +12,21 @@ import math
 import time
 
 from . import ENGINE_VERSION, SCHEMA_VERSION
-from .ops.layout import FAMILY, GRID, PREFIX, TILE, estimate, plan
+from .ops import registry
+from .ops.layout import GRID, TILE, estimate, family_of, plan, prefix_of
 from .profiles import SCENARIOS, _pick, load, sha256
 
-LAYOUT_OPS = ("tilize", "untilize", "tilize_with_val_padding", "untilize_with_unpadding")
+BASE_OPS = ("tilize", "untilize", "tilize_with_val_padding", "untilize_with_unpadding", "interleaved_to_sharded",
+            "sharded_to_interleaved")
+
+
+def layout_ops():
+    """Every op this API answers: the base layout ops plus registered op modules."""
+    return BASE_OPS + tuple(op for m in registry.MODULES for op in m.OPS)
+
+
+LAYOUT_OPS = BASE_OPS  # kept for callers; use layout_ops() to include registered modules
+SHARD_OPS = ("interleaved_to_sharded", "sharded_to_interleaved")
 MEM_OF = {"dram": "dram", "l1": "l1", "borrowed": "hs"}
 
 
@@ -37,12 +48,36 @@ def _costs(profile, scenario, overrides, compute_scale=1.0):
 
 
 def _workload(w, knobs):
+    m = registry.module_for(w["op"])
+    if m and hasattr(m, "mem_of"):
+        shape = w.get("shape")
+        if not shape or len(shape) < 2:
+            raise LayoutError("invalid", f"{w['op']} needs workload.shape [..., H, W]")
+        try:
+            mem, label = m.mem_of(w, knobs)
+        except ValueError as e:
+            raise LayoutError("invalid", str(e))
+        return {"op": w["op"], "dtype": w.get("dtype", "bf16"), "H": math.prod(shape[:-1]), "W": shape[-1], "mem": mem,
+                "placement": (w.get("placements") or {}).get("a", "dram"), "shard": label, "use_multicore": True}
     shape = w.get("shape")
     if not shape or len(shape) < 2:
         raise LayoutError("invalid", f"{w['op']} needs workload.shape [..., H, W]")
     rows = math.prod(shape[:-1])
     W = shape[-1]
     place = knobs.get("input") or (w.get("placements") or {}).get("a", "dram")
+    if w["op"] in SHARD_OPS:  # the L1 shard layout and the interleaved side (placements.a: dram | l1)
+        sh = dict(w.get("shard") or {})
+        strategy = knobs.get("shard_strategy") or sh.get("strategy")
+        cores = knobs.get("shard_cores") or sh.get("cores")
+        if not strategy or not cores:
+            raise LayoutError("invalid", f"{w['op']} needs workload.shard {{strategy: height|width|block, cores: N}}")
+        if place not in ("dram", "l1"):
+            raise LayoutError("invalid", f"{w['op']}: placements.a is the interleaved side, dram or l1")
+        if strategy == "block" and math.isqrt(cores) ** 2 != cores:
+            raise LayoutError("unsupported", "block sharding is modeled on a square core grid (4, 9, 16, ...)")
+        mem = {"height": "hs", "width": "ws", "block": "bs"}[strategy] + str(cores) + ("l" if place == "l1" else "")
+        return {"op": w["op"], "dtype": w.get("dtype", "bf16"), "H": rows, "W": W, "mem": mem, "placement": place,
+                "shard": f"{strategy} x{cores}", "use_multicore": True}
     return {"op": w["op"], "dtype": w.get("dtype", "bf16"), "H": rows, "W": W, "mem": MEM_OF[place],
             "placement": place, "use_multicore": knobs.get("use_multicore", True)}
 
@@ -53,16 +88,19 @@ def _result(wl, profile, what_if):
         factory, loads = plan(op, H, W, wl["dtype"], wl["mem"], wl["use_multicore"])
     except ValueError as e:
         raise LayoutError("unsupported", str(e))
-    p = PREFIX.get((op, factory))
-    label = f"{op} {factory} ({'multicore' if wl['use_multicore'] else 'single core'}, input {wl['placement']})"
+    p = prefix_of(op, factory)
+    if op in SHARD_OPS or wl.get("shard"):
+        label = f"{op} ({wl['shard']}, interleaved side {wl['placement']})" if op in SHARD_OPS else f"{op} ({wl['shard']})"
+    else:
+        label = f"{op} {factory} ({'multicore' if wl['use_multicore'] else 'single core'}, input {wl['placement']})"
     res = {"label": label, "config": {"factory": factory, "use_multicore": wl["use_multicore"], "input": wl["placement"]},
            "valid": True, "errors": [], "warnings": []}
-    if p is None or f"{p}.rd_issue" not in profile["params"] and f"{p}.rd_fixed" not in profile["params"]:
+    if p is None or f"{p}.start_reader" not in profile["params"]:  # every calibrated factory has its kernel starts
         raise LayoutError("needs_input", f"cost profile '{profile['name']}' has no costs for {op} {factory}; calibrate it "
                                          f"(calibration/fit_layout.py)")
     if wl["dtype"] != "bf16":
         res["warnings"].append("fp32 is not calibrated for tilize/untilize: costs are the bf16 fit")
-    if FAMILY[op] == "tilize" and math.ceil(W / TILE) > 64 and profile["name"] == "craq-sim":
+    if family_of(op) == "tilize" and math.ceil(W / TILE) > 64 and profile["name"] == "craq-sim":
         res["warnings"].append("craq-sim cannot run tilize wider than 64 tiles (mop_expander); this is an extrapolation")
     ghz = profile["clock"]["GHz"]
     times, nominal = {}, None
@@ -87,12 +125,14 @@ def _result(wl, profile, what_if):
             [(r["backpressure_frac"], k, "backpressure") for k, r in roles.items()]
     frac, wrole, wkind = max(waits)
     tiles = math.ceil(H / TILE) * math.ceil(W / TILE)
+    if nominal.get("l1_bound") and nominal["l1_bound"] >= nominal["span"] - 1e-9:
+        busiest = "noc_l1_global"  # the shared network to / from L1 binds, not a thread
     res.update({
         "result_kind": "finite_buffer_estimate",
         "time_ns": {k: round(v / ghz, 1) for k, v in times.items()},
         "time_cycles": round(times["nominal"], 1),
         "per_tile_ns": round(times["nominal"] / ghz / tiles, 3),
-        "bottleneck": {"resource": busiest, "busiest_role": busiest,
+        "bottleneck": {"resource": busiest, "busiest_role": max(roles, key=lambda k: roles[k]["useful_busy_frac"]),
                        "dominant_wait": {"role": wrole, "kind": wkind, "fraction": frac} if frac > 0.05 else None},
         "roles": roles,
         "work_split": [{"blocks_per_core": c["blocks"], "tiles_per_block": c["wt"], "cores": n} for c, n, _ in nominal["loads"]],
