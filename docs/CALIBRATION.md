@@ -14,6 +14,15 @@ than 1). The model picks the measured-best configuration in every group, except 
 (`lll` at 32 tiles: 23% regret). Known misses: R1C1W1 (+7%),
 and the default config at 256+ tiles per cluster (-3%).
 
+### binary_ng fp32 (add, multiply)
+
+fp32 add and multiply run the SFPU kernel (UnpackToDest, 32-bit DST: at most 2 tiles per batch) and take identical
+cycles on both simulators. `calibration/fit_fp32_binary.py` fits `sfpu:{add,multiply}:fp32` from the bf16 SFPU seed
+into `calibration/out/fp32binary-<profile>.json`; data `calibration/data/fp32binary-<profile>.jsonl`. The variants
+carry fp32-specific DM terms: craq-sim `noc.write_latency` (a 4 KB write ends ~100 cycles later), ttsim-perf
+`noc.read_service.l1`/`noc.write_service.l1`. Mean error (fit / holdout): craq-sim 1.5% / 1.4% (max 4%, at 32
+tiles); ttsim-perf borrowed and DRAM 0.5-0.8% / 0.4-0.6%, L1 9% / 5% (max 16%).
+
 ### tilize / untilize and the padding variants
 
 Fitted per factory with `calibration/fit_layout.py` (least squares on the span and the DM threads' end times; every

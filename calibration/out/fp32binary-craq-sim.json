@@ -1,0 +1,150 @@
+{
+ "compute_variants": {
+  "sfpu:add:fp32": {
+   "_source": "eltwise_binary_sfpu_no_bcast_dfb.cpp with fp32: UnpackToDest copy_tile of both operands, SFPU op on the math TRISC, 1 pack; at most 2 tiles per DST section (32-bit DST)",
+   "_dm_note": "keys outside cu/cm/cp are fp32-specific data-movement terms: a variant key overrides the shared one (resolve_costs), and the shared DM costs were fitted on 2 KB bf16 tiles",
+   "start.compute": {
+    "value": 891.0,
+    "class": "measurement",
+    "source": "TRISC0 KERNEL start, median of the fp32 add runs (craq-b702fd90)"
+   },
+   "cu.fixed": {
+    "value": 419.614,
+    "low": 407.026,
+    "high": 432.202,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 add fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cu.per_tile": {
+    "value": 12.207,
+    "low": 11.841,
+    "high": 12.573,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 add fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cu.first_chunk_extra": {
+    "value": 49.638,
+    "low": 48.149,
+    "high": 51.127,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 add fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.fixed": {
+    "value": 15.538,
+    "low": 15.072,
+    "high": 16.004,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 add fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.per_tile": {
+    "value": 255.502,
+    "low": 247.837,
+    "high": 263.167,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 add fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.fixed": {
+    "value": 109.063,
+    "low": 105.791,
+    "high": 112.335,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 add fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.per_tile": {
+    "value": 90.853,
+    "low": 88.127,
+    "high": 93.579,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 add fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "noc.write_latency": {
+    "value": 97.852,
+    "low": 94.916,
+    "high": 100.788,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 add fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   }
+  },
+  "sfpu:multiply:fp32": {
+   "_source": "eltwise_binary_sfpu_no_bcast_dfb.cpp with fp32: UnpackToDest copy_tile of both operands, SFPU op on the math TRISC, 1 pack; at most 2 tiles per DST section (32-bit DST)",
+   "_dm_note": "keys outside cu/cm/cp are fp32-specific data-movement terms: a variant key overrides the shared one (resolve_costs), and the shared DM costs were fitted on 2 KB bf16 tiles",
+   "start.compute": {
+    "value": 891.0,
+    "class": "measurement",
+    "source": "TRISC0 KERNEL start, median of the fp32 multiply runs (craq-b702fd90)"
+   },
+   "cu.fixed": {
+    "value": 419.614,
+    "low": 407.026,
+    "high": 432.202,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cu.per_tile": {
+    "value": 12.207,
+    "low": 11.841,
+    "high": 12.573,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cu.first_chunk_extra": {
+    "value": 49.638,
+    "low": 48.149,
+    "high": 51.127,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.fixed": {
+    "value": 15.538,
+    "low": 15.072,
+    "high": 16.004,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.per_tile": {
+    "value": 255.502,
+    "low": 247.837,
+    "high": 263.167,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.fixed": {
+    "value": 109.063,
+    "low": 105.791,
+    "high": 112.335,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.per_tile": {
+    "value": 90.853,
+    "low": 88.127,
+    "high": 93.579,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "noc.write_latency": {
+    "value": 97.852,
+    "low": 94.916,
+    "high": 100.788,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   }
+  }
+ }
+}
