@@ -1,6 +1,8 @@
 """qperf command line. Every subcommand goes through the same analyze() as the Python API.
 
   qperf analyze --request case.json [--format json|text|md|html] [--out report.html] [--set analysis.detail=full]
+  qperf analyze --request a.json --request b.json ... [--title "..."] [--format ...]   (one bundle report; a bundle
+                file {"title": ..., "requests": [...]} works as a --request too)
   qperf calibrate report --data calibration/data/ttsim-perf.jsonl --sim perf --costs ttsim-perf [--rank]
   qperf calibrate fit --data ... --sim perf --costs ttsim-perf --keys k1,k2 --revision NEW [--filter layout=ddd]
   qperf bench [--repeat 20]
@@ -135,6 +137,9 @@ def _at(x, shape):
 def cmd_analyze(a):
     from .api import analyze
 
+    if a.title or len(a.request) > 1 or (a.request[0] != "-" and _bundle_file(a.request[0])):
+        return cmd_bundle(a)
+    a.request = a.request[0]
     req = json.load(open(a.request)) if a.request != "-" else json.load(sys.stdin)
     for s in a.set or []:
         _set(req, s)
@@ -154,6 +159,37 @@ def cmd_analyze(a):
     else:
         print(out)
     return 0 if res["status"] in ("ok", "partial") else 2
+
+
+def _bundle_file(path):
+    from .bundle import is_bundle
+
+    return is_bundle([path])
+
+
+def cmd_bundle(a):
+    """Several requests (and / or bundle files) as one report: summary per op, kernel-change and layout-choice
+    rankings, caps, then each request's own section."""
+    from . import bundle
+
+    try:
+        title, reqs = bundle.load(a.request)
+    except (bundle.BundleError, OSError, json.JSONDecodeError) as e:
+        print(f"qperf analyze: {e}", file=sys.stderr)
+        return 2
+    for req in reqs:
+        for s in a.set or []:
+            _set(req, s)
+    b = bundle.run(reqs, a.title or title, detail="full" if a.format == "html" else "compact")
+    out = {"json": lambda: json.dumps(bundle.to_json(b), indent=1), "text": lambda: bundle.to_text(b),
+           "md": lambda: bundle.to_markdown(b), "html": lambda: bundle.to_html(b)}[a.format]()
+    if a.out:
+        with open(a.out, "w") as f:
+            f.write(out)
+        print(a.out)
+    else:
+        print(out)
+    return 0 if all(x["result"]["status"] in ("ok", "partial") for x in b["results"]) else 2
 
 
 def _filtered(recs, filters):
@@ -335,7 +371,10 @@ def main(argv=None):
     p = argparse.ArgumentParser(prog="qperf", description="Quasar binary_ng eltwise performance model")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("analyze")
-    s.add_argument("--request", required=True)
+    s.add_argument("--request", required=True, action="append",
+                   help="a request JSON (- = stdin); repeat it, or pass a bundle file {title, requests}, for one "
+                        "bundle report over several requests")
+    s.add_argument("--title", help="bundle report title")
     s.add_argument("--format", choices=["json", "text", "md", "html"], default="json")
     s.add_argument("--out", help="write the output to this file (md/html reports)")
     s.add_argument("--set", action="append", help="override a request field, e.g. analysis.detail=full")
