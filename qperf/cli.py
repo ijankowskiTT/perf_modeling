@@ -302,6 +302,16 @@ def _remote_blobs(repo, ref, paths):
     return out, f"{repo}@{label} ({sha[:11]}, {commit['commit']['committer']['date'][:10]})"
 
 
+def _pr_in_pinned(repo, ref, pinned):
+    """Merge commit sha of a merged PR that the pinned commit contains, else None."""
+    pr = _github(f"repos/{repo}/pulls/{ref[3:]}")
+    sha = pr and pr.get("merged_at") and pr.get("merge_commit_sha")
+    if not sha or not pinned:
+        return None
+    cmp = _github(f"repos/{repo}/compare/{sha}...{pinned}")  # pinned ahead of / equal to the merge: contains it
+    return sha if cmp and cmp.get("status") in ("ahead", "identical") else None
+
+
 def code_tokens(text):
     """C/C++ source without comments, #include lines and formatting, as a token list: two versions with equal tokens
     differ only cosmetically. Conservative: a rename or any code change still differs."""
@@ -360,6 +370,13 @@ def cmd_check_drift(a):
            "cosmetic_changes": cosmetic, "missing": missing, "status": "ok" if not (changed or missing) else "drift"}
     if cosmetic and not (changed or missing):
         out["note"] = "only comments, includes or formatting changed: the model still matches this code"
+    merged = _pr_in_pinned(a.repo, a.ref, blobs.get("commit")) if a.ref and a.ref.startswith("pr/") else None
+    if merged:  # a merged PR the pinned code already contains: its head branch may differ in unrelated files
+        out.update(status="included", changed=[], missing=[], pr_head_differs=changed + missing, note=(
+            f"PR #{a.ref[3:]} was merged ({merged[:11]}) before the pinned commit: baseline {{}} already describes the "
+            "code with this PR; model the code before it by overriding the knobs the PR changed"))
+        print(json.dumps(out, indent=1))
+        return 0
     if changed or missing:
         out["advice"] = ("the mirrored code moved: re-read the changed files, update qperf/rule.py, constraints.py or "
                          "pipeline.py if the schedule or rule changed, then recalibrate (docs/CALIBRATION.md)")

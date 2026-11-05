@@ -18,7 +18,8 @@ If a call is denied, say so. Read the schema only if a request is rejected.
 PR, first run `PYTHONPATH="${CLAUDE_PLUGIN_ROOT}" python3 -m qperf check-drift --ref main` (or `pr/<n>`, `<branch>`;
 data-movement ops: add `--kernel layout-quasar`). `ok` means the model matches that code (`cosmetic_changes` are only
 comments, includes or formatting). `drift` means the answer describes the pinned code; model a PR's own change with
-knob overrides.
+knob overrides. `included` means the PR is already merged into the pinned code: `baseline: {}` is the code WITH the
+PR; model "before the PR" by overriding the knobs it changed.
 
 **Request** (only `op` is required in workload):
 ```
@@ -34,6 +35,12 @@ knob overrides.
   - placements: dram | l1 | borrowed per operand. `"tiles_scope":"cluster"` makes num_tiles per cluster.
   - sensitivity param: num_tiles | compute_service_scale | a cost key.
   - hypothetical: `barriers:"per_thread"`, `work_split:"dynamic"`; dm_batch > 8 needs knob_limits.
+  - batching = two knobs: `dm_batch` (reader / writer tiles per barrier) and `tiles_per_cycle` (compute tiles per
+    step, at most one DEST section: 8 for bf16 FPU, half for SFPU or fp32 DEST, a quarter for both). Every scheme sets both. The factory rule
+    (`baseline: {}`, PR #62954) batches beside DRAM by each compute thread's share: both = largest power of 2 <=
+    min(DEST section, share) when the share is >= 4, else 1. "No batching" = dm_batch 1, tiles_per_cycle 1.
+    Compare schemes across sizes with ONE sensitivity on `num_tiles` (`"tiles_scope":"cluster"`), schemes as
+    candidates; a scheme whose batch exceeds a size's share is still valid (the last batch is short).
   - what_if: `{"compute_service_scale":0.5}`, `{"cost_overrides":{"noc.read_latency.dram":1000}}` (also
     noc.write_latency.dram, dram.total_bytes_per_cycle, dram.efficiency).
 - **tilize, untilize, tilize_with_val_padding, untilize_with_unpadding**:

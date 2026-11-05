@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.2
+
+- `check-drift --ref pr/N` reports `included` when the PR is already merged into the pinned code (its head branch may
+  differ in unrelated files), instead of `drift`.
+- Runner: batching schemes set both `dm_batch` and `tiles_per_cycle`; the factory rule is PR #62954's DRAM batching.
+  qperf reproduces that PR's add result at 256 tiles per cluster (2.19x vs 2.10x measured on a newer craq-sim).
+
 ## 1.5.1
 
 - Tested 13 edge-case prompts through the plugin; fixes from them: data-movement answers default to ttsim-perf;
