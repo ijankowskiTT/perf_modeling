@@ -27,9 +27,15 @@ from __future__ import annotations
 
 import math
 
-from ..engine import INF, DMBatch, Group, Program, Ring, Server, ThreadStats, Thread, TransferLog
+from ..engine import DMBatch, Group, Program, Ring, Server, ThreadStats, Thread, TransferLog, run
 
 TILE = 32
+ELEM = {"bf16": 2, "fp32": 4}  # bytes per element
+GRID_X, GRID_Y = 8, 4  # Quasar worker cores (clusters) in the compute grid
+GRID = GRID_X * GRID_Y
+L1_ALIGN, DRAM_ALIGN = 16, 64  # buffer alignment (bytes)
+SHARD_OPS = ("interleaved_to_sharded", "sharded_to_interleaved")
+STRATEGY = {"height": "hs", "width": "ws", "block": "bs"}  # shard strategy -> mem string kind
 
 
 def sub_block_width(wt, elem):
@@ -64,7 +70,25 @@ def _noc(c, p, kind, place, nbytes):
     return lat, gap, svc, bool(lat or gap or svc)
 
 
-SHARD_OPS = ("interleaved_to_sharded", "sharded_to_interleaved")
+def _batches(c, p, d, ring, units, count, place, nbytes, lat_cr):
+    """One DM batch per unit (a tile or a block of tiles), `count` transfers of nbytes each: the reader's reserve /
+    reads / barrier / push (d = "rd") or the writer's wait / writes / flush / pop (d = "wr")."""
+    rd = d == "rd"
+    lat, gap, svc, timed = _noc(c, p, "read" if rd else "write", place, nbytes)
+    return [DMBatch(u, "space" if rd else "data", ring, c[f"{p}.{d}_fixed"], 0.0, (c.get(f"{p}.{d}_first", 0.0), 0.0, 0),
+                    c[f"{p}.{d}_issue"], [(count, lat, gap, svc, d)], 0 if rd else 1, timed, "push" if rd else "pop",
+                    lat_cr, dma=True) for u in units]
+
+
+def _queues(shared):
+    q = Server()
+    return {"rd": q, "wr": q} if shared else {"rd": q, "wr": Server()}
+
+
+def dm_program(st_r, rd, st_w, wr, logs, shared, drain):
+    """One core running a reader and a writer DM thread, no compute."""
+    return Program(groups=[Group([Thread(st_r, rd)], dm=True), Group([Thread(st_w, wr)], dm=True)], logs=logs,
+                   queues=_queues(shared), stats=[st_r, st_w], drain=drain, first_output=None)
 
 
 def _build_shard_move(op, cfg, c, p):
@@ -95,7 +119,7 @@ def _build_shard_move(op, cfg, c, p):
     conf = tile_bytes * c.get(f"{p}.l1_conf_cpb", 0.0) * (cfg.get("bank_conflict", 1) - 1)
     if rm and op == "interleaved_to_sharded":
         rd = [("busy", c.get(f"{p}.rd_setup", 0.0), True), ("wait", "space", ring, allt, True)]
-        lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], cfg["abytes"])
+        lat, gap, svc, _ = _noc(c, p, "read", cfg["in_place"], cfg["abytes"])
         if cfg["aligned"]:
             groups, inflight = [(n, lat, gap, svc, "rd")], 0
         else:
@@ -112,7 +136,7 @@ def _build_shard_move(op, cfg, c, p):
         wr = [("busy", c.get(f"{p}.wr_setup", 0.0), True), ("wait", "data", ring, allt, True),
               ("busy", c.get(f"{p}.wr_fixed", 0.0), True), ("pop", ring, allt, 0.0), ("busy", c.get(f"{p}.wr_tail", 0.0), True)]
     elif op == "interleaved_to_sharded":
-        lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], tile_bytes)
+        lat, gap, svc, _ = _noc(c, p, "read", cfg["in_place"], tile_bytes)
         gap += conf if cfg["in_place"] == "l1" else 0.0
         thr = cfg["thr"] or n
         rd = [("busy", c.get(f"{p}.rd_setup", 0.0), True), ("wait", "space", ring, allt, True)]
@@ -125,7 +149,7 @@ def _build_shard_move(op, cfg, c, p):
         wr = [("busy", c.get(f"{p}.wr_setup", 0.0), True), ("wait", "data", ring, allt, True),
               ("busy", c.get(f"{p}.wr_fixed", 0.0), True), ("pop", ring, allt, 0.0), ("busy", c.get(f"{p}.wr_tail", 0.0), True)]
     else:
-        lat, gap, svc, timed = _noc(c, p, "write", cfg["out_place"], cfg["width"] if rm else tile_bytes)
+        lat, gap, svc, _ = _noc(c, p, "write", cfg["out_place"], cfg["width"] if rm else tile_bytes)
         gap += conf if cfg["out_place"] == "l1" else 0.0
         rd = [("busy", c.get(f"{p}.rd_setup", 0.0), True), ("push", ring, allt, 0.0), ("wait", "popped", ring, allt, False),
               ("busy", c.get(f"{p}.rd_tail", 0.0), True)]
@@ -133,9 +157,7 @@ def _build_shard_move(op, cfg, c, p):
               DMBatch(allt, "data", ring, c[f"{p}.wr_fixed"], 0.0, (c.get(f"{p}.wr_first", 0.0), 0.0, 0), c[f"{p}.wr_issue"],
                       [(n, lat, gap, svc, "wr")], 1, True, "pop", lat_cr, dma=True),
               ("busy", c.get(f"{p}.wr_tail", 0.0), True)]
-    t_rd, t_wr = Thread(st_r, rd), Thread(st_w, wr)
-    return Program(groups=[Group([t_rd], dm=True), Group([t_wr], dm=True)], logs=logs, queues=_queues(False),
-                   stats=[st_r, st_w], drain=c.get(f"{p}.drain", 0.0), first_output=None)
+    return dm_program(st_r, rd, st_w, wr, logs, False, c.get(f"{p}.drain", 0.0))
 
 
 def shard_plan(op, H, W, elem, mem):
@@ -221,11 +243,6 @@ def dtype_costs(c, p, elem):
     return {**c, **over} if over else c
 
 
-def _queues(shared):
-    q = Server()
-    return {"rd": q, "wr": q} if shared else {"rd": q, "wr": Server()}
-
-
 def _ext(op):
     from . import registry
 
@@ -252,8 +269,8 @@ def build(op, cfg, c):
     if op == "untilize" and nb > 1 and not cfg.get("cap"):
         # MultiCore double-buffers with more than one block; SingleCore's DFBs hold one block (factory), but craq-sim
         # behaves as if they held two (<p>.dfb_blocks, per profile)
-        blocks = 2 if cfg["factory"] == "MultiCore" else c.get(f"{p}.dfb_blocks", 1)
-        cap_in = cap_out = int(blocks) * wt
+        dfb_blocks = 2 if cfg["factory"] == "MultiCore" else c.get(f"{p}.dfb_blocks", 1)
+        cap_in = cap_out = int(dfb_blocks) * wt
     rin = Ring("in", 1, n + 1 if borrowed else cap_in, n)
     rout = Ring("out", 1, n + 1 if borrowed else cap_out, n)
     logs, lat_cr = [TransferLog(), TransferLog()], c.get(f"{p}.credit_latency", 0.0)  # own terms only, not binary_ng's
@@ -263,6 +280,7 @@ def build(op, cfg, c):
     if shared_l1:
         logs = [logs[0], logs[0]]
     blocks = [list(range(b * wt, (b + 1) * wt)) for b in range(nb)]
+    tiles = [[i] for i in range(n)]
     st_r = ThreadStats("reader", 0, start=c[f"{p}.start_reader"])
     st_c = ThreadStats("compute", 0, start=c[f"{p}.start_compute"])
     st_w = ThreadStats("writer", 0, start=c[f"{p}.start_writer"])
@@ -274,7 +292,7 @@ def build(op, cfg, c):
         # reader_unary_pad_dims_split_rows: per block reserve; per valid row 1 read + (pad columns: CPU store loop) +
         # barrier; missing rows filled by a CPU store loop; push. <p>.rd_pcpb = CPU fill cycles per byte, <p>.rd_pfix =
         # fixed fill cost per row that has pad columns.
-        lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], cfg["row_bytes"])
+        lat, gap, svc, _ = _noc(c, p, "read", cfg["in_place"], cfg["row_bytes"])
         pc = c.get(f"{p}.rd_pcpb", 0.0)
         rd = []
         for b, r in zip(blocks, rows):
@@ -287,29 +305,23 @@ def build(op, cfg, c):
                 rd.append(DMBatch(b if last else [], "space", rin, c[f"{p}.rd_fixed"], post,
                                   (c.get(f"{p}.rd_first", 0.0), 0.0, 0), c[f"{p}.rd_issue"], [(1, lat, gap, svc, "rd")],
                                   0, True, "push", lat_cr, dma=True))
-        lat, gap, svc, timed = _noc(c, p, "write", cfg["out_place"], tile_bytes)
-        wr = [DMBatch([i], "data", rout, c[f"{p}.wr_fixed"], 0.0, (c.get(f"{p}.wr_first", 0.0), 0.0, 0), c[f"{p}.wr_issue"],
-                      [(1, lat, gap, svc, "wr")], 1, timed, "pop", lat_cr, dma=True) for i in range(n)]
+        wr = _batches(c, p, "wr", rout, tiles, 1, cfg["out_place"], tile_bytes, lat_cr)
     elif op == "tilize_with_val_padding":
         # reader_unary_pad_dims_split_rows_multicore (pad 0): per block reserve(Wt); per valid row 1 read of the row's
         # bytes + 1 zero-fill of the pad columns; 1 zero-fill of the missing rows; zero-fill and read barriers; push.
-        lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], cfg["row_bytes"])
+        lat, gap, svc, _ = _noc(c, p, "read", cfg["in_place"], cfg["row_bytes"])
         z = c.get(f"{p}.rd_zcpb", 0.0)
         rd = [DMBatch(b, "space", rin, c[f"{p}.rd_fixed"], 0.0, (c.get(f"{p}.rd_first", 0.0), 0.0, 0), c[f"{p}.rd_issue"],
                       [(r, lat, gap, svc, "rd"), (r, 0.0, cfg["pad_cols_bytes"] * z, 0.0, "rd"),
                        (1, 0.0, (TILE - r) * cfg["padded_row_bytes"] * z, 0.0, "rd")], 0, True, "push", lat_cr, dma=True)
               for b, r in zip(blocks, rows)]
-        lat, gap, svc, timed = _noc(c, p, "write", cfg["out_place"], tile_bytes)
-        wr = [DMBatch([i], "data", rout, c[f"{p}.wr_fixed"], 0.0, (c.get(f"{p}.wr_first", 0.0), 0.0, 0), c[f"{p}.wr_issue"],
-                      [(1, lat, gap, svc, "wr")], 1, timed, "pop", lat_cr, dma=True) for i in range(n)]
+        wr = _batches(c, p, "wr", rout, tiles, 1, cfg["out_place"], tile_bytes, lat_cr)
     elif op == "untilize_with_unpadding" or cfg["factory"] == "Block":
         # reader (..._interleaved_start_id or ..._wh_multicore): per tile 1 read + barrier; writer
         # (..._split_rows_multicore or ..._wh_multicore): per block wait(Wt), each valid row 1 write + barrier, pop(Wt);
         # padding tile-rows are wait + pop only. Block / BlockInterleaved: a block = one tile-row of the core's square.
-        lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], tile_bytes)
-        rd = [DMBatch([i], "space", rin, c[f"{p}.rd_fixed"], 0.0, (c.get(f"{p}.rd_first", 0.0), 0.0, 0), c[f"{p}.rd_issue"],
-                      [(1, lat, gap, svc, "rd")], 0, timed, "push", lat_cr, dma=True) for i in range(n)]
-        lat, gap, svc, timed = _noc(c, p, "write", cfg["out_place"], cfg["row_bytes"])
+        rd = _batches(c, p, "rd", rin, tiles, 1, cfg["in_place"], tile_bytes, lat_cr)
+        lat, gap, svc, _ = _noc(c, p, "write", cfg["out_place"], cfg["row_bytes"])
         wr = []
         for b, r in zip(blocks, rows):
             wr.append(("wait", "data", rout, b, True))
@@ -321,19 +333,11 @@ def build(op, cfg, c):
                                   (c.get(f"{p}.wr_first", 0.0), 0.0, 0), c[f"{p}.wr_issue"], [(1, lat, gap, svc, "wr")],
                                   1, True, "pop", lat_cr, dma=True))
     elif op == "tilize":
-        lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], cfg["row_bytes"])
-        rd = [DMBatch(b, "space", rin, c[f"{p}.rd_fixed"], 0.0, (c.get(f"{p}.rd_first", 0.0), 0.0, 0), c[f"{p}.rd_issue"],
-                      [(TILE, lat, gap, svc, "rd")], 0, timed, "push", lat_cr, dma=True) for b in blocks]
-        lat, gap, svc, timed = _noc(c, p, "write", cfg["out_place"], tile_bytes)
-        wr = [DMBatch([i], "data", rout, c[f"{p}.wr_fixed"], 0.0, (c.get(f"{p}.wr_first", 0.0), 0.0, 0), c[f"{p}.wr_issue"],
-                      [(1, lat, gap, svc, "wr")], 1, timed, "pop", lat_cr, dma=True) for i in range(n)]
+        rd = _batches(c, p, "rd", rin, blocks, TILE, cfg["in_place"], cfg["row_bytes"], lat_cr)
+        wr = _batches(c, p, "wr", rout, tiles, 1, cfg["out_place"], tile_bytes, lat_cr)
     else:
-        lat, gap, svc, timed = _noc(c, p, "read", cfg["in_place"], tile_bytes)
-        rd = [DMBatch([i], "space", rin, c[f"{p}.rd_fixed"], 0.0, (c.get(f"{p}.rd_first", 0.0), 0.0, 0), c[f"{p}.rd_issue"],
-                      [(1, lat, gap, svc, "rd")], 0, timed, "push", lat_cr, dma=True) for i in range(n)]
-        lat, gap, svc, timed = _noc(c, p, "write", cfg["out_place"], cfg["row_bytes"])
-        wr = [DMBatch(b, "data", rout, c[f"{p}.wr_fixed"], 0.0, (c.get(f"{p}.wr_first", 0.0), 0.0, 0), c[f"{p}.wr_issue"],
-                      [(TILE, lat, gap, svc, "wr")], 1, timed, "pop", lat_cr, dma=True) for b in blocks]
+        rd = _batches(c, p, "rd", rin, tiles, 1, cfg["in_place"], tile_bytes, lat_cr)
+        wr = _batches(c, p, "wr", rout, blocks, TILE, cfg["out_place"], cfg["row_bytes"], lat_cr)
 
     # kernel prologue before the first DFB wait (args, address generators) and epilogue after the last batch
     # a producer kernel exits only once its consumer has popped everything it pushed (the DFB drains)
@@ -386,7 +390,6 @@ PREFIX = {("tilize", "Default"): "tz", ("tilize", "SingleCore"): "tzs", ("tilize
           ("sharded_to_interleaved", "RowMajor"): "s2ir"}  # BlockInterleaved runs the untilize Block kernels
 FAMILY = {"tilize": "tilize", "tilize_with_val_padding": "tilize", "untilize": "untilize",
           "untilize_with_unpadding": "untilize", "interleaved_to_sharded": "move", "sharded_to_interleaved": "move"}
-GRID = 32  # Quasar worker cores (clusters) in the compute grid
 L1_HALF = 3670016 // 2  # bytes SingleCore factories may give their two DFBs (half of the usable L1)
 
 
@@ -396,7 +399,7 @@ def plan(op, H, W, dtype="bf16", mem="dram", multicore=True):
     m = _ext(op)
     if m:
         return m.plan(op, H, W, dtype, mem, multicore)
-    elem = {"bf16": 2, "fp32": 4}[dtype]
+    elem = ELEM[dtype]
     if op in SHARD_OPS:
         return shard_plan(op, H, W, elem, mem)
     ht, wt = math.ceil(H / TILE), math.ceil(W / TILE)
@@ -409,7 +412,6 @@ def plan(op, H, W, dtype="bf16", mem="dram", multicore=True):
         return "Sharded", [(dict(blocks=ht // ncores, wt=wt, elem=elem, row_bytes=0, in_place=place, out_place=place), ncores)]
     if op in ("tilize_with_val_padding", "untilize_with_unpadding"):
         if not multicore:  # one core, a block = the whole padded row (fits L1 up to ~440 tiles wide)
-            ht, wt = math.ceil(H / TILE), math.ceil(W / TILE)
             cfg = dict(blocks=ht, wt=wt, elem=elem, row_bytes=W * elem, pad_cols_bytes=(wt * TILE - W) * elem,
                        padded_row_bytes=wt * TILE * elem, in_place=place, out_place=place,
                        rows=[TILE] * (ht - 1) + [H - (ht - 1) * TILE])
@@ -471,12 +473,9 @@ def block_plan(H, W, elem, place):
     to the unpadded width."""
     ht, wt = math.ceil(H / TILE), math.ceil(W / TILE)
     _, S = _closest_square_larger_than(math.ceil(ht * wt / GRID), wt, ht, GRID)
-    fr, cr = wt // S, wt - (wt // S) * S  # full cores per row, cliff width
-    fc, cc = ht // S, ht - (ht // S) * S  # full cores per column, cliff height
-    widths = ([S] if fr and fc else []) + ([cr] if cr else []) + ([S] if cc and fr else [])
-    cap = 1
-    for w_ in widths:
-        cap = cap * w_ // math.gcd(cap, w_)
+    fr, cr = divmod(wt, S)  # full cores per row, cliff width
+    fc, cc = divmod(ht, S)  # full cores per column, cliff height
+    cap = math.lcm(*([S] if fr and fc else []), *([cr] if cr else []), *([S] if cc and fr else []))
     last_rows = H - (ht - 1) * TILE
     groups = {}
     for i in range(math.ceil(ht / S)):  # every core's square, grouped by (width, height, right edge, bottom edge)
@@ -525,8 +524,6 @@ def family_of(op):
 
 def estimate(op, H, W, costs, dtype="bf16", mem="dram", multicore=True, trace=0):
     """Busiest core's span (cycles) of one tilize/untilize, with the factory and per-load results."""
-    from ..engine import run
-
     factory, loads = plan(op, H, W, dtype, mem, multicore)
     for cfg, _ in loads:
         cfg["factory"] = factory
@@ -540,11 +537,10 @@ def estimate(op, H, W, costs, dtype="bf16", mem="dram", multicore=True, trace=0)
     # runs exist; ttsim-perf times it): with many cores moving L1 data at once the op cannot finish sooner.
     p = prefix_of(op, factory)
     if p:
-        costs = dtype_costs(costs, p, 2 if dtype == "bf16" else 4)
+        costs = dtype_costs(costs, p, ELEM[dtype])
     gbw = costs.get(f"{p}.l1_gbw", 0.0) if p else 0.0
     if gbw:
-        tb = TILE * TILE * (2 if dtype == "bf16" else 4)
-        total = sum(n * (cfg.get("tiles") or cfg["blocks"] * cfg["wt"]) * tb *
+        total = sum(n * (cfg.get("tiles") or cfg["blocks"] * cfg["wt"]) * (TILE * TILE * ELEM[dtype]) *
                     ((cfg["in_place"] == "l1") + (cfg["out_place"] == "l1")) for cfg, n in loads)
         if total:
             bound = costs.get(f"{p}.start_reader", 0.0) + total / gbw + costs.get(f"{p}.drain", 0.0)

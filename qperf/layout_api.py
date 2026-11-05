@@ -1,9 +1,11 @@
-"""analyze() for Quasar tilize / untilize requests (qperf/ops/layout.py). Same response shape as binary_ng.
+"""analyze() for Quasar data-movement requests (qperf/ops/layout.py and the registered op modules). Same response
+shape as binary_ng.
 
 Workload: op tilize | untilize | tilize_with_val_padding | untilize_with_unpadding, dtype, shape [..., H, W] = the
 logical (unpadded) tensor, leading dims fold into rows; the padding variants pad to / unpad from the next tile
-multiple. placements.a = the tensor's memory (dram | l1 interleaved, borrowed = height-sharded L1, tilize only). Knobs: use_multicore (default true),
-input (overrides placements.a). Actions: estimate, compare, sensitivity (param num_rows | num_cols).
+multiple. placements.a = the tensor's memory (dram | l1 interleaved, borrowed = height-sharded L1, tilize only).
+Knobs: use_multicore (default true), input (overrides placements.a). Actions: estimate, compare, sensitivity (param
+num_rows | num_cols).
 """
 
 from __future__ import annotations
@@ -12,12 +14,14 @@ import math
 import time
 
 from . import ENGINE_VERSION, SCHEMA_VERSION
+from .api import RequestError, _compact, _compare_rows, _recommend
 from .ops import registry
-from .ops.layout import GRID, TILE, estimate, family_of, plan, prefix_of
+from .ops.layout import GRID, SHARD_OPS, STRATEGY, TILE, estimate, family_of, plan, prefix_of
 from .profiles import SCENARIOS, _pick, load, sha256
 
 BASE_OPS = ("tilize", "untilize", "tilize_with_val_padding", "untilize_with_unpadding", "interleaved_to_sharded",
             "sharded_to_interleaved")
+MEM_OF = {"dram": "dram", "l1": "l1", "borrowed": "hs"}
 
 
 def layout_ops():
@@ -25,9 +29,10 @@ def layout_ops():
     return BASE_OPS + tuple(op for m in registry.MODULES for op in m.OPS)
 
 
-LAYOUT_OPS = BASE_OPS  # kept for callers; use layout_ops() to include registered modules
-SHARD_OPS = ("interleaved_to_sharded", "sharded_to_interleaved")
-MEM_OF = {"dram": "dram", "l1": "l1", "borrowed": "hs"}
+def _own_module(op):
+    """The op module that builds its own memory string (move, reshard: no use_multicore / input knobs), or None."""
+    m = registry.module_for(op)
+    return m if m and hasattr(m, "mem_of") else None
 
 
 class LayoutError(Exception):
@@ -49,63 +54,55 @@ def _costs(profile, scenario, overrides, compute_scale=1.0):
 
 
 def _workload(w, knobs):
-    m = registry.module_for(w["op"])
-    if m and hasattr(m, "mem_of"):
-        shape = w.get("shape")
-        if not shape or len(shape) < 2:
-            raise LayoutError("invalid", f"{w['op']} needs workload.shape [..., H, W]")
+    op, shape = w["op"], w.get("shape")
+    if not shape or len(shape) < 2:
+        raise LayoutError("invalid", f"{op} needs workload.shape [..., H, W]")
+    base = {"op": op, "dtype": w.get("dtype", "bf16"), "H": math.prod(shape[:-1]), "W": shape[-1]}
+    m = _own_module(op)
+    if m:
         try:
             mem, label = m.mem_of(w, knobs)
         except ValueError as e:
             raise LayoutError("invalid", str(e))
-        return {"op": w["op"], "dtype": w.get("dtype", "bf16"), "H": math.prod(shape[:-1]), "W": shape[-1], "mem": mem,
-                "placement": (w.get("placements") or {}).get("a", "dram"), "shard": label, "use_multicore": True}
-    shape = w.get("shape")
-    if not shape or len(shape) < 2:
-        raise LayoutError("invalid", f"{w['op']} needs workload.shape [..., H, W]")
-    rows = math.prod(shape[:-1])
-    W = shape[-1]
+        return dict(base, mem=mem, placement=(w.get("placements") or {}).get("a", "dram"), shard=label,
+                    use_multicore=True)
     place = knobs.get("input") or (w.get("placements") or {}).get("a", "dram")
-    if w["op"] in SHARD_OPS:  # the L1 shard layout and the interleaved side (placements.a: dram | l1)
-        sh = dict(w.get("shard") or {})
-        strategy = knobs.get("shard_strategy") or sh.get("strategy")
-        cores = knobs.get("shard_cores") or sh.get("cores")
-        if not strategy or not cores:
-            raise LayoutError("invalid", f"{w['op']} needs workload.shard {{strategy: height|width|block, cores: N}}")
-        if place not in ("dram", "l1"):
-            raise LayoutError("invalid", f"{w['op']}: placements.a is the interleaved side, dram or l1")
-        if strategy == "block" and math.isqrt(cores) ** 2 != cores:
-            raise LayoutError("unsupported", "block sharding is modeled on a square core grid (4, 9, 16, ...)")
-        layout = w.get("layout", "tile")  # tensor layout: tile (even tile shards) | row_major (sticks; last shard may
-        if layout not in ("tile", "row_major"):  # be partial)
-            raise LayoutError("invalid", f"{w['op']}: workload.layout is tile or row_major")
-        mem = {"height": "hs", "width": "ws", "block": "bs"}[strategy] + str(cores) + ("l" if place == "l1" else "") + \
-            ("r" if layout == "row_major" else "")
-        return {"op": w["op"], "dtype": w.get("dtype", "bf16"), "H": rows, "W": W, "mem": mem, "placement": place,
-                "shard": f"{strategy} x{cores}" + (", row_major" if layout == "row_major" else ""), "use_multicore": True}
-    return {"op": w["op"], "dtype": w.get("dtype", "bf16"), "H": rows, "W": W, "mem": MEM_OF[place],
-            "placement": place, "use_multicore": knobs.get("use_multicore", True)}
-
-
-def _own_api(wl):
-    """An op module that builds its own memory string (move, reshard): no use_multicore / input knobs."""
-    m = registry.module_for(wl["op"])
-    return bool(m and hasattr(m, "mem_of"))
+    if op not in SHARD_OPS:
+        return dict(base, mem=MEM_OF[place], placement=place, use_multicore=knobs.get("use_multicore", True))
+    # the L1 shard layout and the interleaved side (placements.a: dram | l1)
+    sh = w.get("shard") or {}
+    strategy = knobs.get("shard_strategy") or sh.get("strategy")
+    cores = knobs.get("shard_cores") or sh.get("cores")
+    if not strategy or not cores:
+        raise LayoutError("invalid", f"{op} needs workload.shard {{strategy: height|width|block, cores: N}}")
+    if place not in ("dram", "l1"):
+        raise LayoutError("invalid", f"{op}: placements.a is the interleaved side, dram or l1")
+    if strategy == "block" and math.isqrt(cores) ** 2 != cores:
+        raise LayoutError("unsupported", "block sharding is modeled on a square core grid (4, 9, 16, ...)")
+    layout = w.get("layout", "tile")  # tile: even tile shards; row_major: sticks, the last shard may be partial
+    if layout not in ("tile", "row_major"):
+        raise LayoutError("invalid", f"{op}: workload.layout is tile or row_major")
+    rm = layout == "row_major"
+    mem = STRATEGY[strategy] + str(cores) + ("l" if place == "l1" else "") + ("r" if rm else "")
+    return dict(base, mem=mem, placement=place, shard=f"{strategy} x{cores}" + (", row_major" if rm else ""),
+                use_multicore=True)
 
 
 def _result(wl, profile, what_if):
     op, H, W = wl["op"], wl["H"], wl["W"]
     try:
-        factory, loads = plan(op, H, W, wl["dtype"], wl["mem"], wl["use_multicore"])
+        factory = plan(op, H, W, wl["dtype"], wl["mem"], wl["use_multicore"])[0]
     except ValueError as e:
         raise LayoutError("unsupported", str(e))
     p = prefix_of(op, factory)
-    if op in SHARD_OPS or wl.get("shard"):
-        label = f"{op} ({wl['shard']}, interleaved side {wl['placement']})" if op in SHARD_OPS else f"{op} {factory} ({wl['shard']})"
+    if op in SHARD_OPS:
+        label = f"{op} ({wl['shard']}, interleaved side {wl['placement']})"
+    elif wl.get("shard"):
+        label = f"{op} {factory} ({wl['shard']})"
     else:
         label = f"{op} {factory} ({'multicore' if wl['use_multicore'] else 'single core'}, input {wl['placement']})"
     mod = registry.module_for(op)
-    config = {"factory": factory} if _own_api(wl) else \
+    config = {"factory": factory} if _own_module(op) else \
         {"factory": factory, "use_multicore": wl["use_multicore"], "input": wl["placement"]}
     res = {"label": label, "config": config, "valid": True, "errors": [], "warnings": []}
     if hasattr(mod, "notes"):  # what this profile cannot time for the op
@@ -118,21 +115,17 @@ def _result(wl, profile, what_if):
     if p is None or f"{p}.start_reader" not in profile["params"]:  # every calibrated factory has its kernel starts
         raise LayoutError("needs_input", f"cost profile '{profile['name']}' has no costs for {op} {factory}; calibrate it "
                                          f"(calibration/fit_layout.py)")
-    f32_terms = [k for k in list(profile["params"]) + list(what_if.get("cost_overrides") or {}) if k.startswith(f"{p}.f32_")]
-    if wl["dtype"] != "bf16" and not f32_terms:
+    if wl["dtype"] != "bf16" and not any(k.startswith(f"{p}.f32_") for k in
+                                         list(profile["params"]) + list(what_if.get("cost_overrides") or {})):
         res["warnings"].append(f"fp32 is not calibrated for {op} {factory} on this profile: costs are the bf16 fit")
     if family_of(op) == "tilize" and math.ceil(W / TILE) > 64 and profile["name"] == "craq-sim":
         res["warnings"].append("craq-sim cannot run tilize wider than 64 tiles (mop_expander); this is an extrapolation")
     ghz = profile["clock"]["GHz"]
-    times, nominal = {}, None
-    for sc in SCENARIOS:
-        r = estimate(op, H, W, _costs(profile, sc, what_if.get("cost_overrides"), what_if.get("compute_service_scale", 1.0)),
-                     wl["dtype"], wl["mem"],
-                     wl["use_multicore"], trace=3)
-        times[sc] = r["span"]
-        if sc == "nominal":
-            nominal = r
-    cfg, cores, run = max(nominal["loads"], key=lambda x: x[2]["makespan"])
+    runs = {sc: estimate(op, H, W, _costs(profile, sc, what_if.get("cost_overrides"),
+                                          what_if.get("compute_service_scale", 1.0)),
+                         wl["dtype"], wl["mem"], wl["use_multicore"], trace=3) for sc in SCENARIOS}
+    nominal = runs["nominal"]
+    run = max(nominal["loads"], key=lambda x: x[2]["makespan"])[2]
     span = run["makespan"]
     roles = {}
     for name, rr in run["roles"].items():
@@ -142,18 +135,17 @@ def _result(wl, profile, what_if):
                        "transfer_wait_frac": round(rr["wait_transfer"] / span, 3),
                        "start_ns": round(rr["start_min"] / ghz, 1)}
     busiest = max(roles, key=lambda k: roles[k]["useful_busy_frac"])
-    waits = [(r["starved_frac"], k, "starved") for k, r in roles.items()] + \
-            [(r["backpressure_frac"], k, "backpressure") for k, r in roles.items()]
-    frac, wrole, wkind = max(waits)
+    frac, wrole, wkind = max([(r["starved_frac"], k, "starved") for k, r in roles.items()] +
+                             [(r["backpressure_frac"], k, "backpressure") for k, r in roles.items()])
     tiles = math.ceil(H / TILE) * math.ceil(W / TILE)
-    if nominal.get("l1_bound") and nominal["l1_bound"] >= nominal["span"] - 1e-9:
-        busiest = "noc_l1_global"  # the shared network to / from L1 binds, not a thread
+    # the shared network to / from L1 binds, not a thread
+    l1_binds = nominal.get("l1_bound") and nominal["l1_bound"] >= nominal["span"] - 1e-9
     res.update({
         "result_kind": "finite_buffer_estimate",
-        "time_ns": {k: round(v / ghz, 1) for k, v in times.items()},
-        "time_cycles": round(times["nominal"], 1),
-        "per_tile_ns": round(times["nominal"] / ghz / tiles, 3),
-        "bottleneck": {"resource": busiest, "busiest_role": max(roles, key=lambda k: roles[k]["useful_busy_frac"]),
+        "time_ns": {k: round(r["span"] / ghz, 1) for k, r in runs.items()},
+        "time_cycles": round(nominal["span"], 1),
+        "per_tile_ns": round(nominal["span"] / ghz / tiles, 3),
+        "bottleneck": {"resource": "noc_l1_global" if l1_binds else busiest, "busiest_role": busiest,
                        "dominant_wait": {"role": wrole, "kind": wkind, "fraction": frac} if frac > 0.05 else None},
         "roles": roles,
         "work_split": [{"blocks_per_core": c["blocks"], "tiles_per_block": c["wt"], "cores": n} for c, n, _ in nominal["loads"]],
@@ -163,20 +155,12 @@ def _result(wl, profile, what_if):
     return res
 
 
-def _compare(base, cand):
-    from .api import _compare_rows
-
-    return _compare_rows(base, cand)
-
-
 def analyze_layout(req, t_start):
-    from .api import RequestError, _compact, _recommend
-
     prof = req.get("profiles", {})
     if "costs" not in prof:
         raise RequestError("needs_input", "profiles.costs is required (e.g. craq-sim, ttsim-perf)")
-    arch, arch_id = load("architecture", prof.get("architecture", "quasar"))
-    kernel, kernel_id = load("kernel", "layout-quasar")
+    _, arch_id = load("architecture", prof.get("architecture", "quasar"))
+    _, kernel_id = load("kernel", "layout-quasar")
     costs, costs_id = load("costs", prof["costs"])
     action = req["action"]
     analysis = req.get("analysis", {})
@@ -188,9 +172,10 @@ def analyze_layout(req, t_start):
         if action == "tune":
             raise LayoutError("unsupported", f"{wl['op']} has no TTNN_QSR knobs to tune; use compare (use_multicore, input)")
         base = _result(wl, costs, what_if)
+        own = _own_module(wl["op"])
         result = {"schema_version": SCHEMA_VERSION, "engine_version": ENGINE_VERSION, "status": "ok",
                   "profiles": {"architecture": arch_id, "kernel": kernel_id, "costs": costs_id},
-                  "applied_defaults": [] if "use_multicore" in base_knobs or _own_api(wl) else ["use_multicore=true (default)"],
+                  "applied_defaults": [] if "use_multicore" in base_knobs or own else ["use_multicore=true (default)"],
                   "assumptions": [getattr(registry.module_for(wl["op"]), "ASSUMPTION", None) or
                                   f"{wl['op']}: one reader, one compute, one writer thread per core (the factory's kernels)"],
                   "warnings": [], "result_kind": "finite_buffer_estimate", "baseline": _compact(base, detail)}
@@ -205,12 +190,12 @@ def analyze_layout(req, t_start):
                 except LayoutError as e:
                     r = {"label": str(knobs), "config": {}, "valid": False, "errors": [e.message]}
                 r["id"] = c.get("id", r["label"])
-                r["comparison"] = _compare(base, r)
+                r["comparison"] = _compare_rows(base, r)
                 if r.get("valid") and (base.get("untimed") or r.get("untimed")):  # the profile cannot rank them
                     r["comparison"]["verdict"] = "inconclusive"
                 rows.append(_compact(r, detail))
             result["candidates"] = rows
-            result["recommendations"] = _recommend(base, rows, analysis.get("top_k", 3))
+            result["recommendations"] = _recommend(rows, analysis.get("top_k", 3))
         elif action == "sensitivity":
             spec = req.get("sensitivity") or {}
             param = spec.get("param")
@@ -218,8 +203,7 @@ def analyze_layout(req, t_start):
                 raise LayoutError("invalid", f"{wl['op']} sensitivity param must be num_rows or num_cols")
             series = {"baseline": []}
             for v in spec.get("values", []):
-                w2 = dict(wl, **({"H": int(v)} if param == "num_rows" else {"W": int(v)}))
-                r = _result(w2, costs, what_if)
+                r = _result(dict(wl, **{"H" if param == "num_rows" else "W": int(v)}), costs, what_if)
                 series["baseline"].append({"value": v, "valid": True, "time_ns": r["time_ns"]["nominal"],
                                            "bottleneck": r["bottleneck"]["resource"]})
             result["sensitivity"] = {"param": param, "series": series, "ranking_changes": []}

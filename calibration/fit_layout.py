@@ -14,15 +14,16 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from qperf.ops.layout import estimate  # noqa: E402
+from qperf.ops import registry  # noqa: E402
+from qperf.ops.layout import estimate, family_of, plan, prefix_of  # noqa: E402
 
-FIT_KEYS = ["rd_cpb", "wr_cpb", "rd_setup", "wr_setup", "rd_fixed", "rd_issue", "rd_first", "rd_tail", "um_fixed", "um_per_tile", "pk_fixed", "pk_per_tile", "cu_first", "wr_fixed", "wr_issue",
-            "wr_first", "wr_tail", "cu_tail", "drain"]
+FIT_KEYS = ["rd_cpb", "wr_cpb", "rd_setup", "wr_setup", "rd_fixed", "rd_issue", "rd_first", "rd_tail", "um_fixed",
+            "um_per_tile", "pk_fixed", "pk_per_tile", "cu_first", "wr_fixed", "wr_issue", "wr_first", "wr_tail",
+            "cu_tail", "drain"]
+
+
 def keys_for(op, fac):
     """Cost terms a factory's kernels actually have (others stay at their initial value)."""
-    from qperf.ops import registry
-    from qperf.ops.layout import family_of
-
     m = registry.module_for(op)
     if m and hasattr(m, "fit_keys"):
         return list(m.fit_keys(op, fac))
@@ -59,6 +60,10 @@ def load(path, sim, op, dtype="bf16"):
             and r.get("dtype", "bf16") == dtype]
 
 
+def plan_of(r):
+    return plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])
+
+
 def predict(r, c):
     return estimate(r["op"], r["H"], r["W"], c, r["dtype"], r["mem"], r["multicore"], trace=3)
 
@@ -75,17 +80,23 @@ def role_ends(r):
     return {k: core["roles"][v][1] for k, v in roles.items() if core and v in core["roles"]}
 
 
-def objective(rs, c, role_weight=0.5):
-    """Mean squared log error of the busiest core's span, plus each role's end on a full core: the role ends tie
-    every cost term to the thread that pays it."""
-    e = []
+def log_errors(rs, c, role_weight=0.5):
+    """(log(pred / meas), weight) of the busiest core's span (weight 1) and of each role's end on a full core
+    (role_weight): the role ends tie every cost term to the thread that pays it."""
+    out = []
     for r in rs:
         p = predict(r, c)
-        e.append(math.log(p["span"] / r["span_max"]) ** 2)
+        out.append((math.log(p["span"] / r["span_max"]), 1))
         model_ends = {s["role"]: s["end"] for s in p["loads"][0][2]["threads"]}
         for role, meas in role_ends(r).items():
             if meas > 0 and model_ends.get(role, 0) > 0:
-                e.append(role_weight * math.log(model_ends[role] / meas) ** 2)
+                out.append((math.log(model_ends[role] / meas), role_weight))
+    return out
+
+
+def objective(rs, c):
+    """Weighted mean squared log error (log_errors)."""
+    e = [w * x ** 2 for x, w in log_errors(rs, c)]
     return sum(e) / len(e)
 
 
@@ -106,16 +117,8 @@ def golden(f, lo, hi, it=24):
     return (a + b) / 2
 
 
-def residuals(rs, c, role_weight=0.5):
-    out = []
-    for r in rs:
-        p = predict(r, c)
-        out.append(math.log(p["span"] / r["span_max"]))
-        model_ends = {s["role"]: s["end"] for s in p["loads"][0][2]["threads"]}
-        for role, meas in role_ends(r).items():
-            if meas > 0 and model_ends.get(role, 0) > 0:
-                out.append(math.sqrt(role_weight) * math.log(model_ends[role] / meas))
-    return out
+def residuals(rs, c):
+    return [x if w == 1 else math.sqrt(w) * x for x, w in log_errors(rs, c)]
 
 
 def fit(rs, c, keys, sweeps=8):
@@ -164,6 +167,15 @@ def report(name, rs, c, worst=0):
         print(f"      {100 * err:+6.1f}%  {txt}")
 
 
+def _entry(k, v, a):
+    """The profile param entry of a fitted term (or of a measured kernel start)."""
+    sig = lambda x: float(f"{x:.6g}")  # noqa: E731  (cycles-per-byte terms are ~0.007: keep 6 significant digits)
+    start = ".start_" in k
+    return {"value": sig(v), "low": sig(v * 0.95), "high": sig(v * 1.05),
+            "class": "measurement" if start else "measurement-fit",
+            "source": "profiler: median kernel start" if start else f"fitted on {a.op} runs ({a.sim}), calibration/fit_layout.py"}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True, help="one or more jsonl files, comma-separated")
@@ -185,22 +197,21 @@ def main():
 
     def modeled(r):
         try:
-            plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])
+            plan_of(r)
             return True
         except ValueError:
             return False
 
-    from qperf.ops.layout import plan
     skipped = [r for r in rs if not modeled(r)]
     rs = [r for r in rs if modeled(r)]
     if skipped:
         print(f"  ({len(skipped)} runs use factories not modeled yet, skipped)")
+    fac_of = lambda r: plan_of(r)[0]  # noqa: E731
     if a.holdout == "every4":  # every 4th run of each factory, in a fixed order
-        from qperf.ops.layout import plan
-        rs.sort(key=lambda r: (plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0], r["mem"], r["H"], r["W"]))
+        rs.sort(key=lambda r: (fac_of(r), r["mem"], r["H"], r["W"]))
         seen, hold = {}, []
         for r in rs:
-            fac = plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0]
+            fac = fac_of(r)
             seen[fac] = seen.get(fac, 0) + 1
             if seen[fac] % 4 == 2:
                 hold.append(r)
@@ -208,10 +219,8 @@ def main():
         hk, hv = a.holdout.split("=")
         hold = [r for r in rs if str(r[hk]) == hv]
     fitset = [r for r in rs if r not in hold]
-    from qperf.ops.layout import family_of, plan, prefix_of
     # group by cost prefix: factories that share kernels share one set of cost terms
-    pre_of = lambda r: prefix_of(r["op"], plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0])  # noqa: E731
-    fac_of = lambda r: plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[0]  # noqa: E731
+    pre_of = lambda r: prefix_of(r["op"], fac_of(r))  # noqa: E731
     # profile-wide flags the layout model reads (e.g. noc.barrier_all_kinds: shared L1 queue and barrier): fit with
     # the same values the predictions will use
     prof_name = a.write or {"craq-b702fd90": "craq-sim", "perf": "ttsim-perf"}.get(a.sim)
@@ -225,8 +234,8 @@ def main():
     for p in sorted({pre_of(r) for r in rs}):
         if a.only and p not in a.only.split(","):
             continue
-        fac = fac_of(next(r for r in rs if pre_of(r) == p))
-        op0 = next(r for r in rs if pre_of(r) == p)["op"]
+        r0 = next(r for r in rs if pre_of(r) == p)
+        fac, op0 = fac_of(r0), r0["op"]
         fs = [r for r in fitset if pre_of(r) == p]
         hs = [r for r in hold if pre_of(r) == p]
         if not fs:  # nothing to fit on: fit on all of this factory's runs
@@ -242,20 +251,18 @@ def main():
         cf = dict(flags)
         sp = f"{p}.f32_" if f32 else f"{p}."
         cf.update({f"{sp}start_{k}": statistics.median(v) for k, v in starts.items()})
-        from qperf.ops import registry
         mod = registry.module_for(op0)
         if not f32:
             cf.update({f"{p}.{k}": v for k, v in INIT.items()})
-            cf.update({f"{p}.{k}": v for k, v in getattr(mod, "INIT", {}).items()})  # an op module's own terms
-            cf.update({f"{p}.{k}": v for k, v in getattr(mod, "FIT_INIT", {}).items()})
+            cf.update({f"{p}.{k}": v for k, v in getattr(mod, "FIT_INIT", {}).items()})  # an op module's own terms
         keys = keys_for(op0, fac)
+
         def l1_sides(r):  # which directions move data over the NoC from / to L1 (the plan's placements)
-            cfg = plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])[1][0][0]
+            cfg = plan_of(r)[1][0][0]
             return cfg["in_place"] == "l1", cfg["out_place"] == "l1"
 
         rd_l1 = any(l1_sides(r)[0] for r in fs)
         wr_l1 = any(l1_sides(r)[1] for r in fs)
-        in_l1 = lambda r: any(l1_sides(r))  # noqa: E731
         if rd_l1 or wr_l1:  # L1 transfer terms only where the runs can identify them
             l1_init = {}
             for d, on in (("rd", rd_l1), ("wr", wr_l1)):
@@ -272,7 +279,7 @@ def main():
                 cf.update({f"{p}.{k}": l1_init[k] for k in l1 if k in l1_init})  # others: the module's FIT_INIT
         if f32:  # override only what fp32 changes, where the bf16 profile has the term; start from the bf16 value
             allowed = a.terms.split(",") if a.terms else FP32_TERMS
-            if family_of(op0) == "move" and any(in_l1(r) for r in fs):  # L1 bank conflicts (0 in the bf16 fit)
+            if family_of(op0) == "move" and any(any(l1_sides(r)) for r in fs):  # L1 bank conflicts (0 in the bf16 fit)
                 keys.append("l1_conf_cpb")
                 cf.setdefault(f"{p}.l1_conf_cpb", 0.0)
             keys = [f"f32_{k}" for k in keys if k in allowed and f"{p}.{k}" in cf]
@@ -288,24 +295,16 @@ def main():
             report("holdout", hs, cf, worst=2)
         c.update({k: v for k, v in cf.items() if (k not in flags or f32) and k.startswith(sp) and
                   (".start_" in k or k.split(".", 1)[1] in keys)})
+    entries = {k: _entry(k, v, a) for k, v in c.items()}
     if a.emit:  # for parallel work: merge into a profile later (calibration/merge_params.py)
-        sig = lambda x: float(f"{x:.6g}")  # noqa: E731
-        out = {k: {"value": sig(v), "low": sig(v * 0.95), "high": sig(v * 1.05),
-                   "class": "measurement" if ".start_" in k else "measurement-fit",
-                   "source": "profiler: median kernel start" if ".start_" in k else
-                   f"fitted on {a.op} runs ({a.sim}), calibration/fit_layout.py"} for k, v in c.items()}
         old = json.load(open(a.emit)) if os.path.exists(a.emit) else {}
-        old.update(out)
+        old.update(entries)
         json.dump(old, open(a.emit, "w"), indent=1)
-        print("  emitted", len(out), "terms to", a.emit)
+        print("  emitted", len(entries), "terms to", a.emit)
     if a.write:
         path = os.path.join(ROOT, "profiles", "costs", a.write + ".json")
         prof = json.load(open(path))
-        for k, v in c.items():
-            src = "profiler: median kernel start" if ".start_" in k else f"fitted on {a.op} runs ({a.sim}), calibration/fit_layout.py"
-            sig = lambda x: float(f"{x:.6g}")  # noqa: E731  (cycles-per-byte terms are ~0.007: keep 6 significant digits)
-            prof["params"][k] = {"value": sig(v), "low": sig(v * 0.95), "high": sig(v * 1.05),
-                                 "class": "measurement" if ".start_" in k else "measurement-fit", "source": src}
+        prof["params"].update(entries)
         json.dump(prof, open(path, "w"), indent=1)
         open(path, "a").write("\n")
         print("  wrote", path)

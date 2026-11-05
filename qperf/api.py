@@ -56,10 +56,7 @@ def resolve_workload(w, arch):
         shp = list(w["shape"])
         if len(shp) < 2:
             raise RequestError("invalid", "shape needs at least 2 dims")
-        outer = 1
-        for d in shp[:-2]:
-            outer *= d
-        st = outer * math.ceil(shp[-2] / 32) * math.ceil(shp[-1] / 32)
+        st = math.prod(shp[:-2]) * math.ceil(shp[-2] / 32) * math.ceil(shp[-1] / 32)
         if tiles is not None and tiles != st:
             raise RequestError("invalid", f"num_tiles={tiles} disagrees with shape {shp} -> {st} padded tiles")
         tiles = st
@@ -75,7 +72,7 @@ def resolve_workload(w, arch):
     total = tiles * clusters if scope == "cluster" else tiles
     pl = w.get("placements") or {}
     plc = [pl.get("a", "dram"), pl.get("b", "dram"), pl.get("out", "dram")]
-    for name, v in zip("ab", plc[:2]):
+    for name in "ab":
         if name not in pl:
             applied.append(f"workload.placements.{name}=dram (default)")
     for v in plc:
@@ -157,7 +154,6 @@ def eval_cluster(cfg, routing, costs, n, cap, trace=0):
     if n <= cap:
         r = evaluate(pcfg, costs, n, trace)
         r["extrapolated"] = False
-        # steady-state slope from a half-size sample, for reporting only
         return r
     P = _period(cfg)
     rem = n % P
@@ -251,17 +247,14 @@ def evaluate_config(wl, cfg, arch, kernel, cost_profile, what_if, trace=False, b
             if t_final > worst:
                 worst, worst_group, worst_lb = t_final, per_group[-1], lb
         dram = global_dram_bound(sum(g["traffic"]["dram_bytes"] * g["clusters"] for g in per_group), costs)
-        dram_binds = False
         if dram:
-            dfin = dram["finish_lb"] + costs.get("end.drain", 0.0)
-            if dfin > worst:
-                worst, dram_binds = dfin, True
+            worst = max(worst, dram["finish_lb"] + costs.get("end.drain", 0.0))
             worst_lb = max(worst_lb, dram["finish_lb"])
         times[sc] = worst
         lbs[sc] = worst_lb
         if sc == "nominal":
-            detail = (worst_group, dram, dram_binds, costs)
-    g, dram, dram_binds, costs = detail
+            detail = (worst_group, dram)
+    g, dram = detail
     n_total = wl["num_tiles_total"]
     t_ns = {k: v / ghz for k, v in times.items()}
     res.update({
@@ -271,23 +264,18 @@ def evaluate_config(wl, cfg, arch, kernel, cost_profile, what_if, trace=False, b
         "per_tile_ns": round(t_ns["nominal"] / n_total, 3),
         "throughput_tiles_per_us": round(n_total / (t_ns["nominal"] / 1000.0), 3) if t_ns["nominal"] else None,
         "critical_cluster": {"tiles": g["tiles_per_cluster"], "clusters_with_this_share": g["clusters"]},
-        "work_split": [{"tiles_per_cluster": n, "clusters": c} for n, c in split_work_to_cores(wl["clusters"], n_total)],
+        "work_split": [{"tiles_per_cluster": n, "clusters": c} for n, c in groups],
     })
-    res["bottleneck"], res["near_binding"] = _bottleneck(g, dram, dram_binds, times["nominal"], costs)
+    res["bottleneck"], res["near_binding"] = _bottleneck(g, dram, times["nominal"])
     if g["pipeline"]:
         p = g["pipeline"]
         span = p.get("makespan_sampled", p["makespan"])
         roles = {}
         for name, r in p["roles"].items():
-            th = r["threads"]
-            roles[name] = {
-                "threads": th,
-                "useful_busy_frac": round(r["busy"] / (th * span), 3) if span else None,
-                "starved_frac": round(r["wait_data"] / (th * span), 3) if span else None,
-                "backpressure_frac": round(r["wait_space"] / (th * span), 3) if span else None,
-                "transfer_wait_frac": round(r["wait_transfer"] / (th * span), 3) if span else None,
-                "start_ns": round(r["start_min"] / ghz, 1),
-            }
+            frac = lambda key: round(r[key] / (r["threads"] * span), 3) if span else None  # noqa: E731
+            roles[name] = {"threads": r["threads"], "useful_busy_frac": frac("busy"), "starved_frac": frac("wait_data"),
+                           "backpressure_frac": frac("wait_space"), "transfer_wait_frac": frac("wait_transfer"),
+                           "start_ns": round(r["start_min"] / ghz, 1)}
         res["roles"] = roles
         res["extrapolated"] = p.get("extrapolated", False)
         if p.get("extrapolated"):
@@ -309,7 +297,7 @@ def evaluate_config(wl, cfg, arch, kernel, cost_profile, what_if, trace=False, b
     return res
 
 
-def _bottleneck(g, dram, dram_binds, t, costs):
+def _bottleneck(g, dram, t):
     cands = {k: v["finish_lb"] for k, v in g["bounds"].items()}
     if dram:
         cands["dram_global"] = dram["finish_lb"]
@@ -445,15 +433,13 @@ def _analyze(req, t_start):
         result["baseline"] = _compact(base, detail)
         rows = []
         for c in req.get("candidates", []):
-            knobs = dict(base_knobs)
-            knobs.update(c.get("overrides", {}))
-            cfg, _ = resolve_config(wl, knobs)
+            cfg, _ = resolve_config(wl, dict(base_knobs, **c.get("overrides", {})))
             r = _cached_eval(wl, cfg, ctx)
             r["id"] = c.get("id", config_label(cfg))
             r["comparison"] = _compare_rows(base, r)
             rows.append(_compact(r, detail))
         result["candidates"] = rows
-        result["recommendations"] = _recommend(base, rows, analysis.get("top_k", 3))
+        result["recommendations"] = _recommend(rows, analysis.get("top_k", 3))
     elif action == "tune":
         result.update(_tune(wl, base_knobs, base, ctx, req.get("tune", {}), analysis, detail, budget_ms, t_start))
         if result.get("search", {}).get("exhaustive") is False:
@@ -484,7 +470,7 @@ def _assumptions(costs, what_if):
     return a
 
 
-def _recommend(base, rows, top_k):
+def _recommend(rows, top_k):
     good = [r for r in rows if r.get("comparison") and r["comparison"]["verdict"] == "faster"]
     good.sort(key=lambda r: r["time_ns"]["nominal"])
     out = []
@@ -518,8 +504,7 @@ def _tune(wl, base_knobs, base, ctx, spec, analysis, detail, budget_ms, t_start)
     seen, valid = set(), []
     enumerated = invalid = 0
     for combo in itertools.product(*[space[k] for k in keys]):
-        knobs = dict(base_knobs)
-        knobs.update({k: v for k, v in zip(keys, combo) if v is not None})
+        knobs = dict(base_knobs, **{k: v for k, v in zip(keys, combo) if v is not None})
         cfg, _ = resolve_config(wl, knobs)
         sig = tuple(sorted(cfg.items()))
         if sig in seen:
@@ -577,7 +562,7 @@ def _tune(wl, base_knobs, base, ctx, spec, analysis, detail, budget_ms, t_start)
                    "order": "every valid candidate gets the pipeline model, baseline first, then by bound-based "
                             "estimate; a budget stop (out_of_time) leaves the rest unevaluated, not proven worse",
                    "evaluated_ids": [r["id"] for r in evaluated]},
-        "recommendations": _recommend(base, [_compact(r, "compact") for r in evaluated], top_k),
+        "recommendations": _recommend([_compact(r, "compact") for r in evaluated], top_k),
     }
 
 
@@ -589,9 +574,7 @@ def _sensitivity(req, wl, base_knobs, ctx, budget_ms, t_start):
         raise RequestError("needs_input", "sensitivity needs {param, values}")
     configs = [("baseline", base_knobs)]
     for c in req.get("candidates", []):
-        k = dict(base_knobs)
-        k.update(c.get("overrides", {}))
-        configs.append((c.get("id", str(c.get("overrides"))), k))
+        configs.append((c.get("id", str(c.get("overrides"))), dict(base_knobs, **c.get("overrides", {}))))
     series = {cid: [] for cid, _ in configs}
     partial = False
     for v in values:
@@ -601,22 +584,17 @@ def _sensitivity(req, wl, base_knobs, ctx, budget_ms, t_start):
         wi = copy.deepcopy(ctx["what_if"])
         if param == "compute_service_scale":
             wi["compute_service_scale"] = v
-        elif param == "num_tiles":
-            pass
-        else:
+        elif param != "num_tiles":
             wi.setdefault("cost_overrides", {})[param] = v
         sub = dict(ctx, what_if=wi)
+        w2 = dict(wl, num_tiles_total=int(v)) if param == "num_tiles" else wl
         for cid, knobs in configs:
-            w2 = wl
-            if param == "num_tiles":
-                w2 = dict(wl, num_tiles_total=int(v))
             cfg, _ = resolve_config(w2, knobs)
             r = _cached_eval(w2, cfg, sub)
             series[cid].append({"value": v, "time_ns": r.get("time_ns", {}).get("nominal") if r["valid"] else None,
                                 "bottleneck": r.get("bottleneck", {}).get("resource"), "valid": r["valid"]})
     crossings = []
-    ids = list(series)
-    for a, b in itertools.combinations(ids, 2):
+    for a, b in itertools.combinations(series, 2):
         prev = None
         for pa, pb in zip(series[a], series[b]):
             if pa["time_ns"] is None or pb["time_ns"] is None:

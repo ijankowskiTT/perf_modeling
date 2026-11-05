@@ -33,6 +33,18 @@ class Deadlock(Exception):
     pass
 
 
+def _latest(times, tiles):
+    """Latest of times[i] over tiles, or None if one is not known yet."""
+    t = 0.0
+    for i in tiles:
+        p = times[i]
+        if p is None:
+            return None
+        if p > t:
+            t = p
+    return t
+
+
 @dataclass
 class Ring:
     """One STRIDED DFB: tile i -> counter i % counters; capacity entries per counter."""
@@ -65,24 +77,11 @@ class Ring:
 
     def popped_time(self, tiles):
         """Time the consumer has popped all of `tiles`, or None if not yet known."""
-        t = 0.0
-        for i in tiles:
-            p = self.pop_t[i]
-            if p is None:
-                return None
-            if p > t:
-                t = p
-        return t
+        return _latest(self.pop_t, tiles)
 
     def data_time(self, tiles):
-        t = 0.0
-        for i in tiles:
-            p = self.push_t[i]
-            if p is None:
-                return None
-            if p > t:
-                t = p
-        return t
+        """Time all of `tiles` are pushed, or None if not yet known."""
+        return _latest(self.push_t, tiles)
 
 
 class TransferLog:

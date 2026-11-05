@@ -137,8 +137,9 @@ def cmd_fit(a):
     prof["calibration"] = dict(prof.get("calibration", {}), fitted_keys=keys, fit_dataset=a.data,
                                fit_filter=a.filter, fit_sim=a.sim, fit_objective="mean squared log(pred/meas)",
                                fit_history=[round(h, 6) for h in hist], fitted_at=time.strftime("%Y-%m-%d"))
+    node_of = lambda k: prof["params"].get(k) or prof["compute_variants"][a.variant][k]  # noqa: E731
     for k in keys:
-        node = prof["params"].get(k) or prof["compute_variants"][a.variant][k]
+        node = node_of(k)
         node["class"] = "measurement-fit"
         node["source"] = f"fitted {time.strftime('%Y-%m-%d')} on {os.path.basename(a.data)} ({a.sim}, {len(recs)} runs)"
         if k.endswith("_frac"):
@@ -152,13 +153,12 @@ def cmd_fit(a):
     P._cache.clear()
     rows = predict(recs, prof["name"])
     print(json.dumps({"written": out, "revision": a.revision, "fit": summarize(rows),
-                      "values": {k: (prof["params"].get(k) or prof["compute_variants"][a.variant][k])["value"] for k in keys}},
+                      "values": {k: node_of(k)["value"] for k in keys}},
                      indent=1))
     return 0
 
 
 def cmd_bench(a):
-    from .api import analyze
     from .bench import run
 
     print(json.dumps(run(a.repeat), indent=1))

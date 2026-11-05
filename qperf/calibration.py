@@ -8,11 +8,12 @@ Records come from calibration/run_case.py (one JSON line per simulator run, knob
 from __future__ import annotations
 
 import copy
+import itertools
 import json
 import math
-import os
 import statistics
 
+from . import profiles as P
 from .api import analyze
 
 LAYOUT_PLACEMENTS = {"ddd": ("dram", "dram", "dram"), "lll": ("l1", "l1", "l1"), "hhh": ("borrowed",) * 3,
@@ -22,16 +23,10 @@ KNOB_KEYS = {"R": "reader_threads", "C": "compute_threads", "W": "writer_threads
 
 
 def load_records(path, sim=None):
-    out = []
     with open(path) as f:
-        for line in f:
-            r = json.loads(line)
-            if r.get("error") or (sim and r.get("sim") != sim):
-                continue
-            if r["layout"] not in LAYOUT_PLACEMENTS:
-                continue
-            out.append(r)
-    return out
+        recs = [json.loads(line) for line in f]
+    return [r for r in recs if not r.get("error") and not (sim and r.get("sim") != sim)
+            and r["layout"] in LAYOUT_PLACEMENTS]
 
 
 def knobs_of(spec):
@@ -43,7 +38,7 @@ def knobs_of(spec):
     return k
 
 
-def request_for(rec, costs_ref, profile_override=None):
+def request_for(rec, costs_ref):
     pa, pb, po = LAYOUT_PLACEMENTS[rec["layout"]]
     return {"schema_version": "1", "action": "estimate", "profiles": {"costs": costs_ref},
             "workload": {"op": rec["op"], "dtype": rec["dtype"], "num_tiles": rec["tpc"], "tiles_scope": "cluster",
@@ -97,13 +92,11 @@ def ranking_quality(rows, records):
             continue
         best_meas = min(rs, key=lambda r: r["measured"])
         chosen = min(rs, key=lambda r: r["predicted"])
-        # Kendall tau
-        conc = disc = 0
-        for i in range(len(rs)):
-            for j in range(i + 1, len(rs)):
-                a = (rs[i]["measured"] - rs[j]["measured"]) * (rs[i]["predicted"] - rs[j]["predicted"])
-                conc += a > 0
-                disc += a < 0
+        conc = disc = 0  # Kendall tau
+        for x, y in itertools.combinations(rs, 2):
+            a = (x["measured"] - y["measured"]) * (x["predicted"] - y["predicted"])
+            conc += a > 0
+            disc += a < 0
         out.append({"group": ":".join(map(str, g)), "n": len(rs), "kendall_tau": round((conc - disc) / max(1, conc + disc), 3),
                     "chosen": chosen["case"], "best_measured": best_meas["case"],
                     "regret": round(chosen["measured"] / best_meas["measured"] - 1, 4)})
@@ -112,9 +105,7 @@ def ranking_quality(rows, records):
 
 # --------------------------------------------------------------------------------------------- fitting
 
-def _objective(records, profile, variant_keys):
-    from . import profiles as P
-
+def _objective(records, profile):
     P.register("costs", profile)
     rows = predict(records, profile["name"])
     e = [math.log(r["predicted"] / r["measured"]) ** 2 for r in rows if r["predicted"]]
@@ -135,12 +126,12 @@ WIDE = {"dfb.credit_latency": (0.0, 800.0), "end.drain": (0.0, 600.0),
 
 
 def fit(records, base_profile, keys, variant=None, sweeps=3, rel_span=0.4):
-    """Coordinate descent (golden section per key) on mean squared log error. Writes a temporary profile under
-    the base name while searching, so callers must restore or rename. Returns (profile, history)."""
+    """Coordinate descent (golden section per key) on mean squared log error, searching on an in-memory copy
+    (<name>__fit_tmp). Returns (profile under the base name, history)."""
     prof = copy.deepcopy(base_profile)
     prof["name"] = base_profile["name"] + "__fit_tmp"
     hist = []
-    best = _objective(records, prof, keys)
+    best = _objective(records, prof)
     hist.append(best)
     gr = (math.sqrt(5) - 1) / 2
     for _ in range(sweeps):
@@ -158,7 +149,7 @@ def fit(records, base_profile, keys, variant=None, sweeps=3, rel_span=0.4):
 
             def f(x):
                 p["value"] = x
-                return _objective(records, prof, keys)
+                return _objective(records, prof)
 
             fc, fd = f(c), f(d)
             for _ in range(12):
@@ -177,8 +168,6 @@ def fit(records, base_profile, keys, variant=None, sweeps=3, rel_span=0.4):
             else:
                 p["value"] = v0
             hist.append(best)
-    from . import profiles as P
-
     P.unregister("costs", prof["name"])
     prof["name"] = base_profile["name"]
     return prof, hist

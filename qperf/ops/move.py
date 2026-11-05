@@ -35,23 +35,19 @@ from __future__ import annotations
 import math
 
 from ..engine import DMBatch, Group, Program, Ring, Server, Thread, ThreadStats, TransferLog
+from .layout import DRAM_ALIGN, ELEM, GRID, GRID_X, GRID_Y, L1_ALIGN, TILE
 
 OPS = ("move",)
 PREFIX = {("move", "Overlap"): "mvo", ("move", "OverlapRowMajor"): "mvr"}
 FAMILY = {"move": "move"}
-TILE = 32
-GRID_X, GRID_Y = 8, 4  # compute_with_storage_grid_size on Quasar (32 clusters)
-L1_ALIGN = 16
-DRAM_ALIGN = 64
 L1_USABLE = 3670016  # bytes of L1 a core can give the scratch DFB (approximation of l1_size - base allocator address)
-INIT = {"sync_up": 100.0, "sync_core": 1.0, "mc": 30.0, "rd_cpb_l1g": 0.001, "rd_npow2_setup": 50.0, "rd_npow2": 5.0,
-        "wr_npow2": 1.0}
+FIT_INIT = {"sync_up": 100.0, "sync_core": 1.0, "mc": 30.0, "rd_cpb_l1g": 0.001, "rd_npow2_setup": 50.0,
+            "rd_npow2": 5.0, "wr_npow2": 1.0}  # initial values of this module's own terms (fit_layout.py)
 
 
 def split_work(pages):
     """split_work_to_cores(grid, pages) column-major: (cores, [(pages, cores)] group 1 first)."""
-    grid = GRID_X * GRID_Y
-    ncores = min(grid, pages)
+    ncores = min(GRID, pages)
     n1, extra = divmod(pages, ncores)
     if extra == 0:
         return ncores, [(n1, ncores)]
@@ -61,7 +57,7 @@ def split_work(pages):
 def corerangeset(ncores):
     """num_cores_to_corerangeset(ncores, 8x4, row_wise=false): full columns, then a partial column; the full grid
     when ncores >= 32. Ranges as (x_end, y_end) from their start column."""
-    if ncores >= GRID_X * GRID_Y:
+    if ncores >= GRID:
         return [((0, 0), (GRID_X - 1, GRID_Y - 1))]
     ranges, left, x = [], ncores, 0
     if left > GRID_Y:  # strict, as in work_split.cpp: exactly one column is a 'partial' range
@@ -82,6 +78,10 @@ def multicast_regions(ncores):
     return (ex > 0) + (ey > 0) + (len(ranges) - 1)
 
 
+def _align(nbytes, a):
+    return -(-nbytes // a) * a
+
+
 def parse_mem(mem):
     parts = mem.split("_")
     return parts[0], "ov" in parts, "rm" in parts
@@ -90,7 +90,7 @@ def parse_mem(mem):
 def plan(op, H, W, dtype="bf16", mem="dram_ov", multicore=True):
     """mem = <dram|l1>[_ov][_rm] (see calibration/runners/move.py). Returns the factory and [(cfg, cores)], the
     load holding the controller (group 1) first."""
-    elem = {"bf16": 2, "fp32": 4}[dtype]
+    elem = ELEM[dtype]
     buf, overlap, rm = parse_mem(mem)
     if buf not in ("dram", "l1"):
         raise ValueError(f"move with {buf} input (sharded: MoveSharded) is not modeled yet")
@@ -101,8 +101,7 @@ def plan(op, H, W, dtype="bf16", mem="dram_ov", multicore=True):
         pages, page_bytes = H, W * elem
     else:
         pages, page_bytes = math.ceil(H / TILE) * math.ceil(W / TILE), TILE * TILE * elem
-    aligned = -(-page_bytes // L1_ALIGN) * L1_ALIGN
-    per_bank = math.ceil(pages / (GRID_X * GRID_Y)) * aligned  # calculate_bank_size_spread over the L1 banks
+    per_bank = math.ceil(pages / GRID) * _align(page_bytes, L1_ALIGN)  # calculate_bank_size_spread over the L1 banks
     # fits_in_cb: the scratch DFB (one bank's share) must fit L1; with an L1 output it must also sit below the output
     if per_bank * (2 if buf == "l1" else 1) > L1_USABLE:
         raise ValueError("move: the per-core share does not fit L1 (fits_in_cb false), so the device op would pick "
@@ -115,8 +114,7 @@ def plan(op, H, W, dtype="bf16", mem="dram_ov", multicore=True):
     others = 0 if ncores == 1 else (groups[0][0] if groups[0][1] > 1 else groups[1][0])
     # the address generators scale page ids by the buffer's aligned page size: a shift when it is a power of two, else
     # a multiply (and a larger kernel that starts later) - ROW_MAJOR only, a tile page is always a power of two
-    align = DRAM_ALIGN if buf == "dram" else L1_ALIGN
-    a = -(-page_bytes // align) * align
+    a = _align(page_bytes, DRAM_ALIGN if buf == "dram" else L1_ALIGN)
     npow2 = a & (a - 1) != 0
     loads = [(dict(pages=n, page_bytes=page_bytes, ncores=ncores, regions=regions, other_pages=others, npow2=npow2,
                    in_place=buf, out_place=buf, blocks=n, wt=1, tiles=n * page_bytes / tile_bytes, elem=elem), cores)
@@ -140,9 +138,10 @@ def _noc(c, p, d, place, nbytes, ncores):
 def _reads(c, p, cfg, ring, n, log, queue):
     lat, gap, svc = _noc(c, p, "rd", cfg["in_place"], cfg["page_bytes"], cfg["ncores"])
     np2 = cfg["npow2"]
+    fixed = c[f"{p}.rd_fixed"] + (c[f"{p}.rd_npow2"] if np2 else 0.0)
     return [("busy", c[f"{p}.rd_setup"] + (c[f"{p}.rd_npow2_setup"] if np2 else 0.0), True)] + [
-        DMBatch([], "space", ring, c[f"{p}.rd_fixed"] + (c[f"{p}.rd_npow2"] if np2 else 0.0), 0.0, (0.0, 0.0, 0), 0.0, [(1, lat, gap, svc, queue)], log, True,
-                "push", 0.0, dma=True) for _ in range(n)]
+        DMBatch([], "space", ring, fixed, 0.0, (0.0, 0.0, 0), 0.0, [(1, lat, gap, svc, queue)], log, True, "push", 0.0,
+                dma=True) for _ in range(n)]
 
 
 def build(op, cfg, c, p):

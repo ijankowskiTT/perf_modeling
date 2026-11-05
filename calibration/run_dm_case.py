@@ -1,7 +1,7 @@
 # One simulator run of one Quasar data-movement op; prints one JSON line prefixed "JSON ".
 # Usage (from a worktree, simulator env sourced): python run_dm_case.py <op> <dtype> <H> <W> <mem> <multicore>
 #   op: tilize | untilize | tilize_with_val_padding | untilize_with_unpadding | interleaved_to_sharded |
-#       sharded_to_interleaved | move
+#       sharded_to_interleaved (move and reshard have their own runners in calibration/runners/)
 #   mem: dram | l1 (interleaved, input and output) | hs (height-sharded over the grid, L1; tilize/untilize only)
 #        sharding ops: <hs|ws|bs><cores>[d|l], e.g. hs8 = height-sharded over 8 cores (L1), interleaved side in DRAM
 #        (suffix l: interleaved side in L1); bs needs a square core count (2x2, 3x3, ...); a trailing r = ROW_MAJOR
@@ -60,10 +60,6 @@ try:
             t = ttnn.from_torch(x, dtype=dt, layout=lay, device=device, memory_config=shcfg)
             out = Q.sharded_to_interleaved(t, side)
         got = ttnn.to_torch(out)[..., :H, :W].float()
-    elif op == "move":  # TILE, interleaved, same memory config in and out (non-overlapping buffers: page copy)
-        t = ttnn.from_torch(x, dtype=dt, layout=ttnn.TILE_LAYOUT, device=device, memory_config=memcfg)
-        out = Q.move(t, memory_config=memcfg)
-        got = ttnn.to_torch(out).float()
     elif op in ("tilize", "tilize_with_val_padding"):
         t = ttnn.from_torch(x, dtype=dt, layout=ttnn.ROW_MAJOR_LAYOUT, device=device, memory_config=memcfg)
         if op == "tilize":

@@ -5,10 +5,10 @@
   FAMILY         {op: family}          (e.g. "move": no compute)
   plan(op, H, W, dtype, mem, multicore) -> (factory, [(cfg, cores)])   cfg has blocks, wt, in_place, out_place
   build(op, cfg, costs, prefix)        -> engine.Program for one core
-  fit_keys(op, factory)                -> cost terms the fitter may change (optional)
+  fit_keys(op, factory)                -> cost terms the fitter may change (optional; FIT_INIT: their initial values)
   mem_of(workload, knobs)              -> the `mem` string plan() takes, from an API workload (optional)
 
-Register a module by adding its import below; layout.plan / build / estimate, the API and the fitter pick it up.
+Register a module by adding it to the import below; layout.plan / build / estimate, the API and the fitter pick it up.
 """
 
 MODULES = []
@@ -26,7 +26,7 @@ def module_for(op):
     return None
 
 
-# --- registered op modules (one line each) ---
-from . import move as _move; register(_move)  # noqa: E402
-from . import reshard as _reshard  # noqa: E402
-register(_reshard)
+from . import move, reshard  # noqa: E402
+
+for _m in (move, reshard):
+    register(_m)

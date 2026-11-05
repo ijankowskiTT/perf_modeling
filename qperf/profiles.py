@@ -82,9 +82,7 @@ def resolve_costs(profile, variant, overrides=None, scenario="nominal", compute_
     Missing variant -> ProfileError(needs_input). Overrides replace a key in every scenario (a what-if is a
     point value unless it gives low/high). compute_scale multiplies the cu/cm/cp keys (what-if only).
     """
-    out = {}
-    for k, p in profile["params"].items():
-        out[k] = _pick(p, scenario)
+    out = {k: _pick(p, scenario) for k, p in profile["params"].items()}
     variants = profile.get("compute_variants", {})
     if variant not in variants:
         if not (overrides and all(k in overrides for k in ("cu.fixed", "cu.per_tile", "cm.fixed", "cm.per_tile",
@@ -94,10 +92,7 @@ def resolve_costs(profile, variant, overrides=None, scenario="nominal", compute_
                                f"{sorted(variants)}. Supply cu/cm/cp .fixed/.per_tile in what_if.cost_overrides "
                                f"or calibrate this variant.")
     else:
-        for k, p in variants[variant].items():
-            if k.startswith("_"):
-                continue
-            out[k] = _pick(p, scenario)
+        out.update({k: _pick(p, scenario) for k, p in variants[variant].items() if not k.startswith("_")})
     for k, v in (overrides or {}).items():
         out[k] = _pick(v, scenario)
     if compute_scale != 1.0:

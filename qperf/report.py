@@ -35,7 +35,7 @@ def _rows(res):
     out = []
     if res.get("baseline"):
         out.append(("baseline", res["baseline"], True))
-    for i, r in enumerate(res.get("candidates", [])):
+    for r in res.get("candidates", []):
         out.append((r.get("id") or r.get("label"), r, False))
     base_label = (res.get("baseline") or {}).get("label")
     for i, r in enumerate(res.get("top", [])):
@@ -52,10 +52,10 @@ def _best(res):
 
 
 def _workload(req):
-    w = req.get("workload", {})
-    p = w.get("placements", {})
     from .layout_api import layout_ops
 
+    w = req.get("workload", {})
+    p = w.get("placements", {})
     if w.get("op") in layout_ops():
         shape = "x".join(str(d) for d in w.get("shape", []))
         sh = w.get("shard")

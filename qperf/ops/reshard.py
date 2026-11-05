@@ -47,11 +47,9 @@ from __future__ import annotations
 import functools
 import math
 
-from ..engine import DMBatch, Group, Program, Ring, Server, ThreadStats, Thread, TransferLog
+from ..engine import DMBatch, Ring, ThreadStats, TransferLog
+from .layout import DRAM_ALIGN, ELEM, GRID, GRID_X, L1_ALIGN, STRATEGY, TILE, dm_program
 
-TILE = 32
-GRID_X, GRID_Y = 8, 4
-L1_ALIGN, DRAM_ALIGN = 16, 64
 LINK_UNSTALLED = 0.8  # share of a link a response to a single-source core holds (_contention)
 
 OPS = ("reshard",)
@@ -66,7 +64,7 @@ FIT_INIT = {"dram_setup": 10.0, "wr_bank_mod": 5.0}  # initial values of this mo
 
 # ----------------------------------------------------------------------------------------------- shard specs
 
-def _side(tok, H, W, layout, elem):
+def _side(tok, H, W, layout):
     place = {"l": "l1", "d": "dram"}.get(tok[-1])
     body = tok[:-1]
     kind = body[:2]
@@ -81,7 +79,7 @@ def _side(tok, H, W, layout, elem):
         gx, gy = (n, 1) if place == "dram" else (min(n, GRID_X), math.ceil(n / GRID_X))
     if place == "dram" and (kind == "bs" or n > 2):
         raise ValueError("reshard: DRAM shards are modeled height/width-sharded over <= 2 banks")
-    if n < 1 or (place == "l1" and n > GRID_X * GRID_Y):
+    if n < 1 or (place == "l1" and n > GRID):
         raise ValueError(f"reshard: {n} cores do not fit the 8x4 grid")
     ht, wt = math.ceil(H / TILE), math.ceil(W / TILE)
     if layout == "TILE":
@@ -120,7 +118,7 @@ def parse_mem(mem, H, W, elem=2):
     layout = {"t": "TILE", "r": "ROW_MAJOR"}.get(lay)
     if layout is None:
         raise ValueError(f"reshard: layout '{lay}' is t (TILE) or r (ROW_MAJOR)")
-    return {"layout": layout, "from": _side(a, H, W, layout, elem), "to": _side(b, H, W, layout, elem)}
+    return {"layout": layout, "from": _side(a, H, W, layout), "to": _side(b, H, W, layout)}
 
 
 def select_factory(spec, W, elem):
@@ -202,18 +200,15 @@ def _width_segments(loc, rem, nloc, nrem, elem):
     return out
 
 
-def _same_height(spec, H, W, elem, local_is_output):
+def _same_height(spec, elem, local_is_output):
     """ReshardSameHeightFactory: segments per local core; k0 does floor(rows/2) rows of every segment, k1 the rest.
     Returns per core (k0 requests, k0 segment starts, k1 requests, k1 segment starts)."""
     loc, rem = (spec["to"], spec["from"]) if local_is_output else (spec["from"], spec["to"])
-    nrem = len(rem["cores"])
-    segs = _width_segments(loc, rem, len(loc["cores"]), nrem, elem)
-    rows = loc["sh"]
-    r0, r1 = rows // 2, rows - rows // 2
-    out = []
-    for s in segs:
-        out.append(([b for b in s for _ in range(r0)], [1] * len(s), [b for b in s for _ in range(r1)], [1] * len(s)))
-    return out
+    segs = _width_segments(loc, rem, len(loc["cores"]), len(rem["cores"]), elem)
+    r0 = loc["sh"] // 2
+    r1 = loc["sh"] - r0
+    return [([b for b in s for _ in range(r0)], [1] * len(s), [b for b in s for _ in range(r1)], [1] * len(s))
+            for s in segs]
 
 
 def _page_grid(s, H, W, layout, elem):
@@ -223,7 +218,7 @@ def _page_grid(s, H, W, layout, elem):
     return H, math.ceil(W / s["sw"]), s["sh"], 1, s["sw"] * elem
 
 
-def _page_owner(s, pr, pc, shr, shc, r, c):
+def _page_owner(s, shr, shc, r, c):
     """(core, device page) holding page (r, c)."""
     if s["kind"] == "hs":
         k, dp = r // shr, (r % shr) * shc + c
@@ -308,12 +303,12 @@ def _generic(spec, H, W, elem):
     if pa[4] != pb[4]:
         raise ValueError("reshard: Generic with different input / output page sizes (row-major width change) "
                          "not modeled yet")
-    pr, pc, _, _, page = pb
+    pr, pc, _, _, page = pb  # same page grid on both sides
     seqs = {core: {} for core in b["cores"]}
     for r in range(pr):
         for c in range(pc):
-            oc, dp = _page_owner(b, pr, pc, pb[2], pb[3], r, c)
-            seqs[oc][dp] = _page_owner(a, pr, pc, pa[2], pa[3], r, c)
+            oc, dp = _page_owner(b, pb[2], pb[3], r, c)
+            seqs[oc][dp] = _page_owner(a, pa[2], pa[3], r, c)
     out = []
     for core in b["cores"]:
         d = seqs[core]
@@ -330,11 +325,9 @@ def _generic(spec, H, W, elem):
 def _copy_pages(spec, H, W, elem):
     a = spec["from"]
     pr, pc, _, _, page = _page_grid(a, H, W, spec["layout"], elem)
-    n = pr * pc
-    ncores = GRID_X * GRID_Y
-    per, rem = n // ncores, n % ncores
+    per, rem = divmod(pr * pc, GRID)
     loads = {}
-    for k in range(ncores):
+    for k in range(GRID):
         p = per + (1 if k < rem else 0)
         loads.setdefault(p, []).append(k)
     return page, [(p, ks) for p, ks in sorted(loads.items(), key=lambda kv: kv[1][0])]
@@ -346,12 +339,8 @@ def _copy_local(spec, H, W, elem):
     pa, pb = _page_grid(a, H, W, spec["layout"], elem), _page_grid(b, H, W, spec["layout"], elem)
     xfer = math.gcd(pa[4], pb[4])
     out = []
-    for k, core in enumerate(a["cores"]):
-        pages = 0
-        for r in range(pa[0]):
-            for c in range(pa[1]):
-                if _page_owner(a, pa[0], pa[1], pa[2], pa[3], r, c)[0] == core:
-                    pages += 1
+    for core in a["cores"]:
+        pages = sum(_page_owner(a, pa[2], pa[3], r, c)[0] == core for r in range(pa[0]) for c in range(pa[1]))
         out.append((pages, pa[4] // xfer, xfer))
     return out
 
@@ -368,7 +357,7 @@ def plan(op, H, W, dtype="bf16", mem="t_hs8l_hs4l", multicore=True):
 
 @functools.lru_cache(maxsize=512)
 def _plan(H, W, dtype, mem):  # pure in its arguments; the fitter plans every run many times
-    elem = {"bf16": 2, "fp32": 4}[dtype]
+    elem = ELEM[dtype]
     spec = parse_mem(mem, H, W, elem)
     fac = select_factory(spec, W, elem)
     a, b = spec["from"], spec["to"]
@@ -383,15 +372,14 @@ def _plan(H, W, dtype, mem):  # pure in its arguments; the fitter plans every ru
         if fac.startswith("SameWidth"):
             work = _same_width(spec, H, W, elem, out_local)
         elif fac.startswith("SameHeight"):
-            work = _same_height(spec, H, W, elem, out_local)
+            work = _same_height(spec, elem, out_local)
         else:
             work = _generic(spec, H, W, elem)
         kind = "read" if out_local else "write"
         local = spec["to"] if out_local else spec["from"]
         share = _contention(work, local["cores"]) if kind == "read" and remote["place"] == "l1" else {}
         groups = {}
-        for i, w in enumerate(work):
-            k0, s0, k1, s1 = w
+        for i, (k0, s0, k1, s1) in enumerate(work):
             key = (tuple(b for b, _ in k0), tuple(s0), tuple(b for b, _ in k1), tuple(s1),
                    share.get(local["cores"][i], (1.0, 0.0)))
             groups.setdefault(key, []).append(i)
@@ -484,11 +472,6 @@ def _contention(work, cores):
     return {d: (niu[d] / load[("in", d)], link[d] / load[("in", d)]) for d in niu}
 
 
-def _queues(shared):
-    q = Server()
-    return {"rd": q, "wr": q} if shared else {"rd": q, "wr": Server()}
-
-
 def build(op, cfg, c, p):
     """One core of a reshard factory: two DM threads (k0 = reader config, k1 = writer config)."""
     st_r = ThreadStats("reader", 0, start=c[f"{p}.start_reader"])
@@ -496,14 +479,14 @@ def build(op, cfg, c, p):
     shared = c.get("noc.barrier_all_kinds", 0.0) >= 0.5 and "l1" in (cfg["in_place"], cfg["out_place"])
     logs = [TransferLog()] if shared else [TransferLog(), TransferLog()]
     li = lambda kind: 0 if shared or kind == "read" else 1  # noqa: E731  (barriers count per kind, cluster-wide)
+    drain = c.get(f"{p}.drain", 0.0)
     kind = cfg["kind"]
     if kind in ("read", "write"):
         d = "rd" if kind == "read" else "wr"
         place = cfg["in_place"] if kind == "read" else cfg["out_place"]
-        q = "rd" if kind == "read" else "wr"
         dummy = Ring("none", 1, 1, 0)
         threads = []
-        for st, reqs, segs, who in ((st_r, cfg["k0"], cfg["seg0"], "rd"), (st_w, cfg["k1"], cfg["seg1"], "wr")):
+        for reqs, segs, who in ((cfg["k0"], cfg["seg0"], "rd"), (cfg["k1"], cfg["seg1"], "wr")):
             # a DRAM input costs both reading kernels a fixed set-up (BankView over DRAM banks), not a per-request
             # cost; the writing factories always write DRAM (folded into their set-up)
             dram = kind == "read" and place == "dram"
@@ -512,7 +495,7 @@ def build(op, cfg, c, p):
             if reqs:
                 groups = []
                 for nb in reqs:
-                    g = (1,) + _noc(c, p, kind, place, nb, cfg["noc"]) + (q,)
+                    g = (1,) + _noc(c, p, kind, place, nb, cfg["noc"]) + (d,)
                     if groups and groups[-1][1:] == g[1:]:
                         groups[-1] = (groups[-1][0] + 1,) + g[1:]
                     else:
@@ -522,12 +505,10 @@ def build(op, cfg, c, p):
                 # <p>.{rd,wr}_first: once per kernel that has work (its first request and the barrier that waits for
                 # outstanding transfers; a kernel without work only runs set-up and tail)
                 steps.append(DMBatch([], "space", dummy, pre, 0.0, (c.get(f"{p}.{d}_first", 0.0), 0.0, 0),
-                                     c[f"{p}.{d}_issue"], groups,
-                                     li(kind), True, "push", 0.0, dma=True))
+                                     c[f"{p}.{d}_issue"], groups, li(kind), True, "push", 0.0, dma=True))
             steps.append(("busy", c.get(f"{p}.{who}_tail", 0.0), True))
-            threads.append(Thread(st, steps))
-        return Program(groups=[Group([threads[0]], dm=True), Group([threads[1]], dm=True)], logs=logs,
-                       queues=_queues(shared), stats=[st_r, st_w], drain=c.get(f"{p}.drain", 0.0), first_output=None)
+            threads.append(steps)
+        return dm_program(st_r, threads[0], st_w, threads[1], logs, shared, drain)
     if kind == "copy":  # per page: reserve / read / barrier / push; wait / write / barrier / pop (1-entry DFB)
         n, page = cfg["pages"], cfg["page"]
         ring = Ring("cb", 1, 1, n)
@@ -544,8 +525,7 @@ def build(op, cfg, c, p):
         wr += [DMBatch([i], "data", ring, wfix, 0.0, (c.get(f"{p}.wr_first", 0.0), 0.0, 0), c[f"{p}.wr_issue"],
                        [(1, lat, gap, svc, "wr")], li("write"), True, "pop", 0.0, dma=True) for i in range(n)]
         wr += [("busy", c.get(f"{p}.wr_tail", 0.0), True)]
-        return Program(groups=[Group([Thread(st_r, rd)], dm=True), Group([Thread(st_w, wr)], dm=True)], logs=logs,
-                       queues=_queues(shared), stats=[st_r, st_w], drain=c.get(f"{p}.drain", 0.0), first_output=None)
+        return dm_program(st_r, rd, st_w, wr, logs, shared, drain)
     # local: k0 writes its shard page by page (flush per page), k1 has no shard; both end with a write barrier
     n, per, x = cfg["pages"], cfg["per_page"], cfg["xfer"]
     dummy = Ring("none", 1, 1, 0)
@@ -555,8 +535,7 @@ def build(op, cfg, c, p):
                    [(per, lat, gap, svc, "wr")], li("write"), True, "push", 0.0, dma=True) for _ in range(n)]
     rd += [("busy", c.get(f"{p}.rd_tail", 0.0), True)]
     wr = [("busy", c.get(f"{p}.wr_setup", 0.0), True), ("busy", c.get(f"{p}.wr_tail", 0.0), True)]
-    return Program(groups=[Group([Thread(st_r, rd)], dm=True), Group([Thread(st_w, wr)], dm=True)], logs=logs,
-                   queues=_queues(shared), stats=[st_r, st_w], drain=c.get(f"{p}.drain", 0.0), first_output=None)
+    return dm_program(st_r, rd, st_w, wr, logs, shared, drain)
 
 
 def l1_fit_keys(op, factory, sim):
@@ -580,10 +559,7 @@ def fit_keys(op, factory):
                      "wr_bank_mod"]
 
 
-STRATEGY = {"height": "hs", "width": "ws", "block": "bs"}
-
-
-def _spec_token(s, H, W):
+def _spec_token(s):
     strategy, place = s.get("strategy"), s.get("memory", "l1")
     if strategy not in STRATEGY or place not in ("l1", "dram"):
         raise ValueError("reshard: workload.reshard.from / to need strategy height|width|block and memory l1|dram")
@@ -605,6 +581,8 @@ def _spec_token(s, H, W):
 
 
 ASSUMPTION = "reshard: two data-movement kernels per core running the same source, no compute (the factory's kernels)"
+
+
 def notes(profile_name, mem):
     """What a profile cannot time for this reshard -> (warnings, untimed). untimed: comparisons with it are
     inconclusive."""
@@ -621,6 +599,7 @@ def notes(profile_name, mem):
 # bounds them): ttsim-perf L1 reads of many small responses (see _contention).
 KNOWN_GAPS = {("ttsim-perf", "SameHeight"): 0.16, ("ttsim-perf", "Generic"): 0.095}
 
+
 def mem_of(workload, knobs):
     """workload.reshard = {"layout": "tile"|"row_major" (default tile), "from": {strategy, cores | grid, memory},
     "to": {...}} -> (mem string, label)."""
@@ -632,6 +611,6 @@ def mem_of(workload, knobs):
     lay = {"tile": "t", "row_major": "r"}.get(r.get("layout", "tile"))
     if lay is None:
         raise ValueError("reshard: layout is tile or row_major")
-    mem = f"{lay}_{_spec_token(r['from'], H, W)}_{_spec_token(r['to'], H, W)}"
+    mem = f"{lay}_{_spec_token(r['from'])}_{_spec_token(r['to'])}"
     parse_mem(mem, H, W)
     return mem, mem.replace("_", " ", 1).replace("_", " -> ")
