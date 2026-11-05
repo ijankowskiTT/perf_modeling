@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0
+
+- Every answer states its op's own accuracy (`accuracy`); no profile note carries another op's error.
+- Shapes outside the calibrated range are flagged as extrapolated (marked in survey heatmaps).
+- `survey.compare_profile`: both profiles side by side; craq-sim warns when setups shrink requests.
+- silicon-hypothesis has data-movement costs and an assumed DRAM bandwidth cap: large-shape gains are bounded there.
+
 ## 1.2.0
 
 - **`survey`** (tilize, untilize): each approach over a grid of tensor sizes, no size needed. Geomean, best and worst

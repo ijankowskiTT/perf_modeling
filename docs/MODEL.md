@@ -91,6 +91,15 @@ bytes, barriers, compute steps and DFB sizes. Reports draw it.
 - reshard CopyLocal (wrong output on both simulators), Generic from DRAM, unaligned HEIGHT→HEIGHT rows, row-major
   width changes.
 
+## Accuracy and limits in answers
+
+- `accuracy`: the op's own mean error on that profile (`profiles/accuracy.json`, from `calibration/make_accuracy.py`);
+  hypothetical setups say no simulator measured them.
+- Shapes beyond 1.25x the calibrated rows, width or elements are flagged as extrapolated (hatched in survey reports).
+- On craq-sim, setups with smaller requests (column / 2d splits, smaller blocks) carry a warning: craq-sim charges
+  per request, not per byte. `survey.compare_profile` reruns a survey on a second profile.
+- silicon-hypothesis caps data-movement ops by an assumed DRAM bandwidth (875 GB/s x 0.75): bottleneck `dram_global`.
+
 ## Costs
 
 Every parameter in `profiles/costs/*.json` has `value`, `low`, `high`, `class` and `source`. `low` and `high` move

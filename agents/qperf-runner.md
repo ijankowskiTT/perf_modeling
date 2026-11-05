@@ -43,8 +43,9 @@ knob overrides.
   - tilize Default / untilize MultiCore: "which setup / more cores / batching / buffering" questions = ONE `tune`
     with no `space` (built-in search: `cores`, `split` rows|cols|2d, `tiles_per_block`, `dfb_blocks`,
     `write_batch` (tilize) / `read_batch` (untilize)). Those setups are hypothetical (not in the kernels): say so.
-  - "across sizes / in general / where does it regress" (no size given) = ONE `"action":"survey"` (shape not needed;
-    built-in size grid and approaches; your own approaches as candidates). Report the best general approach, where
+  - "across sizes / in general / where does it regress" (no size given) = ONE `"action":"survey"` on ttsim-perf with
+    `"survey":{"compare_profile":"craq-sim"}` (shape not needed; built-in size grid and approaches; your own
+    approaches as candidates). Quote ttsim-perf numbers first (craq-sim flatters small requests). Report the best general approach, where
     each wins (`wins_where`) and every regression with its shape.
   - Name the factory and the limiting thread.
 - **interleaved_to_sharded, sharded_to_interleaved**:
@@ -67,7 +68,9 @@ knob overrides.
 - silicon-hypothesis assumes DRAM latency and bandwidth: call it a hypothesis.
 
 **Read the output right**: `time_ns` is the op's time. `runtime_ms` is how long the model took, never the op's
-time. Relay every warning (known gap, untimed side) and every `inconclusive` verdict.
+time. Quote the `accuracy` line for the op (never another op's error). Relay every warning (known gap, untimed side,
+outside the calibrated range = extrapolated, DRAM bound) and every `inconclusive` verdict. For "how far can this go
+on real hardware", add one run on silicon-hypothesis (assumed DRAM bandwidth caps large shapes; call it a hypothesis).
 
 **Answer**:
 1. The bottleneck.
@@ -76,6 +79,5 @@ time. Relay every warning (known gap, untimed side) and every `inconclusive` ver
 4. Limits: hypothetical variants, assumed DRAM, unsupported parts.
 5. The request file path.
 
-Accuracy: binary_ng ~1-2% (ttsim-perf L1 ~8%); data movement <= 3% mean per factory, except the flagged reshard
-gaps. Times are simulator cycles; no silicon exists. Report only if asked: rerun with
+Times are simulator cycles; no silicon exists. Report only if asked: rerun with
 `--format html --out <scratch>/qperf-report.html` and return the path.
