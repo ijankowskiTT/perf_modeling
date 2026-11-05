@@ -6,7 +6,9 @@ A Program has:
 - logs: transfer logs a NoC barrier waits on (one per cluster and kind, or one per thread);
 - queues: per-cluster completion queues that serve timed transfers one after another, in time order;
 - groups: threads in evaluation order. A DM group may own a shared work queue (`work`): its idle threads claim the
-  next batch, paying `claim` cycles.
+  next batch, paying `claim` cycles;
+- dram: the DRAM channels (qperf/dram.py) its DRAM-timed transfers share, on a profile with the channel model.
+  run_merged() evaluates several programs (one per core load) as one, so their transfers queue on the same channels.
 
 Thread steps:
 - ("wait", "space"|"data"|"popped", ring, tiles, counted)   until slots are free / entries pushed / entries popped
@@ -154,7 +156,11 @@ class DMBatch:
     (push) or release (pop) the batch's entries.
 
     groups: [(count, latency, gap, svc, queue)] in issue order; gap = per-request bytes / thread bandwidth, svc = the
-    completion queue's service per request (0 = untimed by the queue). post is the part of `fixed` after the barrier."""
+    completion queue's service per request (0 = untimed by the queue). post is the part of `fixed` after the barrier.
+    A group may carry a 6th element (side, counts, nbytes[, ack_log]) (dram.xfer): its requests go to the DRAM channels
+    (dram.Side.complete, counts[k] = the k-th request's copies per channel) instead of taking `latency`; with ack_log
+    they are flushed writes: this barrier waits until each has left the core, log ack_log (a later empty batch: the
+    kernel's write barrier) until the channel has taken it."""
 
     tiles: list
     wait: str  # "space" | "data"
@@ -204,6 +210,39 @@ class Program:
     stats: list  # ThreadStats in output order
     drain: float = 0.0
     first_output: Ring = None
+    dram: object = None  # dram.Channels the program's DRAM-timed transfers share (pruned with the queues), or None
+
+
+def merge(progs, dram=None):
+    """One Program running several (one per core load) side by side, sharing `dram`: their logs and queues are kept
+    apart (re-indexed / renamed). Returns (merged program, [(stats, drain, first_output)] per input program)."""
+    groups, logs, queues, stats, parts = [], [], {}, [], []
+    for i, p in enumerate(progs):
+        off = len(logs)
+        logs += p.logs
+        ren = {q: f"{i}:{q}" for q in p.queues}
+        seen = {}
+        for q, srv in p.queues.items():  # a program may map two names to one queue: keep them one
+            queues[ren[q]] = seen.setdefault(id(srv), srv)
+
+        def shift(s):
+            s.log += off
+            s.groups = [(x[0], x[1], x[2], x[3], ren[x[4]])
+                        + (() if len(x) < 6 else (x[5][:3] + ((x[5][3] + off,) if len(x[5]) > 3 and x[5][3] is not None
+                                                              else ()),))
+                        for x in s.groups]
+
+        for g in p.groups:
+            for th in g.threads:
+                for s in th.steps:
+                    if isinstance(s, DMBatch):
+                        shift(s)
+            for s in g.work or []:
+                shift(s)
+            groups.append(g)
+        stats += p.stats
+        parts.append((p.stats, p.drain, p.first_output))
+    return Program(groups=groups, logs=logs, queues=queues, stats=stats, dram=dram), parts
 
 
 def _step(th, prog):
@@ -264,12 +303,26 @@ def _start_batch(th, b, prog):
     st.busy += b.pre + warm
     log = prog.logs[b.log]
     issue, comp_prev, completes, j = t, -INF, [], 0
-    for count, lat, gap, svc, q in b.groups:
-        for _ in range(count):
+    for grp in b.groups:
+        count, lat, gap, svc, q = grp[:5]
+        dx = grp[5] if len(grp) > 5 else None
+        for k in range(count):
             if b.max_inflight and j >= b.max_inflight:
                 issue = max(issue, completes[j - b.max_inflight])
             issue_end = issue + b.issue
-            if b.dma:  # the DMA engine moves one transfer at a time: start when issued and the engine is free
+            if dx is not None:  # DRAM channels: the request leaves when issued (DMA: when the engine takes it)
+                if b.dma:
+                    start = max(issue_end, th.dma_free)
+                    th.dma_free = start + gap
+                    sent = th.dma_free
+                else:
+                    start = issue_end
+                    sent = comp_prev + gap
+                comp = max(sent, dx[0].complete(start, dx[1][k], dx[2]))
+                if len(dx) > 3 and dx[3] is not None:  # a flushed write: this barrier waits until it has left,
+                    prog.logs[dx[3]].add(issue_end, comp)  # the kernel's final write barrier (log dx[3]) for its ack
+                    comp = max(sent, issue_end)
+            elif b.dma:  # the DMA engine moves one transfer at a time: start when issued and the engine is free
                 th.dma_free = max(issue_end, th.dma_free) + gap
                 comp = th.dma_free + lat
             else:
@@ -339,7 +392,30 @@ def _run_group(g, prog):
 
 
 def run(prog, trace_limit=0):
-    """Evaluate a Program. Returns makespan, per-role aggregates, first output time and optional thread traces."""
+    """Evaluate a Program. Returns makespan, per-role aggregates, first output time and optional thread traces (and,
+    with DRAM channels, their use: dram.Channels.stats)."""
+    _evaluate(prog)
+    out = _summary(prog.stats, prog.drain, prog.first_output, trace_limit)
+    if prog.dram is not None:
+        out["dram"] = prog.dram.stats(out["makespan"])
+    return out
+
+
+def run_merged(progs, dram, trace_limit=0):
+    """Evaluate several Programs together (merge), sharing the DRAM channels: one run() result per program, each with
+    the channels' use over the whole evaluation (the span of the slowest program)."""
+    prog, parts = merge(progs, dram)
+    _evaluate(prog)
+    outs = [_summary(st, drain, fo, trace_limit) for st, drain, fo in parts]
+    span = max(o["makespan"] for o in outs)
+    use = dram.stats(span) if dram is not None else None
+    for o in outs:
+        if use is not None:
+            o["dram"] = use
+    return outs
+
+
+def _evaluate(prog):
     dm_threads = [th for g in prog.groups if g.dm for th in g.threads]
     while True:
         progressed = False
@@ -362,13 +438,18 @@ def run(prog, trace_limit=0):
             log.prune(low)
         for q in prog.queues.values():
             q.prune(low - 1e6)
+        if prog.dram is not None:
+            prog.dram.prune(low)
     for g in prog.groups:
         for th in g.threads:
             if th.sets_end and not th.ran:
                 th.stats.end = th.stats.start
-    makespan = max(st.end for st in prog.stats) + prog.drain
+
+
+def _summary(stats, drain, first_output, trace_limit):
+    makespan = max(st.end for st in stats) + drain
     roles = {}
-    for st in prog.stats:
+    for st in stats:
         r = roles.setdefault(st.role, {"threads": 0, "busy": 0.0, "wait_data": 0.0, "wait_space": 0.0,
                                        "wait_transfer": 0.0, "end_max": 0.0, "start_min": INF})
         r["threads"] += 1
@@ -380,8 +461,8 @@ def run(prog, trace_limit=0):
         r["start_min"] = min(r["start_min"], st.start)
     for r in roles.values():
         r["utilization"] = r["busy"] / (r["threads"] * makespan) if makespan > 0 else 0.0
-    ring = prog.first_output
+    ring = first_output
     out = {"makespan": makespan, "roles": roles, "first_output": ring.push_t[0] if ring is not None and ring.n else None}
     if trace_limit:
-        out["threads"] = [st.as_dict() for st in prog.stats[:trace_limit]]
+        out["threads"] = [st.as_dict() for st in stats[:trace_limit]]
     return out

@@ -34,8 +34,9 @@ from __future__ import annotations
 
 import math
 
+from .. import dram
 from ..engine import DMBatch, Group, Program, Ring, Server, Thread, ThreadStats, TransferLog
-from .layout import DRAM_ALIGN, ELEM, GRID, GRID_X, GRID_Y, L1_ALIGN, TILE
+from .layout import DRAM_ALIGN, ELEM, GRID, GRID_X, GRID_Y, L1_ALIGN, TILE, _pages
 
 OPS = ("move",)
 PREFIX = {("move", "Overlap"): "mvo", ("move", "OverlapRowMajor"): "mvr"}
@@ -119,6 +120,13 @@ def plan(op, H, W, dtype="bf16", mem="dram_ov", multicore=True):
     loads = [(dict(pages=n, page_bytes=page_bytes, ncores=ncores, regions=regions, other_pages=others, npow2=npow2,
                    in_place=buf, out_place=buf, blocks=n, wt=1, tiles=n * page_bytes / tile_bytes, elem=elem), cores)
              for n, cores in groups]
+    # DRAM channels: split_work_to_cores gives cores consecutive pages, group 1 (one page more) first, column-major
+    k = first = 0
+    for cfg, cores in loads:
+        idx = list(range(k, k + cores))
+        cfg["_pg"] = {"noc": [(2 + i // GRID_Y, 2 + i % GRID_Y) for i in idx],
+                      "tile": [first + j * cfg["pages"] for j in range(cores)]}
+        k, first = k + cores, first + cores * cfg["pages"]
     return ("OverlapRowMajor" if rm else "Overlap"), loads
 
 
@@ -135,13 +143,19 @@ def _noc(c, p, d, place, nbytes, ncores):
     return lat, gap, 0.0
 
 
-def _reads(c, p, cfg, ring, n, log, queue):
+def _dx(pg, i, nbytes):
+    """Page i's DRAM channel timing (dram.xfer) when the channels time this side, else nothing."""
+    return () if pg is None else (dram.xfer(pg.side, pg.tiles([i]), nbytes),)
+
+
+def _reads(c, p, cfg, ring, n, log, queue, pg=None):
     lat, gap, svc = _noc(c, p, "rd", cfg["in_place"], cfg["page_bytes"], cfg["ncores"])
     np2 = cfg["npow2"]
     fixed = c[f"{p}.rd_fixed"] + (c[f"{p}.rd_npow2"] if np2 else 0.0)
     return [("busy", c[f"{p}.rd_setup"] + (c[f"{p}.rd_npow2_setup"] if np2 else 0.0), True)] + [
-        DMBatch([], "space", ring, fixed, 0.0, (0.0, 0.0, 0), 0.0, [(1, lat, gap, svc, queue)], log, True, "push", 0.0,
-                dma=True) for _ in range(n)]
+        DMBatch([], "space", ring, fixed, 0.0, (0.0, 0.0, 0), 0.0,
+                [(1, lat, gap, svc, queue) + _dx(pg, i, cfg["page_bytes"])], log, True, "push", 0.0, dma=True)
+        for i in range(n)]
 
 
 def build(op, cfg, c, p):
@@ -150,14 +164,18 @@ def build(op, cfg, c, p):
     allp = list(range(n))
     st_r = ThreadStats("reader", 0, start=c[f"{p}.start_reader"])
     st_w = ThreadStats("writer", 0, start=c[f"{p}.start_writer"])
-    rd = _reads(c, p, cfg, ring, n, 0, "rd")
+    # DRAM channels (None unless the estimate times DRAM with them): this core stands for every core of its load; the
+    # other core the controller waits for only looks at the channels (its load accounts for its traffic)
+    prd, pwr = _pages(cfg, True, False), _pages(cfg, False, False)
+    rd = _reads(c, p, cfg, ring, n, 0, "rd", prd)
     groups, logs, queues = [], [TransferLog(), TransferLog()], {"rd": Server(), "wr": Server()}
     if cfg["other_pages"]:
         # the slowest other core's reader (same start and costs, its own NoC queue), whose semaphore increment reaches
         # the controller <p>.sync_up after its last read; the controller's wait ends at the later of the two
         sem = Ring("sem", 1, 2, 1)
         m = cfg["other_pages"]
-        ghost = _reads(c, p, cfg, Ring("other", 1, m + 1, m), m, 2, "other") + [("push", sem, [0], c[f"{p}.sync_up"])]
+        ghost = _reads(c, p, cfg, Ring("other", 1, m + 1, m), m, 2, "other", _pages(cfg, True, False, take=False)) + \
+            [("push", sem, [0], c[f"{p}.sync_up"])]
         groups.append(Group([Thread(ThreadStats("other_reader", 0, start=c[f"{p}.start_reader"]), ghost)], dm=True))
         logs.append(TransferLog())
         queues["other"] = Server()
@@ -168,7 +186,8 @@ def build(op, cfg, c, p):
     wr = [("busy", c[f"{p}.wr_setup"], True), ("wait", "data", ring, allp, True)]
     wfix = c[f"{p}.wr_fixed"] + (c[f"{p}.wr_npow2"] if cfg["npow2"] else 0.0)
     wr += [DMBatch(allp if i == n - 1 else [], "data", ring, wfix, 0.0, (0.0, 0.0, 0), 0.0,
-                   [(1, lat, gap, svc, "wr")], 1, True, "pop", 0.0, dma=True) for i in range(n)]
+                   [(1, lat, gap, svc, "wr") + _dx(pwr, i, cfg["page_bytes"])], 1, True, "pop", 0.0, dma=True)
+           for i in range(n)]
     wr += [("busy", c[f"{p}.wr_tail"], True)]
     groups = [Group([Thread(st_r, rd)], dm=True)] + groups + [Group([Thread(st_w, wr)], dm=True)]
     return Program(groups=groups, logs=logs, queues=queues, stats=[st_r, st_w], drain=0.0, first_output=None)

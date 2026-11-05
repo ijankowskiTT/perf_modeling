@@ -47,6 +47,7 @@ from __future__ import annotations
 import functools
 import math
 
+from .. import dram
 from ..engine import DMBatch, Ring, ThreadStats, TransferLog
 from .layout import DRAM_ALIGN, ELEM, GRID, GRID_X, L1_ALIGN, STRATEGY, TILE, dm_program
 
@@ -333,6 +334,46 @@ def _copy_pages(spec, H, W, elem):
     return page, [(p, ks) for p, ks in sorted(loads.items(), key=lambda kv: kv[1][0])]
 
 
+def _noc_of(xy):
+    """NoC coordinates of a logical (x, y) worker (QSR: workers at NoC (x + 2, y + 2))."""
+    return (xy[0] + 2, xy[1] + 2)
+
+
+def _bank_hists(reqs):
+    """Per request position j, {bank: cores} over the cores' request lists [(bytes, remote (bank, 0))]."""
+    out = []
+    for j in range(max((len(r) for r in reqs), default=0)):
+        h = {}
+        for r in reqs:
+            if j < len(r):
+                b = r[j][1][0]
+                h[b] = h.get(b, 0) + 1
+        out.append(h)
+    return out
+
+
+def _copy_pg(spec, H, W, elem, p, ks):
+    """CopyPages on the DRAM channels: per page j of the load's cores (core k copies pages start_k ..), {bank: cores}
+    of the page's input shard and of its output shard (shard k of a DRAM-sharded buffer sits in bank k)."""
+    a, b = spec["from"], spec["to"]
+    pa, pb = _page_grid(a, H, W, spec["layout"], elem), _page_grid(b, H, W, spec["layout"], elem)
+    per, rem = divmod(pa[0] * pa[1], GRID)
+    starts = [k * per + min(k, rem) for k in ks]
+
+    def hists(s, pg):
+        out = []
+        for j in range(p):
+            h = {}
+            for st in starts:
+                r, cc = divmod(st + j, pg[1])
+                bank = _page_owner(s, pg[2], pg[3], r, cc)[0][0]
+                h[bank] = h.get(bank, 0) + 1
+            out.append(h)
+        return out
+
+    return {"noc": [_noc_of((k % GRID_X, k // GRID_X)) for k in ks], "banks": [hists(a, pa), hists(b, pb)]}
+
+
 def _copy_local(spec, H, W, elem):
     """NdReshardCopyLocalShardFactory<local_is_input>: shard k on core k (first kernel); writes per page."""
     a, b = spec["from"], spec["to"]
@@ -392,12 +433,19 @@ def _plan(H, W, dtype, mem):  # pure in its arguments; the fitter plans every ru
                        blocks=1, wt=len(k0) + len(k1), tiles=nbytes / (TILE * TILE * elem), elem=elem,
                        in_place=remote["place"] if out_local else "borrowed",
                        out_place="borrowed" if out_local else remote["place"])
+            if remote["place"] == "dram":
+                # DRAM channels: shard k of a DRAM-sharded buffer sits in bank k; per request of each kernel, how many
+                # of the load's cores send it to each bank (the load's cores share sizes, not banks)
+                ids = groups[k]
+                cfg["_pg"] = {"noc": [_noc_of(local["cores"][i]) for i in ids],
+                              "banks": [_bank_hists([work[i][w] for i in ids]) for w in (0, 2)]}
             loads.append((cfg, len(groups[k])))
         return fac, loads
     if fac == "CopyPages":
         page, groups = _copy_pages(spec, H, W, elem)
         loads = [(dict(kind="copy", pages=p, page=page, out_banks=b["n"], blocks=1, wt=p, tiles=p * page / (TILE * TILE * elem),
-                       elem=elem, in_place="dram", out_place="dram"), len(ks)) for p, ks in groups if p]
+                       elem=elem, in_place="dram", out_place="dram", _pg=_copy_pg(spec, H, W, elem, p, ks)), len(ks))
+                 for p, ks in groups if p]
         return fac, loads
     work = _copy_local(spec, H, W, elem)
     groups = {}
@@ -481,25 +529,37 @@ def build(op, cfg, c, p):
     li = lambda kind: 0 if shared or kind == "read" else 1  # noqa: E731  (barriers count per kind, cluster-wide)
     drain = c.get(f"{p}.drain", 0.0)
     kind = cfg["kind"]
+    chans = cfg.get("_chans")  # DRAM channels, when the estimate times DRAM with them
+    pg = cfg.get("_pg") or {}
+
+    def side(read):
+        return dram.Side(chans, read, pg["noc"]) if chans is not None else None
+
     if kind in ("read", "write"):
         d = "rd" if kind == "read" else "wr"
         place = cfg["in_place"] if kind == "read" else cfg["out_place"]
         dummy = Ring("none", 1, 1, 0)
         threads = []
-        for reqs, segs, who in ((cfg["k0"], cfg["seg0"], "rd"), (cfg["k1"], cfg["seg1"], "wr")):
+        sd = side(kind == "read") if place == "dram" else None
+        for w, (reqs, segs, who) in enumerate(((cfg["k0"], cfg["seg0"], "rd"), (cfg["k1"], cfg["seg1"], "wr"))):
             # a DRAM input costs both reading kernels a fixed set-up (BankView over DRAM banks), not a per-request
             # cost; the writing factories always write DRAM (folded into their set-up)
-            dram = kind == "read" and place == "dram"
-            setup = c.get(f"{p}.{who}_setup", 0.0) + (c.get(f"{p}.dram_setup", 0.0) if dram else 0.0)
+            from_dram = kind == "read" and place == "dram"
+            setup = c.get(f"{p}.{who}_setup", 0.0) + (c.get(f"{p}.dram_setup", 0.0) if from_dram else 0.0)
             steps = [("busy", setup, True)]
             if reqs:
-                groups = []
-                for nb in reqs:
+                groups, extra = [], []  # extra: per group its bytes and, on the DRAM channels, each request's banks
+                for j, nb in enumerate(reqs):
                     g = (1,) + _noc(c, p, kind, place, nb, cfg["noc"]) + (d,)
-                    if groups and groups[-1][1:] == g[1:]:
+                    cnt = sd.bank_counts(pg["banks"][w][j]) if sd is not None else None
+                    if groups and groups[-1][1:] == g[1:] and extra[-1][0] == nb:
                         groups[-1] = (groups[-1][0] + 1,) + g[1:]
+                        extra[-1][1].append(cnt)
                     else:
                         groups.append(g)
+                        extra.append((nb, [cnt]))
+                if sd is not None:  # one request per segment: its bytes, from / to its shard's bank
+                    groups = [g + (dram.xfer(sd, cnt, nb),) for g, (nb, cnt) in zip(groups, extra)]
                 # per segment (Generic: per range) loop overhead, paid before its requests: folded into pre
                 pre = c.get(f"{p}.{d}_fixed", 0.0) * len(segs)
                 # <p>.{rd,wr}_first: once per kernel that has work (its first request and the barrier that waits for
@@ -512,10 +572,16 @@ def build(op, cfg, c, p):
     if kind == "copy":  # per page: reserve / read / barrier / push; wait / write / barrier / pop (1-entry DFB)
         n, page = cfg["pages"], cfg["page"]
         ring = Ring("cb", 1, 1, n)
+        sr, sw = side(True), side(False)
+
+        def dx(s, w, i):  # page i's channel timing: its input (w = 0) / output (w = 1) shard's bank per core
+            return () if s is None else (dram.xfer(s, [s.bank_counts(pg["banks"][w][i])], page),)
+
         lat, gap, svc = _noc(c, p, "read", "dram", page)
         rd = [("busy", c.get(f"{p}.rd_setup", 0.0), True)]
         rd += [DMBatch([i], "space", ring, c[f"{p}.rd_fixed"], 0.0, (c.get(f"{p}.rd_first", 0.0), 0.0, 0), c[f"{p}.rd_issue"],
-                       [(1, lat, gap, svc, "rd")], li("read"), True, "push", 0.0, dma=True) for i in range(n)]
+                       [(1, lat, gap, svc, "rd") + dx(sr, 0, i)], li("read"), True, "push", 0.0, dma=True)
+               for i in range(n)]
         rd += [("wait", "popped", ring, range(n), False), ("busy", c.get(f"{p}.rd_tail", 0.0), True)]
         lat, gap, svc = _noc(c, p, "write", "dram", page)
         wr = [("busy", c.get(f"{p}.wr_setup", 0.0), True)]
@@ -523,7 +589,8 @@ def build(op, cfg, c, p):
         # bank: folded away); the reader's lookup is hidden by the lock-step with the writer
         wfix = c[f"{p}.wr_fixed"] + (c.get(f"{p}.wr_bank_mod", 0.0) if cfg["out_banks"] > 1 else 0.0)
         wr += [DMBatch([i], "data", ring, wfix, 0.0, (c.get(f"{p}.wr_first", 0.0), 0.0, 0), c[f"{p}.wr_issue"],
-                       [(1, lat, gap, svc, "wr")], li("write"), True, "pop", 0.0, dma=True) for i in range(n)]
+                       [(1, lat, gap, svc, "wr") + dx(sw, 1, i)], li("write"), True, "pop", 0.0, dma=True)
+               for i in range(n)]
         wr += [("busy", c.get(f"{p}.wr_tail", 0.0), True)]
         return dm_program(st_r, rd, st_w, wr, logs, shared, drain)
     # local: k0 writes its shard page by page (flush per page), k1 has no shard; both end with a write barrier

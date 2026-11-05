@@ -42,7 +42,7 @@ def _text(res):
         out.append(f"platform: {res['platform_scope']}")
     if res.get("accuracy"):
         out.append(f"accuracy: {res['accuracy']}")
-    from .report import TIME_NOTE, tunit
+    from .report import TIME_NOTE, dram_text, tunit
 
     u = tunit(res)
     if res.get("time_unit"):
@@ -62,6 +62,8 @@ def _text(res):
         if r.get("roles"):
             s += "\n      " + "  ".join(f"{k}: busy {v['useful_busy_frac']:.0%} starved {v['starved_frac']:.0%} "
                                       f"backpressure {v['backpressure_frac']:.0%}" for k, v in r["roles"].items())
+        if r.get("dram"):
+            s += "\n      " + dram_text(r["dram"])
         if r.get("accuracy") and r["accuracy"] != res.get("accuracy"):
             s += f"\n      accuracy: {r['accuracy']}"
         s += "".join(f"\n      warning: {w}" for w in r.get("warnings", []))

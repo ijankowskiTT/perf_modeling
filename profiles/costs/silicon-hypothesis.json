@@ -1,9 +1,9 @@
 {
  "kind": "costs",
  "name": "silicon-hypothesis",
- "revision": "2026-11-03.fit8+fp32+hyp1",
+ "revision": "2026-11-03.fit8+fp32+hyp2",
  "platform": "Quasar silicon (HYPOTHESIS): no measurement exists",
- "platform_scope": "conditional prediction: instruction costs from ttsim-perf at an assumed 1.35 GHz AICLK; DRAM/NoC latency and bandwidth are assumptions with wide ranges. Not a measurement.",
+ "platform_scope": "conditional prediction: instruction costs from ttsim-perf at an assumed 1.35 GHz AICLK; DRAM/NoC latency and bandwidth are assumptions with wide ranges; DRAM timed by a channel model (2 channels). Not a measurement.",
  "calibration": {
   "derived_from": "ttsim-perf@2026-11-03.fit8+fp32",
   "script": "calibration/make_silicon_hypothesis.py"
@@ -17,7 +17,8 @@
  "assumptions": [
   "DM/Tensix instruction costs in AICLK cycles equal ttsim-perf cycles (cycle-approximate Rocket/Tensix)",
   "transfer latency/bandwidth are assumptions (no Quasar silicon or DRAM-timed simulator data)",
-  "ttsim-perf start-up (DM kernels ~4 us after Neo) kept as is; it may be a simulator artifact"
+  "ttsim-perf start-up (DM kernels ~4 us after Neo) kept as is; it may be a simulator artifact",
+  "DRAM: channel model (qperf/dram.py): the soc descriptor's 2 channels, interleaved pages round-robin over them, an assumed per-channel rate and ttsim-perf's Blackhole idle-read latency; not calibrated on Quasar"
  ],
  "params": {
   "start.compute": {
@@ -4118,10 +4119,67 @@
    "high": 0.5,
    "source": "eta max 75% (O2O study)"
   },
-  "dram.bound_layout": {
+  "dram.model": {
    "class": "assumption",
-   "value": 1,
-   "source": "data-movement ops (qperf/ops/layout.py estimate): bound the whole op by all cores' DRAM bytes / (dram.total_bytes_per_cycle x dram.efficiency) after one DRAM read latency; the simulators do not time DRAM, so only this profile sets it"
+   "value": "channels",
+   "source": "qperf/dram.py: per-channel streaming rate, idle-read latency, page interleaving and hop latency, structure from ttsim-perf's Blackhole DRAM model (noc_dram_access); no simulator times Quasar DRAM, not calibrated on Quasar"
+  },
+  "dram.channels": {
+   "value": 2,
+   "class": "specification",
+   "source": "quasar_32_arch_ttsim.yaml: 2 DRAM channels, 2 dram_views = banks (one NoC endpoint each)"
+  },
+  "dram.channel_noc": {
+   "value": [
+    [
+     2,
+     7
+    ],
+    [
+     4,
+     0
+    ]
+   ],
+   "class": "specification",
+   "source": "quasar_32_arch_ttsim.yaml: dram NoC coordinates"
+  },
+  "dram.channel_bytes_per_cycle": {
+   "class": "assumption",
+   "value": 243.04,
+   "low": 416.66,
+   "high": 47.4,
+   "source": "total assumed DRAM bandwidth x efficiency / 2 channels: 875 GB/s x 0.75 nominal, fast 1.5 TB/s x 0.75, slow 256 GB/s x 0.5, at 1.35 GHz (ttsim-perf Blackhole: 759/16 = 47.4 B/cycle per channel)"
+  },
+  "dram.idle_latency": {
+   "class": "assumption",
+   "value": 142.0,
+   "low": 81.1,
+   "high": 324.6,
+   "source": "ttsim-perf Blackhole NOC_DRAM_LATENCY 142 cycles (fitted to BH silicon) x 1.35/1.35 GHz (BH AICLK); fast / slow x 0.57 / 2.29 as the read latency range"
+  },
+  "dram.idle_cycles": {
+   "class": "assumption",
+   "value": 8.0,
+   "source": "ttsim-perf Blackhole NOC_DRAM_IDLE 8 cycles x 1.35/1.35 GHz: a read that finds its channel idle longer waits dram.idle_latency more"
+  },
+  "noc.hop_latency": {
+   "value": 7,
+   "class": "assumption",
+   "source": "ttsim-perf noc_perf.h QSR NOC_HOP 7 (designers' NoC mesh bench): a router to the next, NoC = AI clock"
+  },
+  "dram.read_fixed_latency": {
+   "class": "assumption",
+   "value": 241.2,
+   "low": 99.7,
+   "high": 666.1,
+   "source": "noc.read_latency.dram - dram.idle_latency - 2 x 6.375 mean hops (32 workers to the 2 channels) x noc.hop_latency: half before the channel, half after"
+  },
+  "dram.write_fixed_latency": {
+   "class": "assumption",
+   "value": 315.8,
+   "low": 113.2,
+   "high": 855.8,
+   "source": "noc.write_latency.dram - 2 x 6.375 mean hops x noc.hop_latency (writes pay no idle latency, as ttsim-perf's v1 write path)"
   }
  },
  "compute_variants": {

@@ -14,6 +14,7 @@ Hypothetical schedule variants (not in the pinned kernels):
 
 from __future__ import annotations
 
+from .. import dram
 from ..engine import INF, DMBatch, Group, Program, Ring, Server, ThreadStats, Thread, TransferLog
 from ..pipeline import compute_chunks, compute_scale, num_tcs, reader_batch_fixed, reader_batches
 
@@ -67,6 +68,18 @@ def build(cfg, c, n_tiles):
     wr_fixed = c["wr.fixed_b1"] if B == 1 else c["wr.fixed"]
     per_thread = cfg.get("barriers", "cluster") == "per_thread"
     dynamic = cfg.get("work_split", "static") == "dynamic"
+    # DRAM channels (dram.model = channels, with the op's cluster layout from the API, cfg["dram"]): this cluster
+    # stands for every cluster (bases: each one's first tile) and its DRAM operands' requests go to the channels; an
+    # L1 operand keeps its own latency
+    dd = cfg.get("dram") if dram.enabled(c) else None
+    chans, sides, lat_in = None, [None, None, None], [lat_r, lat_r]
+    if dd:
+        chans = dram.Channels(c)
+        cores = [dram.worker_noc(k) for k in range(len(dd["bases"]))]
+        sides = [dram.Side(chans, i < 2, cores, dd["bases"]) if dd["placements"][i] == "dram" else None
+                 for i in range(3)]
+        lat_in = dd["lat_in"]
+    moving = [i for i in range(2) if in_moves[i]]
 
     # Barrier logs: one per cluster (firmware; reads and writes share one with noc.barrier_all_kinds), or per thread.
     rd_timed = lat_r > 0 or bw != INF or any(rd_svc)
@@ -96,7 +109,10 @@ def build(cfg, c, n_tiles):
             steps = []
             for b in reader_batches(n_tiles, R, t, B, rd_tcs_ring):
                 n = len(b)
-                grp = [(n, lat_r, gap_in, rd_svc[i % len(rd_svc)], "rd") for i in range(n_in)]
+                grp = [(n, lat_in[moving[i]], gap_in, rd_svc[i % len(rd_svc)], "rd") for i in range(n_in)]
+                if dd:
+                    grp = [g + ((dram.xfer(sides[moving[i]], [sides[moving[i]].counts(k) for k in b], tb_in),)
+                                if sides[moving[i]] else ()) for i, g in enumerate(grp)]
                 steps.append(DMBatch(b, "space", rin, rd_fixed * (1.0 - rd_pub), rd_fixed * rd_pub,
                                      (c.get("rd.first_batch_extra", 0.0), c.get("rd.tc_first_touch", 0.0), rd_tcs_ring),
                                      c["rd.issue"], grp, rd_log[t], rd_timed, "push", lat_cr, q_max))
@@ -145,10 +161,12 @@ def build(cfg, c, n_tiles):
     if out_moves:
         for t in range(W):
             st = ThreadStats("writer", t, start=dm_start("writer", t))
+            so = sides[2]
             steps = [DMBatch(b, "data", rout, wr_fixed * (1.0 - wr_rel), wr_fixed * wr_rel,
                              (c.get("wr.first_batch_extra", 0.0), c.get("wr.tc_first_touch", 0.0), wr_tcs),
-                             c["wr.issue"], [(len(b), lat_w, gap_out, wr_svc, wr_q)], wr_log[t], wr_timed, "pop",
-                             lat_cr, q_max)
+                             c["wr.issue"], [(len(b), lat_w, gap_out, wr_svc, wr_q)
+                                             + ((dram.xfer(so, [so.counts(k) for k in b], tb_out),) if so else ())],
+                             wr_log[t], wr_timed, "pop", lat_cr, q_max)
                      for b in reader_batches(n_tiles, W, t, B, wr_tcs)]
             wr_threads.append(Thread(st, steps))
     else:
@@ -170,4 +188,4 @@ def build(cfg, c, n_tiles):
     groups += [Group(cu_threads), wr_group]
     stats += cu_stats + [th.stats for th in wr_threads]
     return Program(groups=groups, logs=logs, queues={"rd": Server(), "wr": Server()}, stats=stats,
-                   drain=c.get("end.drain", 0.0), first_output=rout)
+                   drain=c.get("end.drain", 0.0), first_output=rout, dram=chans)

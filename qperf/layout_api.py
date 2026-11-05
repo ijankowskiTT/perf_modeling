@@ -16,11 +16,11 @@ import itertools
 import math
 import time
 
-from . import ENGINE_VERSION, SCHEMA_VERSION, accuracy
+from . import ENGINE_VERSION, SCHEMA_VERSION, accuracy, dram
 from .api import NOISE, RequestError, _compact, _compare_rows, _ranking, _recommend
 from .ops import registry
 from .ops.layout import (DESIGN_FACTORIES, DESIGN_KNOBS, GRID, SHARD_OPS, STRATEGY, TILE, estimate, family_of, plan,
-                         prefix_of, resolve_design, structure)
+                         dram_binds, prefix_of, resolve_design, structure)
 from .profiles import SCENARIOS, _pick, load, sha256, time_unit
 
 BASE_OPS = ("tilize", "untilize", "tilize_with_val_padding", "untilize_with_unpadding", "interleaved_to_sharded",
@@ -73,6 +73,7 @@ def _costs(profile, scenario, overrides, compute_scale=1.0):
     c = {k: _pick(p, scenario) for k, p in profile["params"].items()}
     for k, v in (overrides or {}).items():
         c[k] = _pick(v, scenario)
+    dram.apply_overrides(c, overrides)  # what-ifs on the aggregate DRAM keys reach the channel model
     if compute_scale != 1.0:  # what_if.compute_service_scale: scale the compute TRISC costs
         for k in c:
             term = k.split(".", 1)[-1].removeprefix("f32_")  # fp32 overrides scale as their bf16 terms
@@ -191,22 +192,32 @@ def _result(wl, profile, what_if):
     tiles = math.ceil(H / TILE) * math.ceil(W / TILE)
     # the shared network to / from L1 binds, not a thread; or (a profile with an assumed DRAM bandwidth) DRAM
     l1_binds = nominal.get("l1_bound") and nominal["l1_bound"] >= nominal["span"] - 1e-9
-    dram_binds = nominal.get("dram_bound") and nominal["dram_bound"] >= nominal["span"] - 1e-9
+    dram_bind = dram_binds(nominal)
     res.update({
         "result_kind": "finite_buffer_estimate",
         "time_ns": {k: round(r["span"] / ghz, 1) for k, r in runs.items()},
         "time_cycles": round(nominal["span"], 1),
         "per_tile_ns": round(nominal["span"] / ghz / tiles, 3),
-        "bottleneck": {"resource": "dram_global" if dram_binds else "noc_l1_global" if l1_binds else busiest,
+        "bottleneck": {"resource": "dram_global" if dram_bind else "noc_l1_global" if l1_binds else busiest,
                        "busiest_role": busiest,
                        "dominant_wait": {"role": wrole, "kind": wkind, "fraction": frac} if frac > 0.05 else None},
         "roles": roles,
         "work_split": [{"blocks_per_core": c["blocks"], "tiles_per_block": c["wt"], "cores": n} for c, n, _ in nominal["loads"]],
     })
-    if "dram_bound" in nominal:  # reported as binary_ng reports its global DRAM bound
+    if "dram" in nominal:  # DRAM channel model: per-channel use; the channels' full rate is the lower bound
+        res["dram"] = nominal["dram"]
         res["lower_bound_ns"] = round(nominal["dram_bound"] / ghz, 1)
         res["bounds_ns"] = {"dram_global": round(nominal["dram_bound"] / ghz, 1)}
-        if dram_binds:
+        if dram_bind:
+            res["bottleneck"]["bound_share_of_estimate"] = round(nominal["dram_bound"] / nominal["span"], 3)
+            busy = ", ".join(f"{ch['busy_frac']:.0%}" for ch in nominal["dram"]["channels"])
+            res["warnings"].append(f"bound by the {accuracy.assumed_dram(profile)}: the channels are saturated (busy "
+                                   f"{busy} of the run) moving all cores' DRAM traffic "
+                                   f"({nominal['dram_bytes'] / 2**20:.1f} MiB)")
+    elif "dram_bound" in nominal:  # reported as binary_ng reports its global DRAM bound
+        res["lower_bound_ns"] = round(nominal["dram_bound"] / ghz, 1)
+        res["bounds_ns"] = {"dram_global": round(nominal["dram_bound"] / ghz, 1)}
+        if dram_bind:
             res["bottleneck"]["bound_share_of_estimate"] = 1.0
             res["warnings"].append(f"bound by the {accuracy.assumed_dram(profile)}: all cores' DRAM traffic "
                                    f"({nominal['dram_bytes'] / 2**20:.1f} MiB) cannot move faster; the busiest core alone "

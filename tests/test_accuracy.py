@@ -1,6 +1,6 @@
 """How answers state their accuracy and limits: the op-specific accuracy field (profiles/accuracy.json kept current),
 extrapolation beyond the calibrated shape range, survey.compare_profile and the craq-sim small-request warning, and
-the assumed-DRAM-bandwidth bound of data-movement ops on silicon-hypothesis."""
+silicon-hypothesis's DRAM channel model (and the aggregate DRAM bound a profile may set instead)."""
 
 import copy
 import json
@@ -207,52 +207,94 @@ def test_craq_small_request_warning():
     assert not warned(analyze(dict(cmp, profiles={"costs": "ttsim-perf"})))
 
 
-# ------------------------------------------------------------------------------- silicon-hypothesis DRAM bound
+
+# ------------------------------------------------------------------------------- silicon-hypothesis DRAM
+
+def _variant(name, model=None, bound_layout=None):
+    """silicon-hypothesis in memory with another DRAM treatment: model None drops the channel model; bound_layout 1 is
+    the aggregate bound (the profile before the channel model), absent no layout DRAM timing at all."""
+    p = copy.deepcopy(profiles.load("costs", "silicon-hypothesis")[0])
+    p["name"] = name
+    if model is None:
+        del p["params"]["dram.model"]
+    if bound_layout is not None:
+        p["params"]["dram.bound_layout"] = {"value": bound_layout, "class": "assumption", "source": "test"}
+    profiles.register("costs", p)
+    return name
+
 
 @pytest.fixture(scope="module")
-def no_bound():
-    """silicon-hypothesis without the layout DRAM bound (dram.bound_layout removed), in memory."""
-    p = copy.deepcopy(profiles.load("costs", "silicon-hypothesis")[0])
-    p["name"] = "silicon-hypothesis-no-layout-bound"
-    del p["params"]["dram.bound_layout"]
-    profiles.register("costs", p)
-    yield p["name"]
-    profiles.unregister("costs", p["name"])
+def aggregate():
+    """silicon-hypothesis with the aggregate DRAM bound instead of the channels (dram.bound_layout)."""
+    yield _variant("silicon-hypothesis-aggregate", bound_layout=1)
+    profiles.unregister("costs", "silicon-hypothesis-aggregate")
+
+
+@pytest.fixture(scope="module")
+def no_dram():
+    """silicon-hypothesis that does not time layout DRAM transfers (neither channels nor the aggregate bound)."""
+    yield _variant("silicon-hypothesis-no-dram")
+    profiles.unregister("costs", "silicon-hypothesis-no-dram")
 
 
 def compare(shape, costs):
     return analyze(layout_req(shape=shape, costs=costs, action="compare", candidates=[{"id": "g", "overrides": G2D}]))
 
 
-def test_dram_bandwidth_caps_large_layout_ops_on_silicon_hypothesis(no_bound):
+def test_dram_channels_bound_large_layout_ops_on_silicon_hypothesis(no_dram):
     sim, hyp, off = compare((8192, 2048), "ttsim-perf"), compare((8192, 2048), "silicon-hypothesis"), \
-        compare((8192, 2048), no_bound)
+        compare((8192, 2048), no_dram)
     for r in (sim, hyp, off):
         assert r["status"] == "ok" and validate_response(r) == []
     sp = lambda r: r["candidates"][0]["comparison"]["speedup_vs_baseline"]["nominal"]  # noqa: E731
     assert sp(sim) > 2 and sp(hyp) < sp(sim) and sp(hyp) < sp(off)
     for row in (hyp["baseline"], hyp["candidates"][0]):
-        assert row["bottleneck"]["resource"] == "dram_global"
+        assert row["bottleneck"]["resource"] == "dram_global" and row["dram"]["bound"]
+        # the channels' full rate is a lower bound the queued run cannot beat (and does not equal: fill, drain)
+        assert row["lower_bound_ns"] == row["bounds_ns"]["dram_global"] < row["time_ns"]["nominal"]
+        assert len(row["dram"]["channels"]) == 2 and min(ch["busy_frac"] for ch in row["dram"]["channels"]) > 0.85
+        assert sum(ch["bytes"] for ch in row["dram"]["channels"]) == 64 * 2**20  # 32 MiB rows in, 32 MiB tiles out
+        assert accuracy.channel_note(profiles.load("costs", "silicon-hypothesis")[0]) in row["accuracy"]
+        assert any(w.startswith("bound by the assumed DRAM channels (2 x 243.04 B/cycle") for w in row["warnings"])
+    # 32 MiB read + 32 MiB written over 2 channels of 243.04 B/cycle, 1.35 GHz: >= 102 us
+    assert hyp["baseline"]["time_ns"]["nominal"] >= 64 * 2**20 / (2 * 243.04) / 1.35
+    assert hyp["baseline"]["time_ns"]["nominal"] > off["baseline"]["time_ns"]["nominal"]
+    # a small shape is not DRAM-bound, but its DRAM requests now wait for the channels (latency, idle reads)
+    small, small_off = compare((256, 512), "silicon-hypothesis"), compare((256, 512), no_dram)
+    for a, b in ((small["baseline"], small_off["baseline"]), (small["candidates"][0], small_off["candidates"][0])):
+        assert a["time_ns"]["nominal"] > b["time_ns"]["nominal"] and a["bottleneck"]["resource"] != "dram_global"
+        assert a["lower_bound_ns"] < a["time_ns"]["nominal"] and not a["dram"]["bound"]
+        assert "dram" not in b and "lower_bound_ns" not in b
+    assert "DRAM: channel model (2 channels, assumed rate/latency; structure from ttsim-perf's Blackhole DRAM model; " \
+           "not calibrated on Quasar)" in small["accuracy"]
+
+
+def test_aggregate_dram_bound_still_caps_where_a_profile_sets_only_it(aggregate, no_dram):
+    """A profile with the aggregate bound and no channel model (dram.bound_layout): the whole op is capped by all cores'
+    DRAM bytes / (dram.total_bytes_per_cycle x dram.efficiency) after one read latency, as before the channels."""
+    hyp, off = compare((8192, 2048), aggregate), compare((8192, 2048), no_dram)
+    for row in (hyp["baseline"], hyp["candidates"][0]):
+        assert row["bottleneck"]["resource"] == "dram_global" and "dram" not in row
         assert row["lower_bound_ns"] == row["time_ns"]["nominal"] == row["bounds_ns"]["dram_global"]
         assert "assumed DRAM bandwidth" in row["accuracy"]
         assert any(w.startswith("bound by the assumed DRAM bandwidth") for w in row["warnings"])
-    # 32 MiB read + 32 MiB written at 648.1 B/cycle x 0.75, 1.35 GHz: >= 102 us
     assert hyp["baseline"]["time_ns"]["nominal"] >= 64 * 2**20 / (648.1 * 0.75) / 1.35
     assert hyp["baseline"]["time_ns"]["nominal"] > off["baseline"]["time_ns"]["nominal"]
-    # a small shape is not DRAM-bound: identical to the profile without the bound
-    small, small_off = compare((256, 512), "silicon-hypothesis"), compare((256, 512), no_bound)
-    for a, b in ((small["baseline"], small_off["baseline"]), (small["candidates"][0], small_off["candidates"][0])):
-        assert a["time_ns"]["nominal"] == b["time_ns"]["nominal"] and a["bottleneck"]["resource"] != "dram_global"
-        assert a["lower_bound_ns"] < a["time_ns"]["nominal"]
-    assert "assumed DRAM bandwidth" in small["accuracy"]
+    small, small_off = compare((256, 512), aggregate), compare((256, 512), no_dram)
+    assert small["baseline"]["time_ns"]["nominal"] == small_off["baseline"]["time_ns"]["nominal"]
+    # binary_ng: the aggregate bound caps a DRAM add on that profile; the channel model times it in the pipeline
+    big = dict(binary_req(costs=aggregate), workload=dict(binary_req()["workload"], num_tiles=65536))
+    b = analyze(big)["baseline"]
+    assert b["bottleneck"]["resource"] == "dram_global" and "dram" not in b
+    assert b["time_ns"]["nominal"] >= b["bounds_ns"]["dram_global"]
 
 
 def test_simulator_profiles_have_no_layout_dram_bound():
     for name in ("craq-sim", "ttsim-perf"):
         p = profiles.load("costs", name)[0]["params"]
-        assert "dram.bound_layout" not in p and "dram.total_bytes_per_cycle" not in p
+        assert "dram.bound_layout" not in p and "dram.total_bytes_per_cycle" not in p and "dram.model" not in p
         b = analyze(layout_req(shape=(8192, 2048), costs=name))["baseline"]
-        assert "lower_bound_ns" not in b and b["bottleneck"]["resource"] != "dram_global"
+        assert "lower_bound_ns" not in b and b["bottleneck"]["resource"] != "dram_global" and "dram" not in b
 
 
 def test_silicon_hypothesis_carries_ttsim_layout_terms():
@@ -264,14 +306,34 @@ def test_silicon_hypothesis_carries_ttsim_layout_terms():
     terms = {k: v for k, v in t["params"].items() if k.startswith(fam)}
     assert len(terms) > 500 and all(s["params"].get(k) == v for k, v in terms.items())
     assert s["clock"]["GHz"] == 1.35 and s["params"]["dram.total_bytes_per_cycle"]["value"] == 648.1
-    assert s["params"]["dram.bound_layout"]["value"] == 1
+    assert "dram.bound_layout" not in s["params"]
     assert s["calibration"]["derived_from"] == f"ttsim-perf@{t['revision']}"
 
 
+def test_silicon_hypothesis_channel_parameters():
+    """The channel model's parameters: the soc descriptor's channels, the assumed total split over them per scenario,
+    ttsim-perf's Blackhole idle constants at the clock ratio, and fixed latencies that keep an isolated read from an
+    average core at the assumed DRAM read latency."""
+    p = profiles.load("costs", "silicon-hypothesis")[0]["params"]
+    v = lambda k, sc="value": p[k].get(sc, p[k]["value"])  # noqa: E731
+    assert v("dram.model") == "channels" and v("dram.channels") == 2 and v("dram.channel_noc") == [[2, 7], [4, 0]]
+    for sc in ("value", "low", "high"):  # per channel = total x efficiency / 2 (fast 1.5 TB/s, slow 256 GB/s x 0.5)
+        assert abs(v("dram.channel_bytes_per_cycle", sc) - v("dram.total_bytes_per_cycle", sc)
+                   * v("dram.efficiency", sc) / 2) < 0.01
+        trip = 2 * 6.375 * v("noc.hop_latency")  # 32 workers at x 2..9, y 2..5 to (2, 7) and (4, 0): 6.375 hops
+        assert abs(v("dram.read_fixed_latency", sc) + v("dram.idle_latency", sc) + trip
+                   - v("noc.read_latency.dram", sc)) < 0.2
+        assert abs(v("dram.write_fixed_latency", sc) + trip - v("noc.write_latency.dram", sc)) < 0.2
+    assert v("dram.idle_latency") == 142 and v("dram.idle_cycles") == 8 and v("noc.hop_latency") == 7
+    assert v("dram.channel_bytes_per_cycle", "low") > v("dram.channel_bytes_per_cycle") > \
+        v("dram.channel_bytes_per_cycle", "high")
+
+
 @pytest.mark.parametrize("op", ["interleaved_to_sharded", "sharded_to_interleaved"])
-def test_dram_bound_covers_the_interleaved_side_of_sharding_ops(op):
-    """silicon-hypothesis bounds the sharding ops by the DRAM bytes of their interleaved side (whole tiles for TILE,
-    the logical rows for ROW_MAJOR); an L1 interleaved side and the simulator profiles have no DRAM bound."""
+def test_dram_channels_carry_the_interleaved_side_of_sharding_ops(op):
+    """silicon-hypothesis times the interleaved DRAM side of the sharding ops on the channels: every byte of it (whole
+    tiles for TILE, the logical rows for ROW_MAJOR) crosses them, half on each; an L1 interleaved side and the
+    simulator profiles have no DRAM timing."""
     from qperf.layout_api import _costs
     from qperf.ops.layout import estimate
 
@@ -281,11 +343,16 @@ def test_dram_bound_covers_the_interleaved_side_of_sharding_ops(op):
         return analyze(q)["baseline"]
 
     b = est("silicon-hypothesis")
-    assert b["bottleneck"]["resource"] == "dram_global" and b["bounds_ns"]["dram_global"] == b["time_ns"]["nominal"]
-    assert any("32.0 MiB" in w for w in b["warnings"])  # 8192 x 2048 bf16 moved once to / from DRAM
+    assert [ch["bytes"] for ch in b["dram"]["channels"]] == [16 * 2**20] * 2  # 8192 x 2048 bf16 once, interleaved
+    assert b["bounds_ns"]["dram_global"] <= b["time_ns"]["nominal"]
+    if b["dram"]["bound"]:
+        assert b["bottleneck"]["resource"] == "dram_global" and any("32.0 MiB" in w for w in b["warnings"])
     for costs, place in (("silicon-hypothesis", "l1"), ("ttsim-perf", "dram"), ("craq-sim", "dram")):
-        assert "bounds_ns" not in est(costs, place)
+        r = est(costs, place)
+        assert "bounds_ns" not in r and "dram" not in r
     c = _costs(profiles.load("costs", "silicon-hypothesis")[0], "nominal", None)
     tile = estimate(op, 1000, 256, c, "bf16", "hs8")  # TILE: 32 tile rows = 1024 padded rows
     rm = estimate(op, 1000, 256, c, "bf16", "hs8r")
     assert tile["dram_bytes"] == 1024 * 256 * 2 and rm["dram_bytes"] == 1000 * 256 * 2
+    assert sum(ch["bytes"] for ch in tile["dram"]["channels"]) == tile["dram_bytes"]
+    assert sum(ch["bytes"] for ch in rm["dram"]["channels"]) == rm["dram_bytes"]

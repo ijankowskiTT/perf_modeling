@@ -344,7 +344,37 @@ def _plan(req, r):
         nodes.append(role_node("writer", dm("writer", "noc_write_requests", "noc_write_bytes", "writer_barriers")))
     nodes.append({"kind": "mem", "title": "destination", "lines": dst})
     p["nodes"] = nodes
+    if r.get("dram"):  # DRAM channel model: per-channel use
+        p["dram"] = r["dram"]
     return p
+
+
+def dram_text(d):
+    """'DRAM channels: (2,7) busy 93%, 32.0 MiB; (4,0) busy 93%, 32.0 MiB; saturated' of a row's dram field."""
+    parts = []
+    for i, ch in enumerate(d["channels"]):
+        where = f"({ch['noc'][0]},{ch['noc'][1]})" if ch.get("noc") else f"ch{i}"
+        parts.append(f"{where} busy {ch['busy_frac']:.0%}, {ch['bytes'] / 2**20:.1f} MiB")
+    return "DRAM channels: " + "; ".join(parts) + ("; saturated" if d.get("bound") else "")
+
+
+def _dram_svg(d, col):
+    """Small per-channel busy bars (share of the run each DRAM channel streams), the config's color when saturated."""
+    W, lab, bw, rh = 380, 96, 120, 18
+    out = []
+    for i, ch in enumerate(d["channels"]):
+        y = 4 + i * rh
+        f = min(1.0, max(0.0, ch["busy_frac"]))
+        where = f"({ch['noc'][0]},{ch['noc'][1]})" if ch.get("noc") else f"ch{i}"
+        out.append(f'<text x="0" y="{y + 7}" class="v">DRAM {E(where)}</text>'
+                   f'<rect class="tr" x="{lab}" y="{y}" width="{bw}" height="6" rx="3"/>')
+        if bw * f >= 1:
+            out.append(f'<rect x="{lab}" y="{y}" width="{bw * f:.1f}" height="6" rx="3" '
+                       f'fill="{col if d.get("bound") else "var(--ink2)"}"/>')
+        out.append(f'<text x="{lab + bw + 8}" y="{y + 7}">{f:.0%} busy · {ch["bytes"] / 2**20:.1f} MiB</text>')
+    H = 4 + len(d["channels"]) * rh
+    return (f'<svg viewBox="0 0 {W} {H}" style="max-width:{W}px;margin-top:8px" role="img" '
+            f'aria-label="DRAM channel use">' + "".join(out) + "</svg>")
 
 
 def _how_text(p):
@@ -369,6 +399,11 @@ def _how_text(p):
         elif n.get("hot"):
             txt += " (bottleneck)"
         bits.append(txt)
+    if p.get("dram"):
+        chs = p["dram"]["channels"]
+        busy = " / ".join(format(ch["busy_frac"], ".0%") for ch in chs)
+        mib = " / ".join(format(ch["bytes"] / 2**20, ".1f") for ch in chs)
+        bits.append(f"DRAM channels busy {busy} ({mib} MiB)" + (", saturated" if p["dram"].get("bound") else ""))
     return "; ".join(bits) + (f" (counts {p['scope']})" if p.get("scope") else "")
 
 
@@ -673,7 +708,10 @@ def _how_html(req, res, slots):
     out = [f'<h2>How it runs</h2><p class="note">Quasar has {p0["cols"]} x {p0["rows"]} = {total} {unit}. Each used '
            f'{unit[:-1]} runs the same program on its share of the work: {flow} Filled cells: {unit} the config uses '
            f'(lighter: a smaller share). Outlined stage: the bottleneck; bar: share of the run the role is busy.'
-           + (f' Counts are {p0["scope"]}.' if p0.get("scope") else "") + '</p>']
+           + (f' Counts are {p0["scope"]}.' if p0.get("scope") else "")
+           + (' DRAM bars: share of the run each DRAM channel (at its NoC position) is busy, all cores\' bytes through '
+              'it; in the config\'s color when a channel is saturated (assumed channel model).'
+              if any(p.get("dram") for _, _, p in plans) else "") + '</p>']
     for rid, r, p in plans:
         col = _col(slots.get(rid))
         t = r["time_ns"]["nominal"]
@@ -697,7 +735,8 @@ def _how_html(req, res, slots):
                    f'{tags}<span class="t">{_ns(t, tunit(res))}</span></div>'
                    f'<div class="hrow">{grid}<ul class="facts">' + "".join(f"<li>{f}</li>" for f in facts) + '</ul></div>'
                    f'<div class="pipe-w">{_pipe_svg(p["nodes"], col)}</div>'
-                   f'<div class="pipe-n">{_pipe_svg(p["nodes"], col, narrow=True)}</div></div>')
+                   f'<div class="pipe-n">{_pipe_svg(p["nodes"], col, narrow=True)}</div>'
+                   + (f'<div class="dram">{_dram_svg(p["dram"], col)}</div>' if p.get("dram") else "") + '</div>')
     return "".join(out)
 
 

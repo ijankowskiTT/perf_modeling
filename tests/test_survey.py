@@ -353,13 +353,13 @@ def test_compare_verdict_that_depends_on_the_cost_scenario():
     r = analyze(q)
     assert validate_response(r) == []
     c = r["candidates"][0]["comparison"]
-    assert c["speedup_vs_baseline"]["nominal"] == 1.0 and c["speedup_vs_baseline"]["low"] > 1 + NOISE
+    assert c["speedup_vs_baseline"]["nominal"] == 1.003 and c["speedup_vs_baseline"]["low"] > 1 + NOISE
     assert c["verdict_depends_on_scenario"] is True
-    assert c["scenario_note"] == "1.00x at the assumed DRAM bandwidth, 1.12x with the fast scenario (low costs)"
-    assert "verdict depends on the cost scenario: 1.00x at the assumed DRAM bandwidth" in _text(r)
+    assert c["scenario_note"] == "1.00x at nominal costs, 1.05x with the fast scenario (low costs)"
+    assert "verdict depends on the cost scenario: 1.00x at nominal costs" in _text(r)
     assert "inconclusive (depends on scenario)" in to_markdown(q, r)
     assert "the verdict depends on the cost scenario: 1.00x" in to_html(q, r)
-    # the same pair on ttsim-perf (no DRAM bound): every scenario agrees, no flag
+    # the same pair on ttsim-perf (no DRAM timing): every scenario agrees, no flag
     t = analyze(dict(q, profiles={"costs": "ttsim-perf"}))["candidates"][0]["comparison"]
     assert "verdict_depends_on_scenario" not in t and "scenario_note" not in t
 
@@ -380,7 +380,7 @@ def test_survey_counts_and_marks_scenario_dependent_cells():
                 x for x in sv["summary"] if x.startswith(aid + ":"))
     # the same cell as the compare of baseline vs grid2d_dfb2_batch8 at 1024x1024 above
     g = sv["approaches"]["grid2d_dfb2_batch8"]
-    assert cells(sv, g["grid"])[(1024, 1024)] == 1.0 and cells(sv, g["scenario_speedups"])[(1024, 1024)] == [1.125, 1.0]
+    assert cells(sv, g["grid"])[(1024, 1024)] == 1.003 and cells(sv, g["scenario_speedups"])[(1024, 1024)] == [1.045, 1.001]
     assert cells(sv, g["depends_on_scenario"])[(1024, 1024)] is True
     n = sum(a["scenario_dependent_cells"] for a in sv["approaches"].values())
     html = to_html(q, r)

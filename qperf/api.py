@@ -11,7 +11,9 @@ import math
 import time
 
 from . import ENGINE_VERSION, SCHEMA_VERSION, accuracy
+from . import dram
 from .bounds import cluster_bounds, global_dram_bound
+from .dram import aggregate_bound
 from .cache import LRU
 from .constraints import check
 from .pipeline import Deadlock, evaluate
@@ -141,21 +143,38 @@ def config_label(cfg):
 
 # ----------------------------------------------------------------------------------------------- evaluation
 
-def _period(cfg):
+def _period(cfg, channels=1):
+    """Tiles after which the schedule repeats (with DRAM channels: also the page -> channel interleaving)."""
     p = 1
-    for v in (cfg["R"], cfg["C"], cfg["W"], cfg["dm_batch"], cfg["tiles_per_cycle"], cfg["entries_per_thread"]):
+    for v in (cfg["R"], cfg["C"], cfg["W"], cfg["dm_batch"], cfg["tiles_per_cycle"], cfg["entries_per_thread"], channels):
         p = p * v // math.gcd(p, v)
     return p * max(cfg["R"], cfg["C"], cfg["W"])
+
+
+def dram_layout(wl, groups, costs):
+    """The op's cluster layout for the DRAM channel model (routing["dram"], dram.model = channels): each cluster's
+    first tile (split_work_to_cores gives clusters consecutive tile ranges, group 1 first; page = tile id), the
+    operand placements and each input's own read latency (an L1 operand's)."""
+    bases, t = [], 0
+    for n, k in groups:
+        for _ in range(k):
+            bases.append(t)
+            t += n
+    plc = wl["placements_list"]
+    lat = [costs.get(f"noc.read_latency.{plc[i]}", costs.get("noc.read_latency", 0.0)) or 0.0 for i in range(2)]
+    return {"bases": bases, "placements": plc, "lat_in": lat}
 
 
 def eval_cluster(cfg, routing, costs, n, cap, trace=0):
     """Pipeline makespan for n tiles; beyond cap tiles, linear extrapolation from two periodic samples."""
     pcfg = dict(cfg, in_moves=routing["in_moves"], out_moves=routing["out_moves"], tile_bytes=routing["tile_bytes"])
+    if routing.get("dram"):
+        pcfg["dram"] = routing["dram"]
     if n <= cap:
         r = evaluate(pcfg, costs, n, trace)
         r["extrapolated"] = False
         return r
-    P = _period(cfg)
+    P = _period(cfg, int(costs["dram.channels"]) if routing.get("dram") else 1)
     rem = n % P
     m2 = max(2, (cap - rem) // P)
     m1 = max(1, m2 // 2)
@@ -165,6 +184,9 @@ def eval_cluster(cfg, routing, costs, n, cap, trace=0):
     slope = (r2["makespan"] - r1["makespan"]) / (n2 - n1)
     r2["makespan_sampled"] = r2["makespan"]
     r2["makespan"] = r2["makespan"] + slope * (n - n2)
+    if "dram" in r2:  # channel use of the sample; bytes for the whole share
+        for ch in r2["dram"]["channels"]:
+            ch["bytes"] = int(round(ch["bytes"] * n / n2))
     r2["extrapolated"] = True
     r2["samples"] = [n1, n2]
     r2["slope"] = slope
@@ -222,6 +244,9 @@ def evaluate_config(wl, cfg, arch, kernel, cost_profile, what_if, trace=False, b
     for sc in scenarios:
         costs = effective_costs(resolve_costs(cost_profile, wl["variant"], what_if.get("cost_overrides"), sc,
                                               what_if.get("compute_service_scale", 1.0)), routing)
+        channels = dram.enabled(costs)
+        rt = dict(routing, dram=dram_layout(wl, groups, costs)) if channels and "dram" in wl["placements_list"] \
+            else routing
         worst, worst_group, worst_lb = -1.0, None, 0.0
         per_group = []
         for n, ncores in groups:
@@ -232,7 +257,7 @@ def evaluate_config(wl, cfg, arch, kernel, cost_profile, what_if, trace=False, b
                 t = max(v["finish_lb"] for v in bnd.values()) + costs.get("end.drain", 0.0)
             else:
                 try:
-                    pipe = eval_cluster(cfg, routing, costs, n, EXACT_TILES, trace=16 if trace else 0)
+                    pipe = eval_cluster(cfg, rt, costs, n, EXACT_TILES, trace=16 if trace else 0)
                 except Deadlock as e:
                     res.update(valid=False, errors=[f"deadlock: {e}"])
                     return res
@@ -246,15 +271,25 @@ def evaluate_config(wl, cfg, arch, kernel, cost_profile, what_if, trace=False, b
                               "bounds": bnd, "traffic": tr, "bw_bound_binds": bw_finish > t})
             if t_final > worst:
                 worst, worst_group, worst_lb = t_final, per_group[-1], lb
-        dram = global_dram_bound(sum(g["traffic"]["dram_bytes"] * g["clusters"] for g in per_group), costs)
-        if dram:
-            worst = max(worst, dram["finish_lb"] + costs.get("end.drain", 0.0))
-            worst_lb = max(worst_lb, dram["finish_lb"])
+        total_dram = sum(g["traffic"]["dram_bytes"] * g["clusters"] for g in per_group)
+        if channels:  # the channels time DRAM inside the pipeline; their full rate is a lower bound, not a cap
+            dbound = None
+            if total_dram:
+                dem = aggregate_bound(costs, total_dram)
+                dbound = {"start": costs["start.reader"], "demand": dem, "finish_lb": costs["start.reader"] + dem}
+                if bounds_only:
+                    worst = max(worst, dbound["finish_lb"] + costs.get("end.drain", 0.0))
+        else:
+            dbound = global_dram_bound(total_dram, costs)
+            if dbound:
+                worst = max(worst, dbound["finish_lb"] + costs.get("end.drain", 0.0))
+        if dbound:
+            worst_lb = max(worst_lb, dbound["finish_lb"])
         times[sc] = worst
         lbs[sc] = worst_lb
         if sc == "nominal":
-            detail = (worst_group, dram)
-    g, dram = detail
+            detail = (worst_group, dbound)
+    g, dbound = detail
     n_total = wl["num_tiles_total"]
     t_ns = {k: v / ghz for k, v in times.items()}
     res.update({
@@ -266,7 +301,7 @@ def evaluate_config(wl, cfg, arch, kernel, cost_profile, what_if, trace=False, b
         "critical_cluster": {"tiles": g["tiles_per_cluster"], "clusters_with_this_share": g["clusters"]},
         "work_split": [{"tiles_per_cluster": n, "clusters": c} for n, c in groups],
     })
-    res["bottleneck"], res["near_binding"] = _bottleneck(g, dram, times["nominal"])
+    res["bottleneck"], res["near_binding"] = _bottleneck(g, dbound, times["nominal"])
     if g["pipeline"]:
         p = g["pipeline"]
         span = p.get("makespan_sampled", p["makespan"])
@@ -282,6 +317,8 @@ def evaluate_config(wl, cfg, arch, kernel, cost_profile, what_if, trace=False, b
             res["steady_state_ns_per_tile_per_cluster"] = round(p["slope"] / ghz, 3)
         if "threads" in p:
             res["threads"] = p["threads"]
+        if "dram" in p:
+            res["dram"] = p["dram"]
         res["result_kind"] = "finite_buffer_estimate"
     else:
         res["roles"] = None
@@ -292,8 +329,8 @@ def evaluate_config(wl, cfg, arch, kernel, cost_profile, what_if, trace=False, b
                                                        "l1_logical_bytes", "reader_barriers", "writer_barriers",
                                                        "compute_dfb_ops")}
     res["bounds_ns"] = {k: round(v["finish_lb"] / ghz, 1) for k, v in g["bounds"].items()}
-    if dram:
-        res["bounds_ns"]["dram_global"] = round(dram["finish_lb"] / ghz, 1)
+    if dbound:
+        res["bounds_ns"]["dram_global"] = round(dbound["finish_lb"] / ghz, 1)
     return res
 
 
@@ -382,7 +419,7 @@ def _compact(r, detail):
         return r
     keep = ("label", "config", "valid", "errors", "warnings", "result_kind", "time_ns", "lower_bound_ns",
             "per_tile_ns", "bottleneck", "near_binding", "roles", "l1", "extrapolated", "comparison", "id",
-            "steady_state_ns_per_tile_per_cluster", "bounds_ns", "structure", "accuracy", "outside_calibrated_range")
+            "steady_state_ns_per_tile_per_cluster", "bounds_ns", "structure", "accuracy", "outside_calibrated_range", "dram")
     out = {k: r[k] for k in keep if k in r}
     if "l1" in out:
         out["l1"] = {"ring_bytes": r["l1"]["ring_bytes"], "fits": r["l1"]["fits"]}

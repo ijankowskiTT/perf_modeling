@@ -1288,6 +1288,29 @@
           },
           "description": "lower bound per resource (reader_issue, writer_issue, compute_unpack_math, compute_pack, noc_port*, l1_*, dram_global)"
         },
+        "dram": {
+          "type": "object",
+          "description": "DRAM channel model (profiles with dram.model = channels): per channel the share of the run it is busy and the bytes it moves (all cores); bound = a channel is saturated over the op's DRAM-active window",
+          "required": ["channels", "bound"],
+          "additionalProperties": false,
+          "properties": {
+            "channels": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["busy_frac", "bytes"],
+                "additionalProperties": false,
+                "properties": {
+                  "noc": {"type": ["array", "null"], "items": {"type": "integer"}},
+                  "busy_frac": {"type": "number", "minimum": 0, "maximum": 1},
+                  "bytes": {"type": "integer", "minimum": 0}
+                }
+              }
+            },
+            "bound": {"type": "boolean"},
+            "idle_read_frac": {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        },
         "roles": {
           "type": [
             "object",

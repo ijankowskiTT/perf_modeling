@@ -86,12 +86,31 @@ def _pct(x):
     return f"{100 * x:.1f}%"
 
 
+def channel_model(profile):
+    """True when the profile times DRAM with the channel model (qperf/dram.py)."""
+    m = profile.get("params", {}).get("dram.model")
+    return (m.get("value") if isinstance(m, dict) else m) == "channels"
+
+
+def channel_note(profile):
+    """The DRAM statement of a channel-model profile's answers."""
+    n = profile["params"]["dram.channels"]
+    n = n["value"] if isinstance(n, dict) else n
+    return (f"DRAM: channel model ({n} channels, assumed rate/latency; structure from ttsim-perf's Blackhole DRAM model; "
+            f"not calibrated on Quasar)")
+
+
 def assumed_dram(profile):
     p = profile.get("params", {})
     bw, eff = p.get("dram.total_bytes_per_cycle"), p.get("dram.efficiency")
+    v = lambda x: x["value"] if isinstance(x, dict) else x  # noqa: E731
+    if channel_model(profile):
+        n, rate, idle = v(p["dram.channels"]), v(p["dram.channel_bytes_per_cycle"]), v(p.get("dram.idle_latency", 0))
+        ghz = profile["clock"]["GHz"]
+        return (f"assumed DRAM channels ({n:g} x {rate:g} B/cycle = {n * rate * ghz:.0f} GB/s at {ghz:g} GHz, "
+                f"{idle:g}-cycle idle-read latency)")
     if not bw:
         return "assumed DRAM bandwidth"
-    v = lambda x: x["value"] if isinstance(x, dict) else x  # noqa: E731
     gbs = v(bw) * profile["clock"]["GHz"]
     return (f"assumed DRAM bandwidth {gbs:.0f} GB/s x {v(eff) if eff else 1:g} efficiency "
             f"({v(bw):g} B/cycle at {profile['clock']['GHz']:g} GHz)")
@@ -131,8 +150,9 @@ def hypothetical_note(profile, op, factory, dtype, knobs=None):
 
 
 def _derived(profile, what):
-    return (f"{profile['name']} is a hypothesis, no measurement: {what}; clock, NoC latency and "
-            f"{assumed_dram(profile)} are assumptions")
+    s = (f"{profile['name']} is a hypothesis, no measurement: {what}; clock, NoC latency and "
+         f"{assumed_dram(profile)} are assumptions")
+    return s + (f"; {channel_note(profile)}" if channel_model(profile) else "")
 
 
 def layout(profile, op, factory, dtype, hypothetical=False, overrides=False, knobs=None):

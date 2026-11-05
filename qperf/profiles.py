@@ -74,8 +74,12 @@ def time_unit(profile):
 
 
 def _pick(p, scenario):
+    """A parameter's value in one scenario: a number, or a non-numeric setting (dram.model "channels", the DRAM
+    channels' NoC positions) as given."""
     if not isinstance(p, dict):
-        return float(p)
+        return p if isinstance(p, (str, list)) else float(p)
+    if isinstance(p.get("value"), (str, list)):
+        return p["value"]
     if scenario == "low" and "low" in p:
         return float(p["low"])
     if scenario == "high" and "high" in p:
@@ -102,6 +106,10 @@ def resolve_costs(profile, variant, overrides=None, scenario="nominal", compute_
         out.update({k: _pick(p, scenario) for k, p in variants[variant].items() if not k.startswith("_")})
     for k, v in (overrides or {}).items():
         out[k] = _pick(v, scenario)
+    if overrides:
+        from .dram import apply_overrides  # what-ifs on the aggregate DRAM keys reach the channel model
+
+        apply_overrides(out, overrides)
     if compute_scale != 1.0:
         for k in list(out):
             if k.split(".")[0] in ("cu", "cm", "cp"):

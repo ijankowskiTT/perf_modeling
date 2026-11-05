@@ -29,7 +29,8 @@ import time
 from . import accuracy
 from .api import NOISE, band
 from .layout_api import CRAQ_SMALL_REQUESTS, LayoutError, _costs, _result, _workload
-from .ops.layout import DESIGN_FACTORIES, DESIGN_KNOBS, GRID, SHARD_OPS, TILE, estimate, plan, resolve_design
+from .ops.layout import (DESIGN_FACTORIES, DESIGN_KNOBS, GRID, SHARD_OPS, TILE, dram_binds, dram_timed, estimate, plan,
+                         resolve_design)
 from .profiles import load
 
 DEFAULT_HEIGHTS = [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]
@@ -86,7 +87,8 @@ UNTIMED_NOTE = ("{n} of {m} compared cells involve a side {profile} does not tim
                 "(survey grids mark them untimed; reports hatch them)")
 
 
-DRAM_KEYS = ("dram.total_bytes_per_cycle", "dram.efficiency", "noc.read_latency.dram")
+DRAM_KEYS = ("dram.total_bytes_per_cycle", "dram.efficiency", "noc.read_latency.dram", "dram.channel_bytes_per_cycle",
+             "dram.idle_latency", "dram.read_fixed_latency", "dram.write_fixed_latency")
 
 
 def shape_label(h, w):
@@ -196,7 +198,7 @@ def _empty_shards(op, wl, H, W):
 def _limiter(e):
     """The limiter of one estimate() result, as layout_api._result names it: the DRAM or L1 bound when it sets the time,
     else the busiest role of the busiest core."""
-    if e.get("dram_bound") and e["dram_bound"] >= e["span"] - 1e-9:
+    if dram_binds(e):
         return "dram_global"
     if e.get("l1_bound") and e["l1_bound"] >= e["span"] - 1e-9:
         return "noc_l1_global"
@@ -311,7 +313,7 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
         budget_s = 30
     costs = _costs(profile, "nominal", what_if.get("cost_overrides"), what_if.get("compute_service_scale", 1.0))
     ghz = profile["clock"]["GHz"]
-    dram_bounded = bool(costs.get("dram.total_bytes_per_cycle")) and costs.get("dram.bound_layout", 0.0) >= 0.5
+    dram_bounded = dram_timed(costs)
     # the low / high cost scenarios, timed only where they can move a verdict: a profile with an assumed DRAM bandwidth
     # whose scenarios differ (silicon-hypothesis); elsewhere every cost moves together and speedups barely change
     scen_costs = {sc: _costs(profile, sc, what_if.get("cost_overrides"), what_if.get("compute_service_scale", 1.0))
@@ -349,7 +351,7 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
         n_eval += 1
         e = estimate(wl["op"], wl["H"], wl["W"], costs, wl["dtype"], wl["mem"], wl["use_multicore"],
                      design=wl.get("design"))
-        cache[sig] = (e["span"] / ghz, _limiter(e), bool(e.get("dram_bound") and e["dram_bound"] >= e["span"] - 1e-9),
+        cache[sig] = (e["span"] / ghz, _limiter(e), dram_binds(e),
                       *_cores_of(e, kernel))
         return cache[sig]
 
