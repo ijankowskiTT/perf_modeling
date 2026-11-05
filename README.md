@@ -17,18 +17,31 @@ To update, run `claude plugin update qperf@perf-modeling` or turn on auto-update
 
 ## Use
 
-Ask in any Claude Code session. To force the skill, type `/qperf:quasar-perf <question>`.
+Ask in any Claude Code session. To force the skill, start with "Use the quasar-perf skill:" or type
+`/qperf:quasar-perf <question>`. Add "make a report with charts" for a shareable page.
+
+**Example: full picture of an op.** Prompt:
 
 ```
-Would dm_batch 16 help a 128k-tile bf16 add from DRAM?
-For a 64k-tile add from DRAM, would 2 more reader threads or 30% faster compute help?
-Is it worth implementing per-thread NoC barriers? When would it help?
-How long does tilize of a 3136x64 tensor take, and would height-sharding it help?
-Is resharding a 1024x1024 tensor from 8 to 16 height shards in L1 faster than to 4?
-What is the best multicore setup for tilize of a 64x2048 tensor: cores, split, batching, buffering?
-Bench the multicore approaches for bf16 tilize across tensor sizes: which is best, and where does each regress?
-Use the quasar-perf skill on PR <link>: compare main vs the PR's batching and other options.
+Use the quasar-perf skill: give me the full picture of tilize on Quasar. How does it run today, which multicore
+approaches are worth it across tensor sizes, where does each regress, and what limits it? Make a report with charts.
 ```
+
+Output: [tilize survey report](https://claude.ai/artifact/VJrBHzpCKU5mwCyVeJLk7P?sk=ubpNNdqu4o1YJkd7hUFmlA) (Tenstorrent
+only). It covers 8 approaches over 54 tensor sizes, a regression heatmap for each, and the limiters, with assumed DRAM.
+
+| Use case | Prompt |
+|---|---|
+| Design a multicore op | Bench the multicore approaches for bf16 untilize across tensor sizes. Which is best, and where does each regress? |
+| Best setup for one shape | What is the best multicore setup for tilize of a 64x2048 tensor: cores, split, batching, buffering? |
+| Review a PR | Use the quasar-perf skill on PR \<link\>: compare main vs the PR's batching and other options. |
+| Tune an eltwise op | Which 3 configs should I benchmark for a 4k-tile bf16 multiply in L1? |
+| Is a kernel idea worth it | Is it worth implementing per-thread NoC barriers? When would it help? |
+| What limits it | For a 64k-tile add from DRAM, would 2 more reader threads or 30% faster compute help? |
+| Hardware what-if | How does a 128k-tile add change if DRAM latency doubles? Does a larger DM batch hide it? |
+| Shard layout | Is it worth height-sharding a 1024x256 tensor over 32 cores instead of 8? Which strategy is fastest? |
+| Reshard plan | Is resharding a 1024x1024 tensor from 8 to 16 height shards in L1 faster than to 4? Which factory runs? |
+| Real-hardware ceiling | How far can tilize of an 8192x2048 tensor go on real hardware once DRAM bandwidth counts? |
 
 Each answer gives:
 - the bottleneck;
@@ -39,8 +52,7 @@ Each answer gives:
 Reports show how each setup runs: the core grid it uses and each core's reader -> compute -> writer flow, with the
 bottleneck marked, next to charts that compare every option.
 
-Ranges are cost scenarios, not confidence intervals. Unsupported cases are reported as such, never guessed. Add
-"make a report with charts" to get a shareable page.
+Ranges are cost scenarios, not confidence intervals. Unsupported cases are reported as such, never guessed.
 
 Questions about main, a branch or a PR first check on GitHub whether the modeled kernel files changed.
 
