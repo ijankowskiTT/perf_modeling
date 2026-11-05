@@ -9,7 +9,7 @@
       "name": "qperf",
       "source": "./",
       "description": "Quasar performance model: binary_ng eltwise and data-movement ops (tilize, untilize, padding variants, sharding, reshard, move); predicts time, bottleneck and best config without a simulator",
-      "version": "1.0.0"
+      "version": "1.1.0"
     }
   ]
 }

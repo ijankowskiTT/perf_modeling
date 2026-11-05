@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0
+
+- **Design search** for tilize / untilize multicore: cores, rows / cols / 2d split, block size, buffering, batching
+  (`tune`, hypothetical). Sensitivity sweeps plot every option.
+- **Reports** show how each setup runs (core grid, per-core reader -> compute -> writer flow, bottleneck) and compare
+  every option in the charts.
+
 ## 1.0.0
 
 - **binary_ng** `add`, `multiply` (bf16, fp32). Covers thread allocation, DM batch, tiles_per_cycle, ring depth,
@@ -13,7 +20,5 @@
   ttsim-perf reshard SameHeight / Generic, and binary_ng L1 (~8%).
 - **Plugin**: the `quasar-perf` skill hands each question to a Haiku runner (~$0.14 per question). Follow-ups keep
   context. Reports with charts are optional.
-- **Design search** for tilize / untilize multicore: cores, rows / cols / 2d split, block size, buffering, batching
-  (`tune`, hypothetical). Reports draw the core grid and per-core flow for every setup.
 - **`check-drift --ref main | pr/N`**: compares the pinned kernels with GitHub. Comment, include and formatting
   changes count as cosmetic.
