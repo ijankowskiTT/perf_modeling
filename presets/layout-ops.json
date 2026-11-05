@@ -1,0 +1,78 @@
+{
+ "title": "Quasar layout ops: where the wins are",
+ "requests": [
+  {
+   "schema_version": "1",
+   "action": "survey",
+   "profiles": {
+    "costs": "ttsim-perf"
+   },
+   "workload": {
+    "op": "tilize",
+    "dtype": "bf16",
+    "placements": {
+     "a": "dram"
+    }
+   },
+   "survey": {
+    "compare_profile": "craq-sim"
+   }
+  },
+  {
+   "schema_version": "1",
+   "action": "survey",
+   "profiles": {
+    "costs": "ttsim-perf"
+   },
+   "workload": {
+    "op": "untilize",
+    "dtype": "bf16",
+    "placements": {
+     "a": "dram"
+    }
+   },
+   "survey": {
+    "compare_profile": "craq-sim"
+   }
+  },
+  {
+   "schema_version": "1",
+   "action": "survey",
+   "profiles": {
+    "costs": "silicon-hypothesis"
+   },
+   "workload": {
+    "op": "interleaved_to_sharded",
+    "dtype": "bf16",
+    "placements": {
+     "a": "dram"
+    }
+   }
+  },
+  {
+   "schema_version": "1",
+   "action": "survey",
+   "profiles": {
+    "costs": "ttsim-perf"
+   },
+   "workload": {
+    "op": "reshard",
+    "dtype": "bf16"
+   }
+  },
+  {
+   "schema_version": "1",
+   "action": "survey",
+   "profiles": {
+    "costs": "silicon-hypothesis"
+   },
+   "workload": {
+    "op": "tilize",
+    "dtype": "bf16",
+    "placements": {
+     "a": "dram"
+    }
+   }
+  }
+ ]
+}

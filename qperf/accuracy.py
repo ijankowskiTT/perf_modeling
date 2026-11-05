@@ -55,9 +55,22 @@ def validation(profile, op, factory, knob):
 def validation_txt(profile, knob, v):
     """'write_batch validated on 24 ttsim-perf simulator runs (write_batch 4, 8): 0.8% mean error, 1.0% on the speedup
     over the pinned kernel'."""
-    sp = "" if v.get("speedup_mean") is None else f", {_pct(v['speedup_mean'])} on the speedup over the pinned kernel"
-    return (f"{knob} validated on {v['runs']} {source_of(profile)[0]} simulator runs of a kernel variant ({knob} "
-            f"{', '.join(map(str, v['values']))}): {_pct(v['mean'])} mean error{sp}")
+    sp = "" if v.get("speedup_mean") is None else f", {_pct(v['speedup_mean'])} on the speedup over {knob}=1"
+    return (f"{knob} validated: the factory's own kernels with only {knob} changed ({', '.join(map(str, v['values']))}) "
+            f"ran {v['runs']} times on {source_of(profile)[0]}{_shape_range(v)}: {_pct(v['mean'])} mean error{sp}")
+
+
+def _shape_range(v):
+    """' over 12 shapes (H 32-4096, W 256-2048)' from the validation dataset, or ''."""
+    import json
+    import os
+    try:
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), v["data"])
+        hw = {(r["H"], r["W"]) for r in map(json.loads, open(path))}
+    except (KeyError, OSError, ValueError):
+        return ""
+    hs, ws = sorted({h for h, _ in hw}), sorted({w for _, w in hw})
+    return f" over {len(hw)} shapes (H {hs[0]}-{hs[-1]}, W {ws[0]}-{ws[-1]})"
 
 
 def source_of(profile):

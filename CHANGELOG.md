@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.1
+
+- Tested 13 edge-case prompts through the plugin; fixes from them: data-movement answers default to ttsim-perf;
+  fusion / new-kernel ideas get an upper bound instead of a refusal; validated knobs say exactly what was run;
+  layout-op overviews run a fixed preset (`presets/layout-ops.json`) with kernel changes and layout choices apart.
+- `docs/EXAMPLES.md`: checked prompts and what to expect.
+
 ## 1.5.0
 
 - First simulator check of a hypothetical setup: tilize with a real batched writer (48 runs). Refit on them: batched

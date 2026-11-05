@@ -34,6 +34,14 @@ QUESTIONS = {  # question, regex an answer backed by the model must contain
     "reshard": ("On Quasar, is resharding a 1024x1024 bf16 tensor from 8 to 16 height shards in L1 faster than to 4? "
                 "Which factory runs?", r"SameWidth"),
     "move": ("How long does ttnn move of a 1024x1024 bf16 tile tensor in DRAM take on Quasar?", r"\d[\d,.]*\s*(ns|µs|cycles)"),
+    "invalid_reshard": ("Use the quasar-perf skill: how long does resharding a 1024x1024 bf16 tensor from 8 height "
+                        "shards in L1 to 4 height shards in DRAM take?", r"(2|two) (DRAM )?banks|invalid|cannot|rejects"),
+    "extrapolated": ("Use the quasar-perf skill: how long does tilize of a 16384x8192 fp32 tensor from L1 take on Quasar?",
+                     r"extrapolat|outside the calibrated"),
+    "fusion": ("Use the quasar-perf skill: would fusing tilize into the following binary add kernel speed things up?",
+               r"upper bound|not model|isn't modeled|is not modeled"),
+    "confidence": ("Use the quasar-perf skill: how confident should I be that batching tilize's writes 8 at a time "
+                   "actually helps? Has it been checked?", r"validated"),
     "unsupported": ("How long does a Quasar matmul of 1024x1024 by 1024x1024 take?", r"(not|un)\s*supported|cannot|no model"),
 }
 TOOLS = ["Bash(PYTHONPATH=*)", "Bash(python3 *)", "Write", "Read", "Skill", "Agent"]

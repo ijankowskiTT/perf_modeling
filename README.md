@@ -42,6 +42,9 @@ Output: [layout ops report](https://claude.ai/artifact/Sfj2kJZLYg65LfE2SsTzfC?sk
 only). One page with a summary per op and two rankings over one size grid: kernel changes (hypothetical) and layout
 choices (which change what the next op receives). It also shows the DRAM caps, with a section per op.
 
+More checked examples, including edge cases (unsupported parts, invalid requests, extrapolation, fusion ideas,
+confidence questions): [docs/EXAMPLES.md](docs/EXAMPLES.md).
+
 | Use case | Prompt |
 |---|---|
 | Design a multicore op | Bench the multicore approaches for bf16 untilize across tensor sizes. Which is best, and where does each regress? |

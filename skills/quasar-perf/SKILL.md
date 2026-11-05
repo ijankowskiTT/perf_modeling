@@ -14,4 +14,6 @@ or read its files yourself.
   it; otherwise give the path.
 - Follow-ups ("and with dm_batch 4?"): continue the same runner with SendMessage. If you can't, spawn a new runner
   with the previous request file path.
+- Always delegate, even when the question looks incomplete or names something qperf may not model (fusion, a new
+  kernel): the runner answers what is modeled and says what is not. Ask the user first only if the op itself is unclear.
 - No Agent tool: follow `${CLAUDE_PLUGIN_ROOT}/agents/qperf-runner.md` yourself.
