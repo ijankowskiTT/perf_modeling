@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0
+
+- First simulator check of a hypothetical setup: tilize with a real batched writer (48 runs). Refit on them: batched
+  predictions within 0.8-1.6%, speedups within 1%; answers say `write_batch` is validated.
+- Surveys show cores used per shape; times are labelled cycles (simulators) or ns (silicon-hypothesis); verdicts that
+  change across cost scenarios are flagged; report pages are about 3x lighter.
+
 ## 1.4.0
 
 - Bundles: several requests in one call render one page (summary per op, kernel changes and layout choices ranked

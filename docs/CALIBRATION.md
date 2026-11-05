@@ -59,6 +59,19 @@ Known gaps:
 | ttsim-perf | untilize from L1: up to 11%. fp32 sharding ops with the interleaved side in L1: up to 17%. |
 | craq-sim | Can't run tilize wider than 64 tiles. Reshard spans under 250 cycles: up to 5%. |
 
+## Validated hypothetical setups
+
+The design knobs are hypothetical until a simulator runs them. Checked so far:
+
+| Knob | How | Runs | Mean error | Speedup error |
+|---|---|---|---|---|
+| tilize `write_batch` 4, 8 | real kernel variant (`calibration/variants/tilize_writer_batched.cpp`), 12 shapes | 24 per profile | craq-sim 1.6%, ttsim-perf 0.8% | 0.4%, 1.0% |
+
+Before refitting on these runs the model over-predicted the batching gain on ttsim-perf (4096x2048: 1.39x predicted,
+1.30x measured; 3.2% mean speedup error). The joint fit separates the per-write and per-flush writer costs and adds
+`tz.wr_bissue` (extra cost per write in a batch; 28 cycles on craq-sim, 0 on ttsim-perf). Answers say which knobs are
+validated. Not validated yet: `cores`, `split`, `tiles_per_block`, `dfb_blocks`, `read_batch`.
+
 ## Data
 
 `calibration/data/*.jsonl` has one simulator run per line:
