@@ -22,7 +22,8 @@
         "estimate",
         "compare",
         "tune",
-        "sensitivity"
+        "sensitivity",
+        "survey"
       ]
     },
     "profiles": {
@@ -315,6 +316,29 @@
         }
       }
     },
+    "survey": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "action survey (tilize / untilize): the shape grid; every approach (candidates, or the built-in default policies) is timed at every [H, W] against the baseline. H = rows = prod(shape[:-1]); workload.shape is not needed",
+      "properties": {
+        "heights": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": "default [32, 64, 128, ..., 8192]"
+        },
+        "widths": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": "default [64, 128, ..., 2048]"
+        }
+      }
+    },
     "analysis": {
       "type": "object",
       "additionalProperties": false,
@@ -340,6 +364,11 @@
         "time_budget_ms": {
           "type": "integer",
           "minimum": 1
+        },
+        "time_budget_s": {
+          "type": "number",
+          "minimum": 0,
+          "description": "survey: stop after this many seconds (default 30) with status partial"
         }
       }
     },
@@ -433,9 +462,12 @@
           "description": "hypothetical: rows = whole tile-rows per core (factory); cols = each tile-row cut into cores // row-cores column chunks; 2d = row-cores x column chunks <= cores with the fewest tiles per core"
         },
         "tiles_per_block": {
-          "type": "integer",
+          "type": [
+            "integer",
+            "string"
+          ],
           "minimum": 1,
-          "description": "hypothetical: block width in tiles within a core's chunk (default the whole chunk; snapped to a divisor of it). tune.space also takes \"half\""
+          "description": "hypothetical: block width in tiles within a core's chunk (default the whole chunk; snapped to a divisor of it). or \"half\" = half the chunk (also in tune.space)"
         },
         "dfb_blocks": {
           "type": "integer",

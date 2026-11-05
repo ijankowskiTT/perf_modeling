@@ -287,6 +287,315 @@
         }
       }
     },
+    "survey": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "action survey: every approach timed at every [H, W] of the grid against the baseline",
+      "required": [
+        "heights",
+        "widths",
+        "skipped",
+        "baseline_ns",
+        "approaches",
+        "best_per_shape",
+        "summary"
+      ],
+      "properties": {
+        "heights": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "widths": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "skipped": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "shape",
+              "reason"
+            ],
+            "properties": {
+              "shape": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "description": "[H, W]"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "baseline_ns": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "description": "baseline time per [height][width]; null = skipped"
+        },
+        "approaches": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "overrides",
+              "speedup",
+              "worst",
+              "best",
+              "counts",
+              "regressions",
+              "grid",
+              "hypothetical"
+            ],
+            "properties": {
+              "overrides": {
+                "type": "object"
+              },
+              "hypothetical": {
+                "type": "boolean",
+                "description": "a hypothetical design (not the factory's plan) at some shape"
+              },
+              "speedup": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "geomean",
+                  "min",
+                  "max"
+                ],
+                "properties": {
+                  "geomean": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "min": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "max": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "worst": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": false,
+                "required": [
+                  "shape",
+                  "speedup"
+                ],
+                "properties": {
+                  "shape": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "[H, W]"
+                  },
+                  "speedup": {
+                    "type": "number"
+                  }
+                }
+              },
+              "best": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": false,
+                "required": [
+                  "shape",
+                  "speedup"
+                ],
+                "properties": {
+                  "shape": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "[H, W]"
+                  },
+                  "speedup": {
+                    "type": "number"
+                  }
+                }
+              },
+              "counts": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "faster",
+                  "neutral",
+                  "slower",
+                  "invalid"
+                ],
+                "properties": {
+                  "faster": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "neutral": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "slower": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "invalid": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              },
+              "regressions": {
+                "type": "array",
+                "description": "up to 5 worst shapes below 1 - NOISE, slowest first",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "shape",
+                    "speedup"
+                  ],
+                  "properties": {
+                    "shape": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "description": "[H, W]"
+                    },
+                    "speedup": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "grid": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "description": "speedup vs baseline per [height][width]; null = skipped, not evaluated or invalid"
+              },
+              "wins_where": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "the faster shapes as one grid rectangle, if they form one"
+              },
+              "loses_where": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "the slower shapes as one grid rectangle, if they form one"
+              }
+            }
+          }
+        },
+        "best_per_shape": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "description": "per [height][width]: \"baseline\" unless an approach is faster beyond NOISE; else, among the approaches within NOISE of the fastest, the one with the fewest overrides; null = skipped or not evaluated"
+        },
+        "summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "speedup_basis": {
+          "type": "string"
+        },
+        "stats": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "shapes": {
+              "type": "integer"
+            },
+            "evaluated": {
+              "type": "integer"
+            },
+            "skipped": {
+              "type": "integer"
+            },
+            "not_evaluated": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "description": "[H, W]"
+              }
+            },
+            "plans_evaluated": {
+              "type": "integer"
+            },
+            "plans_reused": {
+              "type": "integer"
+            },
+            "approaches": {
+              "type": "integer"
+            },
+            "out_of_time": {
+              "type": "boolean"
+            },
+            "time_budget_s": {
+              "type": "number"
+            },
+            "eval_ms": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
     "parameters": {
       "type": "object",
       "description": "detail=full: every cost used, with value/low/high/class/source"

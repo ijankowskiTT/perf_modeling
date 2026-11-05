@@ -389,6 +389,11 @@ def _analyze(req, t_start):
     if req["workload"]["op"] in layout_ops():
         return analyze_layout(req, t_start)
     action = req["action"]
+    if action == "survey":
+        raise RequestError("unsupported", f"survey compares approaches over the hypothetical layout design knobs of "
+                                          f"tilize Default and untilize MultiCore across shapes; {req['workload']['op']} "
+                                          f"(binary_ng) has none. A binary_ng survey over a num_tiles axis is not modeled "
+                                          f"yet (use sensitivity with param num_tiles).")
     prof = req.get("profiles", {})
     arch, arch_id = load("architecture", prof.get("architecture", "quasar"))
     kernel, kernel_id = load("kernel", prof.get("kernel", "binary-ng-native"))

@@ -71,11 +71,40 @@ def _text(res):
             out.append(f"    {cid}: " + ", ".join(f"{p['value']}->{p['time_ns'] and round(p['time_ns'])} ({p['bottleneck']})" for p in pts))
         for x in sens["ranking_changes"]:
             out.append(f"    ranking change {x['between']} at ~{x['at_about']}")
+    if "survey" in res:
+        out += _survey_text(res["survey"])
     for r in res.get("recommendations", []):
         out.append(f"  recommend: {r.get('label')} {r.get('speedup_range', '')} {r.get('reason', '')}")
+    for w in res.get("warnings", []) if "survey" in res else []:
+        out.append(f"  warning: {w}")
     for a in res.get("applied_defaults", []):
         out.append(f"  default: {a}")
     return "\n".join(out)
+
+
+def _survey_text(sv):
+    """Survey: the summary lines, then one row per approach (geomean, min / max with their shape, counts)."""
+    st = sv.get("stats") or {}
+    out = [f"  survey: {len(sv['heights'])} heights x {len(sv['widths'])} widths, {st.get('evaluated', '?')} shapes "
+           f"evaluated, {len(sv['skipped'])} skipped; {st.get('plans_evaluated', '?')} plans timed "
+           f"({st.get('plans_reused', '?')} reused) in {st.get('eval_ms', '?')} ms"]
+    out += [f"    {line}" for line in sv["summary"]]
+    shape = lambda x: "x".join(str(d) for d in x["shape"]) if x else "-"  # noqa: E731
+    out.append(f"    {'approach':20s} {'geomean':>8s}  {'min @ shape':18s} {'max @ shape':18s} faster/neutral/slower/invalid")
+    for aid, a in sorted(sv["approaches"].items(), key=lambda kv: -(kv[1]["speedup"]["geomean"] or 0)):
+        sp, c = a["speedup"], a["counts"]
+        if sp["geomean"] is None:
+            out.append(f"    {aid:20s} {'-':>8s}  {'-':18s} {'-':18s} {c['faster']}/{c['neutral']}/{c['slower']}/{c['invalid']}")
+            continue
+        out.append(f"    {aid:20s} {sp['geomean']:7.2f}x  {_at(a['worst'], shape):18s} {_at(a['best'], shape):18s} "
+                   f"{c['faster']}/{c['neutral']}/{c['slower']}/{c['invalid']}")
+    for s in sv["skipped"]:
+        out.append(f"    skipped {shape(s)}: {s['reason']}")
+    return out
+
+
+def _at(x, shape):
+    return f"{x['speedup']:.2f}x @ {shape(x)}" if x else "-"
 
 
 def cmd_analyze(a):

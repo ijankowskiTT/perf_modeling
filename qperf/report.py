@@ -56,6 +56,11 @@ def _workload(req):
 
     w = req.get("workload", {})
     p = w.get("placements", {})
+    if req.get("action") == "survey":
+        sv = req.get("survey") or {}
+        grid = (f"{len(sv['heights'])} heights x {len(sv['widths'])} widths" if sv.get("heights") and sv.get("widths")
+                else "the default shape grid")
+        return f"{w.get('op')} {w.get('dtype', 'bf16')}, survey over {grid}, input in {p.get('a', 'dram')}"
     if w.get("op") in layout_ops():
         shape = "x".join(str(d) for d in w.get("shape", []))
         sh = w.get("shard")
@@ -359,6 +364,8 @@ def to_markdown(req, res):
          f"**Profile:** {prof['name']}@{prof['revision']}  ", f"**Platform:** {res.get('platform_scope', '-')}", ""]
     if res["status"] not in ("ok", "partial"):
         return "\n".join(L + [f"**{res['status']}:** {res.get('message', '')}", ""])
+    if res.get("survey"):
+        return "\n".join(L + _survey_md(req, res))
     L += ["## Key points", ""] + [f"- {p}" for p in key_points(req, res)] + [""]
     shown = _shown(res)
     if shown:
@@ -399,13 +406,14 @@ def to_markdown(req, res):
 CSS = """
 :root{color-scheme:light;--surface:#fcfcfb;--page:#f9f9f7;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;
 --grid:#e1e0d9;--axis:#c3c2b7;--ring:rgba(11,11,11,.10);--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;
---s5:#e87ba4;--s6:#008300;--deemph:#c3c2b7;--track:#f0efec}
+--s5:#e87ba4;--s6:#008300;--deemph:#c3c2b7;--track:#f0efec;--win:#2a78d6;--loss:#e34948;--mid:#f0efec}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--surface:#1a1a19;
 --page:#0d0d0d;--ink:#f0efec;--ink2:#c3c2b7;--grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);
---s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--deemph:#52514e;--track:#262624}}
+--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--deemph:#52514e;--track:#262624;
+--win:#3987e5;--loss:#e66767;--mid:#383835}}
 :root[data-theme="dark"]{color-scheme:dark;--surface:#1a1a19;--page:#0d0d0d;--ink:#f0efec;--ink2:#c3c2b7;
 --grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;
---s5:#d55181;--s6:#008300;--deemph:#52514e;--track:#262624}
+--s5:#d55181;--s6:#008300;--deemph:#52514e;--track:#262624;--win:#3987e5;--loss:#e66767;--mid:#383835}
 *{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);
 font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:960px;margin:0 auto;padding:24px 16px 48px}h1{font-size:22px;margin:0 0 4px}
@@ -427,6 +435,9 @@ th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--grid)}th{col
 .hrow{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;margin:10px 0 12px}
 svg.cores{width:204px;flex:none}ul.facts{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)}
 ul.facts b{color:var(--ink)}.pipe-n{display:none}
+.hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr));gap:0 12px}
+.hm h3{font-size:14px;margin:0 0 2px}.hm .note{margin:0 0 8px}.hx{overflow-x:auto}.tile .v{overflow-wrap:anywhere}
+svg .cell text{fill:var(--ink);font-size:11px}.legend .hatch{background:repeating-linear-gradient(45deg,var(--grid) 0 2px,transparent 2px 5px)}
 @media (max-width:640px){.pipe-w{display:none}.pipe-n{display:block}.hh .t{margin-left:0}}
 """
 
@@ -822,6 +833,8 @@ def to_html(req, res):
             f'{E(prof.get("name", ""))}@{E(prof.get("revision", ""))}</p>')
     if res["status"] not in ("ok", "partial"):
         return head + f'<div class="card"><b>{E(res["status"])}</b>: {E(res.get("message", ""))}</div></main></body></html>'
+    if res.get("survey"):
+        return head + _survey_html(req, res) + "</main></body></html>"
     b = res["baseline"]
     best = _best(res)
     slots = _slots(res)
@@ -863,3 +876,245 @@ def to_html(req, res):
     parts.append(f'<p class="note">{E(res.get("platform_scope", ""))}</p><details><summary>Request</summary><pre>'
                  f'{E(json.dumps(req, indent=1))}</pre></details></main></body></html>')
     return "".join(parts)
+
+
+# ------------------------------------------------------------------------------------------------ survey
+
+def _sx(shape):
+    return "x".join(str(d) for d in shape) if shape else "-"
+
+
+def _survey_order(sv):
+    """Approach ids, best geomean first."""
+    return sorted(sv["approaches"], key=lambda k: -(sv["approaches"][k]["speedup"]["geomean"] or 0))
+
+
+def _evaluated(a):
+    c = a["counts"]
+    return c["faster"] + c["neutral"] + c["slower"]
+
+
+def _counts_txt(a):
+    c = a["counts"]
+    return f"{c['faster']} / {c['neutral']} / {c['slower']}" + (f" (+{c['invalid']} invalid)" if c["invalid"] else "")
+
+
+def _regs_txt(a):
+    return ", ".join(f"{_sx(r['shape'])} {r['speedup']:.2f}x" for r in a["regressions"]) or "none"
+
+
+def _headline(sv, res):
+    """(id, approach) of the best general approach: the first recommendation, else the best geomean."""
+    rid = next((r["id"] for r in res.get("recommendations", []) if r.get("id")), None)
+    if rid is None:
+        order = _survey_order(sv)
+        rid = order[0] if order else None
+    return rid, sv["approaches"].get(rid) if rid else None
+
+
+def _survey_md(req, res):
+    sv = res["survey"]
+    L = ["## Key points", ""] + [f"- {x}" for x in sv["summary"]]
+    for r in res.get("recommendations", []):
+        L.append(f"- Recommend {r['label']}: {r.get('reason', '')}")
+    L += [f"- Warning: {w}" for w in res.get("warnings", [])]
+    L += ["", "## Approaches", "",
+          "| approach | overrides | geomean | best shape | worst shape | faster / neutral / slower | regressions |",
+          "|---|---|---|---|---|---|---|"]
+    for aid in _survey_order(sv):
+        a = sv["approaches"][aid]
+        ov = ", ".join(f"{k}={v}" for k, v in a["overrides"].items()) or "-"
+        g = a["speedup"]["geomean"]
+        L.append(f"| {aid}{' (hypothetical)' if a['hypothetical'] else ''} | {ov} | "
+                 f"{'-' if g is None else f'{g:.2f}x'} | "
+                 f"{_sx(a['best']['shape']) + ' ' + format(a['best']['speedup'], '.2f') + 'x' if a['best'] else '-'} | "
+                 f"{_sx(a['worst']['shape']) + ' ' + format(a['worst']['speedup'], '.2f') + 'x' if a['worst'] else '-'} | "
+                 f"{_counts_txt(a)} | {a['counts']['slower']} |")
+    L += ["", "## Regressions", ""]
+    for aid in _survey_order(sv):
+        a = sv["approaches"][aid]
+        if a["regressions"]:
+            more = a["counts"]["slower"] - len(a["regressions"])
+            L.append(f"- **{aid}**: slower on {a['counts']['slower']}/{_evaluated(a)}"
+                     + (f" ({a['loses_where']})" if a.get("loses_where") else "") + f": {_regs_txt(a)}"
+                     + (f" and {more} more" if more > 0 else ""))
+    if L[-1] == "":
+        L.append("- none: no approach is slower than the baseline beyond the noise threshold at any shape")
+    hs, ws = sv["heights"], sv["widths"]
+    L += ["", "## Best approach per shape", "", "| H \\ W | " + " | ".join(str(w) for w in ws) + " |",
+          "|---|" + "---|" * len(ws)]
+    for i, h in enumerate(hs):
+        L.append(f"| {h} | " + " | ".join(sv["best_per_shape"][i][j] or "skipped" for j in range(len(ws))) + " |")
+    if sv["skipped"]:
+        L += ["", "## Skipped shapes", ""] + [f"- {_sx(s['shape'])}: {s['reason']}" for s in sv["skipped"]]
+    L += ["", "## Request", "", "```json", json.dumps(req, indent=1), "```", ""]
+    return L
+
+
+HM_CELL, HM_H, HM_GAP, HM_LAB, HM_TOP = 56, 28, 2, 52, 22
+
+
+def _hm_frame(hs, ws, cw, idx):
+    """SVG head (width labels, hatch pattern) and geometry for a heights x widths grid of cells cw wide."""
+    W = HM_LAB + len(ws) * (cw + HM_GAP)
+    H = HM_TOP + len(hs) * (HM_H + HM_GAP)
+    out = [f'<defs><pattern id="hatch{idx}" width="6" height="6" patternUnits="userSpaceOnUse" '
+           f'patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--surface)"/>'
+           f'<line x1="0" y1="0" x2="0" y2="6" stroke="var(--grid)" stroke-width="3"/></pattern></defs>',
+           f'<text x="{HM_LAB - 8}" y="14" text-anchor="end">H \\ W</text>']
+    for j, w in enumerate(ws):
+        out.append(f'<text x="{HM_LAB + j * (cw + HM_GAP) + cw / 2}" y="14" text-anchor="middle">{w}</text>')
+    for i, h in enumerate(hs):
+        out.append(f'<text x="{HM_LAB - 8}" y="{HM_TOP + i * (HM_H + HM_GAP) + HM_H / 2 + 4}" text-anchor="end">{h}</text>')
+    return W, H, out
+
+
+def _skip_cell(x, y, cw, idx, tip):
+    return (f'<g class="cell skipped"><title>{E(tip)}</title><rect x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" '
+            f'fill="url(#hatch{idx})" stroke="var(--grid)"/></g>')
+
+
+def _heat_fill(s, noise):
+    """Diverging fill centred at 1.0: wins blend --win, regressions --loss into the neutral --mid, by |log2 s| up to
+    4x either way; within the noise band the neutral midpoint."""
+    if abs(s - 1) <= noise:
+        return "var(--mid)"
+    t = min(1.0, abs(math.log2(s)) / 2)
+    return f"color-mix(in srgb, var({'--win' if s > 1 else '--loss'}) {15 + 55 * t:.0f}%, var(--mid))"
+
+
+def _heatmap(sv, aid, idx, noise):
+    a = sv["approaches"][aid]
+    hs, ws, cw = sv["heights"], sv["widths"], HM_CELL
+    skipped = {tuple(s["shape"]): s["reason"] for s in sv["skipped"]}
+    W, H, out = _hm_frame(hs, ws, cw, idx)
+    for i, h in enumerate(hs):
+        for j, w in enumerate(ws):
+            x, y = HM_LAB + j * (cw + HM_GAP), HM_TOP + i * (HM_H + HM_GAP)
+            s, bt = a["grid"][i][j], sv["baseline_ns"][i][j]
+            if bt is None:
+                out.append(_skip_cell(x, y, cw, idx, f"{h}x{w}: {skipped.get((h, w), 'not evaluated')}"))
+            elif s is None:
+                out.append(f'<g class="cell invalid"><title>{E(aid)} at {h}x{w}: the shape cannot take these knobs '
+                           f'(baseline {bt:,.0f} ns)</title><rect x="{x + .5}" y="{y + .5}" width="{cw - 1}" '
+                           f'height="{HM_H - 1}" rx="4" fill="var(--surface)" stroke="var(--axis)" stroke-dasharray="3 2"/>'
+                           f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">n/a</text></g>')
+            else:
+                verdict = "faster" if s > 1 + noise else "slower" if s < 1 - noise else "neutral"
+                tip = (f"{aid} at {h}x{w}: {s:.3f}x, {verdict} (baseline {bt:,.0f} ns -> {bt / s:,.0f} ns)")
+                out.append(f'<g class="cell {verdict}" data-shape="{h}x{w}" data-speedup="{s}"><title>{E(tip)}</title>'
+                           f'<rect x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" style="fill:{_heat_fill(s, noise)}"/>'
+                           f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">{s:.2f}</text></g>')
+    return (f'<svg class="heatmap" data-approach="{E(aid)}" viewBox="0 0 {W} {H}" style="width:{W}px;height:{H}px;max-width:none" role="img" '
+            f'aria-label="Speedup of {E(aid)} vs the baseline per shape">' + "".join(out) + "</svg>")
+
+
+def _heat_legend(noise):
+    stops = [(0.25, "0.25x"), (0.5, "0.5x"), (0.8, "0.8x"), (1.0, f"1x ±{noise:.0%}"), (1.25, "1.25x"), (2.0, "2x"),
+             (4.0, "4x+")]
+    items = "".join(f'<span><i style="background:{_heat_fill(v, noise)}"></i>{E(t)}</span>' for v, t in stops)
+    return (f'<div class="legend">{items}<span><i class="hatch"></i>skipped</span>'
+            f'<span><i style="border:1px dashed var(--axis)"></i>n/a: knobs invalid at the shape</span></div>')
+
+
+def _best_map(sv, idx):
+    hs, ws = sv["heights"], sv["widths"]
+    cw = 92
+    freq = {}
+    for row in sv["best_per_shape"]:
+        for b in row:
+            if b and b != "baseline":
+                freq[b] = freq.get(b, 0) + 1
+    order = [k for k in _survey_order(sv) if k in freq]
+    order.sort(key=lambda k: -freq[k])
+    slot = {k: n for n, k in enumerate(order)}
+    skipped = {tuple(s["shape"]): s["reason"] for s in sv["skipped"]}
+    W, H, out = _hm_frame(hs, ws, cw, idx)
+    for i, h in enumerate(hs):
+        for j, w in enumerate(ws):
+            x, y = HM_LAB + j * (cw + HM_GAP), HM_TOP + i * (HM_H + HM_GAP)
+            b = sv["best_per_shape"][i][j]
+            if b is None:
+                out.append(_skip_cell(x, y, cw, idx, f"{h}x{w}: {skipped.get((h, w), 'not evaluated')}"))
+                continue
+            s = 1.0 if b == "baseline" else sv["approaches"][b]["grid"][i][j]
+            fill = "var(--mid)" if b == "baseline" else f"color-mix(in srgb, {_col(slot[b])} 60%, var(--surface))"
+            tip = f"{h}x{w}: {b}" + ("" if b == "baseline" else f" {s:.2f}x") + \
+                  (f" (baseline {sv['baseline_ns'][i][j]:,.0f} ns)" if sv["baseline_ns"][i][j] is not None else "")
+            out.append(f'<g class="cell best" data-best="{E(b)}"><title>{E(tip)}</title><rect x="{x}" y="{y}" '
+                       f'width="{cw}" height="{HM_H}" rx="4" style="fill:{fill}"/>'
+                       f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">{E(_fit(b, cw - 8, 6.2))}</text></g>')
+    legend = "".join(f'<span><i style="background:{_col(slot[k])}"></i>{E(k)} ({freq[k]})</span>' for k in order)
+    n_base = sum(b == "baseline" for row in sv["best_per_shape"] for b in row)
+    legend += f'<span><i style="background:var(--mid)"></i>baseline: nothing faster ({n_base})</span>'
+    return (f'<svg class="bestmap" viewBox="0 0 {W} {H}" style="width:{W}px;height:{H}px;max-width:none" role="img" '
+            f'aria-label="Fastest approach per shape">' + "".join(out) + f'</svg><div class="legend">{legend}</div>')
+
+
+def _survey_html(req, res):
+    from .api import NOISE
+
+    sv = res["survey"]
+    order = _survey_order(sv)
+    hid, ha = _headline(sv, res)
+    rec = next((r for r in res.get("recommendations", []) if r.get("id")), None)
+    tiles = []
+    if ha and ha["speedup"]["geomean"] is not None:
+        tiles.append(("Best general approach", hid, (rec or {}).get("reason") or "highest geomean speedup (not recommended)"))
+        tiles.append(("Its geomean speedup", f"{ha['speedup']['geomean']:.2f}x",
+                      f"faster on {ha['counts']['faster']} of {_evaluated(ha)} shapes"))
+        w = ha["worst"]
+        tiles.append(("Its worst shape", f"{w['speedup']:.2f}x" if w else "-",
+                      f"at {_sx(w['shape'])}" + (f"; slower on {ha['counts']['slower']}" if ha["counts"]["slower"] else
+                                                 "; never slower") if w else ""))
+    else:
+        tiles.append(("Best general approach", "baseline", "no approach is faster"))
+    st = sv.get("stats") or {}
+    out = ['<div class="tiles">']
+    out += [f'<div class="card tile"><div class="l">{E(l)}</div><div class="v">{E(str(v))}</div><div class="d">{E(d)}</div>'
+            f'</div>' for l, v, d in tiles]
+    out.append('</div><div class="card"><h2 style="margin-top:0">Key points</h2><ul class="kp">')
+    out += [f"<li>{E(x)}</li>" for x in sv["summary"]]
+    out += [f"<li>Recommend {E(r['label'])}: {E(r.get('reason', ''))}</li>" for r in res.get("recommendations", [])]
+    out += [f"<li>{E(w[0].upper() + w[1:])}.</li>" for w in res.get("warnings", [])]
+    out.append(f'</ul><p class="note">{st.get("evaluated", "?")} of {st.get("shapes", "?")} shapes evaluated with '
+               f'{st.get("approaches", len(order))} approaches; {st.get("plans_evaluated", "?")} distinct plans timed '
+               f'({st.get("plans_reused", "?")} reused) in {st.get("eval_ms", "?")} ms. {E(sv.get("speedup_basis", ""))}.'
+               f'</p></div>')
+    head = ("approach", "overrides", "geomean", "best shape", "worst shape", "faster / neutral / slower", "regressions")
+    body = []
+    for aid in order:
+        a = sv["approaches"][aid]
+        g = a["speedup"]["geomean"]
+        tag = ' <span class="tag">hypothetical</span>' if a["hypothetical"] else ""
+        body.append(f'<tr class="surv"><td><b>{E(aid)}</b>{tag}</td>'
+                    f'<td>{E(", ".join(f"{k}={v}" for k, v in a["overrides"].items()) or "-")}</td>'
+                    f'<td>{"-" if g is None else f"{g:.2f}x"}</td>'
+                    f'<td>{E(_sx(a["best"]["shape"]) + " · " + format(a["best"]["speedup"], ".2f") + "x") if a["best"] else "-"}</td>'
+                    f'<td>{E(_sx(a["worst"]["shape"]) + " · " + format(a["worst"]["speedup"], ".2f") + "x") if a["worst"] else "-"}</td>'
+                    f'<td>{E(_counts_txt(a))}</td><td>{E(_regs_txt(a))}</td></tr>')
+    out.append('<h2>Approaches</h2><div class="card wrap"><table><tr>' + "".join(f"<th>{E(c)}</th>" for c in head)
+               + "</tr>" + "".join(body) + "</table></div>")
+    out.append(f'<h2>Speedup vs baseline per shape</h2><p class="note">Rows: tensor rows H; columns: width W. Blue: '
+               f'faster than the baseline, red: slower, gray: within ±{NOISE:.0%}. Hover a cell for the times.</p>'
+               f'<div class="card">{_heat_legend(NOISE)}</div><div class="hm-grid">')
+    for k, aid in enumerate(order):
+        a = sv["approaches"][aid]
+        g = a["speedup"]["geomean"]
+        where = "; ".join(x for x in (a.get("wins_where") and f"wins {a['wins_where']}",
+                                      a.get("loses_where") and f"loses {a['loses_where']}") if x)
+        out.append(f'<div class="card hm" data-approach="{E(aid)}"><h3>{E(aid)}'
+                   f'{" <span class=tag>hypothetical</span>" if a["hypothetical"] else ""}</h3>'
+                   f'<p class="note">{E(", ".join(f"{kk}={v}" for kk, v in a["overrides"].items()) or "no overrides")} · '
+                   f'{"-" if g is None else f"{g:.2f}x geomean"} · {E(_counts_txt(a))} faster / neutral / slower'
+                   f'{" · " + E(where) if where else ""}</p><div class="hx">{_heatmap(sv, aid, k, NOISE)}</div></div>')
+    out.append("</div>")
+    out.append('<h2>Best approach per shape</h2><div class="card"><p class="note" style="margin-top:0">The fastest '
+               f'approach at each shape when it beats the baseline by more than {NOISE:.0%}; otherwise baseline. '
+               f'Legend counts are shapes won.</p><div class="hx">{_best_map(sv, len(order))}</div></div>')
+    if sv["skipped"]:
+        out.append('<h2>Skipped shapes</h2><div class="card"><ul class="kp">'
+                   + "".join(f"<li>{E(_sx(s['shape']))}: {E(s['reason'])}</li>" for s in sv["skipped"]) + "</ul></div>")
+    out.append(f'<p class="note">{E(res.get("platform_scope", ""))}</p><details><summary>Request</summary><pre>'
+               f'{E(json.dumps(req, indent=1))}</pre></details>')
+    return "".join(out)

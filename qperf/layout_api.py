@@ -7,7 +7,7 @@ multiple. placements.a = the tensor's memory (dram | l1 interleaved, borrowed = 
 Knobs: use_multicore (default true), input (overrides placements.a); tilize Default / untilize MultiCore also take the
 hypothetical design knobs (cores, split, tiles_per_block, dfb_blocks, write_batch | read_batch; ops/layout.py
 resolve_design). Actions: estimate, compare, tune (over the design knobs, DEFAULT_LAYOUT_SPACE), sensitivity (param
-num_rows | num_cols; baseline and every candidate).
+num_rows | num_cols; baseline and every candidate), survey (qperf/survey.py: approaches across a grid of shapes).
 """
 
 from __future__ import annotations
@@ -292,18 +292,28 @@ def analyze_layout(req, t_start):
     detail = analysis.get("detail", "compact")
     what_if = dict(req.get("what_if", {}))
     base_knobs = dict(req.get("baseline") or {})
+    op = req["workload"]["op"]
+    own = _own_module(op)
+    result = {"schema_version": SCHEMA_VERSION, "engine_version": ENGINE_VERSION, "status": "ok",
+              "profiles": {"architecture": arch_id, "kernel": kernel_id, "costs": costs_id},
+              "applied_defaults": [] if "use_multicore" in base_knobs or own else ["use_multicore=true (default)"],
+              "assumptions": [getattr(registry.module_for(op), "ASSUMPTION", None) or
+                              f"{op}: one reader, one compute, one writer thread per core (the factory's kernels)"],
+              "warnings": [], "result_kind": "finite_buffer_estimate"}
+    if costs.get("platform_scope"):
+        result["platform_scope"] = costs["platform_scope"]
     try:
-        wl = _workload(req["workload"], base_knobs)
-        base = _result(wl, costs, what_if)
-        own = _own_module(wl["op"])
-        result = {"schema_version": SCHEMA_VERSION, "engine_version": ENGINE_VERSION, "status": "ok",
-                  "profiles": {"architecture": arch_id, "kernel": kernel_id, "costs": costs_id},
-                  "applied_defaults": [] if "use_multicore" in base_knobs or own else ["use_multicore=true (default)"],
-                  "assumptions": [getattr(registry.module_for(wl["op"]), "ASSUMPTION", None) or
-                                  f"{wl['op']}: one reader, one compute, one writer thread per core (the factory's kernels)"],
-                  "warnings": [], "result_kind": "finite_buffer_estimate", "baseline": _compact(base, detail)}
-        if costs.get("platform_scope"):
-            result["platform_scope"] = costs["platform_scope"]
+        if action == "survey":
+            from .survey import run_survey
+
+            result.update(run_survey(req, base_knobs, costs, what_if, analysis, t_start))
+            wl = {"workload": {k: v for k, v in req["workload"].items() if k != "shape"}, "baseline": base_knobs,
+                  "survey": {k: result["survey"][k] for k in ("heights", "widths")},
+                  "approaches": {k: a["overrides"] for k, a in result["survey"]["approaches"].items()}}
+        else:
+            wl = _workload(req["workload"], base_knobs)
+            base = _result(wl, costs, what_if)
+            result["baseline"] = _compact(base, detail)
         if action == "compare":
             rows = []
             for c in req.get("candidates", []):
