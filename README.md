@@ -30,6 +30,18 @@ approaches are worth it across tensor sizes, where does each regress, and what l
 Output: [tilize survey report](https://claude.ai/artifact/VJrBHzpCKU5mwCyVeJLk7P?sk=ubpNNdqu4o1YJkd7hUFmlA) (Tenstorrent
 only). It covers 8 approaches over 54 tensor sizes, a regression heatmap for each, and the limiters, with assumed DRAM.
 
+**Example: wins across several ops.** Prompt:
+
+```
+Use the quasar-perf skill: where are the biggest performance wins in Quasar's layout ops (tilize, untilize, sharding,
+reshard)? For each op, show how it runs today, what limits it, which changes help across tensor sizes, where they
+regress, and what caps them on real hardware. Rank the improvements by expected gain. Make a report with charts.
+```
+
+Output: [layout ops report](https://claude.ai/artifact/Sfj2kJZLYg65LfE2SsTzfC?sk=id4mHCl0N8wNsmEaQi3QMw) (Tenstorrent
+only). One page with a summary per op and two rankings over one size grid: kernel changes (hypothetical) and layout
+choices (which change what the next op receives). It also shows the DRAM caps, with a section per op.
+
 | Use case | Prompt |
 |---|---|
 | Design a multicore op | Bench the multicore approaches for bf16 untilize across tensor sizes. Which is best, and where does each regress? |
