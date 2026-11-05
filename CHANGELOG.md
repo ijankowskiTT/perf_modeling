@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0
+
+- **`survey`** (tilize, untilize): each approach over a grid of tensor sizes, no size needed. Geomean, best and worst
+  shape, regressions, best approach per shape; reports draw a heatmap per approach.
+
 ## 1.1.0
 
 - **Design search** for tilize / untilize multicore: cores, rows / cols / 2d split, block size, buffering, batching

@@ -43,6 +43,9 @@ knob overrides.
   - tilize Default / untilize MultiCore: "which setup / more cores / batching / buffering" questions = ONE `tune`
     with no `space` (built-in search: `cores`, `split` rows|cols|2d, `tiles_per_block`, `dfb_blocks`,
     `write_batch` (tilize) / `read_batch` (untilize)). Those setups are hypothetical (not in the kernels): say so.
+  - "across sizes / in general / where does it regress" (no size given) = ONE `"action":"survey"` (shape not needed;
+    built-in size grid and approaches; your own approaches as candidates). Report the best general approach, where
+    each wins (`wins_where`) and every regression with its shape.
   - Name the factory and the limiting thread.
 - **interleaved_to_sharded, sharded_to_interleaved**:
   - add `"shard":{"strategy":"height"|"width"|"block","cores":N}`; placements.a is the interleaved side;

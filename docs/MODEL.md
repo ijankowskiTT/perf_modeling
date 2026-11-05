@@ -77,6 +77,10 @@ per-block and per-tile costs, so they compare fairly with the factory, but no si
 | `dfb_blocks` | 1-3 | DFB depth in blocks (DFBs must fit half of L1) |
 | `write_batch` / `read_batch` | 1, 4, 8 | tiles per writer (tilize) / reader (untilize) barrier |
 
+`survey` (tilize, untilize) runs each approach, a size-independent knob policy, over a grid of shapes (heights
+32-8192 x widths 64-2048 by default): geomean, best and worst shape, faster / neutral / slower counts and the
+regressions per approach, and the best approach per shape.
+
 Every tilize / untilize result carries `structure`: the core grid, the split and the busiest core's requests,
 bytes, barriers, compute steps and DFB sizes. Reports draw it.
 

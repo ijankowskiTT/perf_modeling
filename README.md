@@ -26,6 +26,7 @@ Is it worth implementing per-thread NoC barriers? When would it help?
 How long does tilize of a 3136x64 tensor take, and would height-sharding it help?
 Is resharding a 1024x1024 tensor from 8 to 16 height shards in L1 faster than to 4?
 What is the best multicore setup for tilize of a 64x2048 tensor: cores, split, batching, buffering?
+Bench the multicore approaches for bf16 tilize across tensor sizes: which is best, and where does each regress?
 Use the quasar-perf skill on PR <link>: compare main vs the PR's batching and other options.
 ```
 
