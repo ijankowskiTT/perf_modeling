@@ -345,7 +345,14 @@ def build(op, cfg, c):
                                   1, True, "pop", lat_cr, dma=True))
     elif op == "tilize":
         rd = _batches(c, p, "rd", rin, blocks, TILE, cfg["in_place"], cfg["row_bytes"], lat_cr)
-        wr = _batches(c, p, "wr", rout, _groups(blocks, cfg.get("batch", 1)), None, cfg["out_place"], tile_bytes, lat_cr)
+        # write_batch k > 1 (design): wait(k), k writes at DFB offsets, one flush, pop(k) per group. Simulator runs of
+        # that kernel (calibration/variants/tilize_writer_batched.cpp, k = 4 and 8; tilize-wbatch-*.jsonl) gain from 4 to
+        # 8 tiles 1.6x (ttsim-perf) to 2.4x (craq-sim) what a per-flush cost alone gives against the per-tile kernel:
+        # each write of the batched loop costs <p>.wr_bissue more than the pinned kernel's (offset address, inner loop)
+        # while the flush (<p>.wr_fixed + the last write's transfer) is paid once per group.
+        k = cfg.get("batch", 1)
+        cw = dict(c, **{f"{p}.wr_issue": c[f"{p}.wr_issue"] + c.get(f"{p}.wr_bissue", 0.0)}) if k > 1 else c
+        wr = _batches(cw, p, "wr", rout, _groups(blocks, k), None, cfg["out_place"], tile_bytes, lat_cr)
     else:
         rd = _batches(c, p, "rd", rin, _groups(blocks, cfg.get("batch", 1)), None, cfg["in_place"], tile_bytes, lat_cr)
         wr = _batches(c, p, "wr", rout, blocks, TILE, cfg["out_place"], cfg["row_bytes"], lat_cr)

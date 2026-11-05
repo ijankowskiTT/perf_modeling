@@ -245,11 +245,11 @@
    "source": "fitted on 80 tilize runs (craq-b702fd90)"
   },
   "tz.wr_cpb": {
-   "value": 0.0124168,
-   "low": 0.0117959,
-   "high": 0.0130376,
+   "value": 0.0184858,
+   "low": 0.0175615,
+   "high": 0.0194101,
    "class": "measurement-fit",
-   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
   },
   "tz.rd_setup": {
    "value": 153.994,
@@ -259,11 +259,11 @@
    "source": "fitted on 80 tilize runs (craq-b702fd90)"
   },
   "tz.wr_setup": {
-   "value": 1143.74,
-   "low": 1086.55,
-   "high": 1200.93,
+   "value": 1140.25,
+   "low": 1083.24,
+   "high": 1197.26,
    "class": "measurement-fit",
-   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
   },
   "tz.rd_fixed": {
    "value": 547.617,
@@ -315,32 +315,32 @@
    "source": "fitted on 80 tilize runs (craq-b702fd90)"
   },
   "tz.wr_fixed": {
-   "value": 0.198485,
-   "low": 0.188561,
-   "high": 0.20841,
+   "value": 22.7583,
+   "low": 21.6203,
+   "high": 23.8962,
    "class": "measurement-fit",
-   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
   },
   "tz.wr_issue": {
-   "value": 50.1287,
-   "low": 47.6223,
-   "high": 52.6351,
+   "value": 14.3146,
+   "low": 13.5989,
+   "high": 15.0303,
    "class": "measurement-fit",
-   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
   },
   "tz.wr_first": {
-   "value": 0.180866,
-   "low": 0.171823,
-   "high": 0.18991,
+   "value": 2.51404e-08,
+   "low": 2.38834e-08,
+   "high": 2.63974e-08,
    "class": "measurement-fit",
-   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
   },
   "tz.wr_tail": {
-   "value": 62.2291,
-   "low": 59.1177,
-   "high": 65.3406,
+   "value": 66.5613,
+   "low": 63.2332,
+   "high": 69.8893,
    "class": "measurement-fit",
-   "source": "fitted on 80 tilize runs (craq-b702fd90)"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
   },
   "tz.cu_tail": {
    "value": 62.0779,
@@ -3017,18 +3017,18 @@
    "source": "fitted on tilize runs (craq-b702fd90), calibration/fit_layout.py"
   },
   "tz.f32_wr_cpb": {
-   "value": 0.00500286,
-   "low": 0.00475272,
-   "high": 0.005253,
+   "value": 0.00821816,
+   "low": 0.00780725,
+   "high": 0.00862907,
    "class": "measurement-fit",
-   "source": "fitted on tilize runs (craq-b702fd90), calibration/fit_layout.py"
+   "source": "fitted on tilize fp32 runs (craq-b702fd90) on the bf16 terms, calibration/fit_layout.py"
   },
   "tz.f32_wr_cpb_l1": {
-   "value": 6.56704e-10,
-   "low": 6.23868e-10,
-   "high": 6.89539e-10,
+   "value": 3.99236e-16,
+   "low": 3.79274e-16,
+   "high": 4.19198e-16,
    "class": "measurement-fit",
-   "source": "fitted on tilize runs (craq-b702fd90), calibration/fit_layout.py"
+   "source": "fitted on tilize fp32 runs (craq-b702fd90) on the bf16 terms, calibration/fit_layout.py"
   },
   "tzh.f32_cu_first": {
    "value": 193.812,
@@ -4002,6 +4002,13 @@
    "high": 0.0076009,
    "class": "measurement-fit",
    "source": "fitted on reshard runs (craq-b702fd90), calibration/fit_layout.py"
+  },
+  "tz.wr_bissue": {
+   "value": 27.5812,
+   "low": 26.2021,
+   "high": 28.9602,
+   "class": "measurement-fit",
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
   }
  },
  "compute_variants": {

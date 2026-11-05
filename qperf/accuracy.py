@@ -5,6 +5,8 @@ binary_ng: the mean errors of docs/CALIBRATION.md (BINARY). Data-movement ops: p
 calibration/make_accuracy.py from calibration/data (mean error per profile, factory and dtype, and the largest rows,
 width and elements among the factory's runs; tests/test_accuracy.py keeps it current). A profile derived from another
 (silicon-hypothesis: calibration.derived_from ttsim-perf@...) borrows the source's numbers and says it is a hypothesis.
+A hypothetical design knob run on the simulators as a kernel variant (accuracy.json hypothetical_validation, e.g. tilize
+Default write_batch) is stated as validated for rows whose only non-default knob it is, partly validated with others.
 """
 
 from __future__ import annotations
@@ -22,19 +24,40 @@ BINARY = {
                    "fp32": {"dram": ("<= 0.8%",), "l1": ("9%",)}},
 }
 _table = None
+_validation = None
 
 
-def table():
-    """profiles/accuracy.json, or {} when absent (a QPERF_PROFILES tree without it)."""
-    global _table
+def _load():
+    global _table, _validation
     if _table is None:
         path = os.path.join(profiles.ROOT, "accuracy.json")
         try:
             with open(path) as f:
-                _table = json.load(f).get("profiles", {})
+                raw = json.load(f)
         except OSError:
-            _table = {}
+            raw = {}
+        _table, _validation = raw.get("profiles", {}), raw.get("hypothetical_validation", {})
+
+
+def table():
+    """profiles/accuracy.json, or {} when absent (a QPERF_PROFILES tree without it)."""
+    _load()
     return _table
+
+
+def validation(profile, op, factory, knob):
+    """The simulator validation of one hypothetical design knob of a factory on the profile's calibration source
+    ({"mean", "max", "runs", "speedup_mean", "values", "data"}), or None."""
+    _load()
+    return _validation.get(f"{op} {factory} {knob}", {}).get(source_of(profile)[0])
+
+
+def validation_txt(profile, knob, v):
+    """'write_batch validated on 24 ttsim-perf simulator runs (write_batch 4, 8): 0.8% mean error, 1.0% on the speedup
+    over the pinned kernel'."""
+    sp = "" if v.get("speedup_mean") is None else f", {_pct(v['speedup_mean'])} on the speedup over the pinned kernel"
+    return (f"{knob} validated on {v['runs']} {source_of(profile)[0]} simulator runs of a kernel variant ({knob} "
+            f"{', '.join(map(str, v['values']))}): {_pct(v['mean'])} mean error{sp}")
 
 
 def source_of(profile):
@@ -75,13 +98,23 @@ def _factory_error(profile, op, factory, dtype):
     return e["error"][dt]["mean"], dt, e["error"][dt]["runs"]
 
 
-def hypothetical_note(profile, op, factory, dtype):
-    """The accuracy of a hypothetical design of the factory (no simulator can run it)."""
+def hypothetical_note(profile, op, factory, dtype, knobs=None):
+    """The accuracy of a hypothetical design of the factory. knobs: the design knobs it changes; those with simulator
+    runs of a kernel variant (validation) are stated as validated, the others have no simulator measurement."""
     src = source_of(profile)[0]
     err, dt, _ = _factory_error(profile, op, factory, dtype)
-    return (f"hypothetical setup: no simulator measurement; built from costs with "
-            f"{_pct(err) if err is not None else 'unknown'} error on the factory ({op} {factory}, {src}"
-            f"{'' if dt in (None, dtype) else f', {dt} runs'})")
+    base = (f"built from costs with {_pct(err) if err is not None else 'unknown'} error on the factory ({op} {factory}, "
+            f"{src}{'' if dt in (None, dtype) else f', {dt} runs'})")
+    knobs = sorted(set(knobs or ()))
+    checked = {k: validation(profile, op, factory, k) for k in knobs}
+    done = [validation_txt(profile, k, v) for k, v in checked.items() if v]
+    rest = [k for k, v in checked.items() if not v]
+    if done and not rest:
+        return f"hypothetical setup: {'; '.join(done)}; {base}"
+    if done:
+        return (f"hypothetical setup, partly validated: {'; '.join(done)}; {', '.join(rest)}: no simulator measurement; "
+                f"{base}")
+    return f"hypothetical setup: no simulator measurement; {base}"
 
 
 def _derived(profile, what):
@@ -89,8 +122,8 @@ def _derived(profile, what):
             f"{assumed_dram(profile)} are assumptions")
 
 
-def layout(profile, op, factory, dtype, hypothetical=False, overrides=False):
-    """The accuracy statement of one data-movement row."""
+def layout(profile, op, factory, dtype, hypothetical=False, overrides=False, knobs=None):
+    """The accuracy statement of one data-movement row (knobs: the design knobs a hypothetical row changes)."""
     src, derived = source_of(profile)
     err, dt, runs = _factory_error(profile, op, factory, dtype)
     measured = ("no calibration runs" if err is None else
@@ -101,7 +134,7 @@ def layout(profile, op, factory, dtype, hypothetical=False, overrides=False):
     elif derived:
         s = _derived(profile, f"instruction costs from {src}, where {op} {factory} has {measured}")
     elif hypothetical:
-        s = hypothetical_note(profile, op, factory, dtype)
+        s = hypothetical_note(profile, op, factory, dtype, knobs)
     elif err is None:
         s = f"no calibration runs of {op} {factory} on {src}: accuracy unknown"
     else:

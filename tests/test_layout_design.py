@@ -181,3 +181,32 @@ def test_batches_that_do_not_divide_the_block_run():
     u = analyze(req("untilize", (32 * 8, 32 * 6), baseline={"cores": 4, "read_batch": 4, "tiles_per_block": 3,
                                                            "dfb_blocks": 3}))
     assert u["status"] == "ok" and u["baseline"]["structure"]["dfb"]["in_entries"] == 9
+
+
+@pytest.mark.parametrize("profile", ["craq-sim", "ttsim-perf"])
+def test_batched_writer_runs_within_acceptance(profile):
+    """tilize Default with a real batched writer kernel (calibration/data/tilize-wbatch-*.jsonl, write_batch 4 and 8,
+    12 shapes each, plus the pinned writer at the same shapes): mean error <= 2% per batch, and the batching speedup
+    over the pinned writer within 2% on average; the accuracy table states the same numbers (hypothetical_validation)."""
+    prof = load("costs", profile)[0]
+    c = {k: _pick(v, "nominal") for k, v in prof["params"].items()}
+    meas, pred = {}, {}
+    for line in open(os.path.join(ROOT, "calibration", "data", f"tilize-wbatch-{profile}.jsonl")):
+        r = json.loads(line)
+        k = (r["design"]["write_batch"], r["H"], r["W"])
+        meas[k] = r["span_max"]
+        pred[k] = estimate(r["op"], r["H"], r["W"], c, r["dtype"], r["mem"], r["multicore"], design=r["design"])["span"]
+    shapes = sorted({k[1:] for k in meas})
+    assert len(shapes) == 12 and set(meas) == {(b,) + s for b in (1, 4, 8) for s in shapes}
+    errs = []
+    for b in (1, 4, 8):
+        e = [abs(pred[(b,) + s] / meas[(b,) + s] - 1) for s in shapes]
+        assert sum(e) / len(e) <= 0.02, (profile, b, sum(e) / len(e))
+        if b > 1:
+            errs += e
+            sp = [abs((pred[(1,) + s] / pred[(b,) + s]) / (meas[(1,) + s] / meas[(b,) + s]) - 1) for s in shapes]
+            assert sum(sp) / len(sp) <= 0.02, (profile, b, sum(sp) / len(sp))
+            assert all(pred[(b,) + s] < pred[(1,) + s] for s in shapes)  # batching never predicted slower here
+    v = json.load(open(os.path.join(ROOT, "profiles", "accuracy.json")))["hypothetical_validation"]
+    v = v["tilize Default write_batch"][profile]
+    assert v["runs"] == len(errs) == 24 and abs(v["mean"] - sum(errs) / len(errs)) <= 0.001

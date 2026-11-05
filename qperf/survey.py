@@ -27,7 +27,7 @@ import time
 from . import accuracy
 from .api import NOISE
 from .layout_api import CRAQ_SMALL_REQUESTS, LayoutError, _costs, _result, _workload
-from .ops.layout import DESIGN_FACTORIES, SHARD_OPS, TILE, estimate, plan, resolve_design
+from .ops.layout import DESIGN_FACTORIES, DESIGN_KNOBS, SHARD_OPS, TILE, estimate, plan, resolve_design
 from .profiles import load
 
 DEFAULT_HEIGHTS = [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]
@@ -461,6 +461,16 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
     if any(hyp_any.values()) and not accuracy.source_of(profile)[1]:
         acc += "; approaches marked hypothetical: " + accuracy.hypothetical_note(profile, op, base_fac, dtype).removeprefix(
             "hypothetical setup: ")
+        # approaches whose only knob has simulator runs of a kernel variant (e.g. tilize write_batch): say so
+        by_knob = {}
+        for aid, ov in approaches:
+            knobs = set(ov) & set(DESIGN_KNOBS)
+            if hyp_any[aid] and len(knobs) == 1 and knobs == set(ov):
+                by_knob.setdefault(next(iter(knobs)), []).append(aid)
+        for knob, aids in sorted(by_knob.items()):
+            v = accuracy.validation(profile, op, base_fac, knob)
+            if v:
+                acc += f" (except {', '.join(aids)}: {accuracy.validation_txt(profile, knob, v)})"
     elif any(hyp_any.values()):  # a derived profile
         acc += "; the approaches marked hypothetical are not in the kernels either: no simulator measurement"
     others = sorted({f for a in facs.values() for f in a} - {base_fac})

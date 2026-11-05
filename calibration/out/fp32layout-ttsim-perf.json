@@ -224,18 +224,18 @@
   "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
  },
  "tz.f32_wr_cpb": {
-  "value": 0.00732299,
-  "low": 0.00695684,
-  "high": 0.00768914,
+  "value": 0.00989501,
+  "low": 0.00940026,
+  "high": 0.0103898,
   "class": "measurement-fit",
-  "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
+  "source": "fitted on tilize fp32 runs (perf) on the bf16 terms, calibration/fit_layout.py"
  },
  "tz.f32_wr_cpb_l1": {
-  "value": 0.0139009,
-  "low": 0.0132059,
-  "high": 0.0145959,
+  "value": 0.0139137,
+  "low": 0.013218,
+  "high": 0.0146094,
   "class": "measurement-fit",
-  "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
+  "source": "fitted on tilize fp32 runs (perf) on the bf16 terms, calibration/fit_layout.py"
  },
  "tzh.f32_cu_first": {
   "value": 0.00988639,

@@ -59,6 +59,17 @@ def test_accuracy_table_is_current():
             for dt, e in f["error"].items():
                 assert s["error"][dt]["runs"] == e["runs"] and abs(s["error"][dt]["mean"] - e["mean"]) <= 0.001, \
                     (prof, key, dt)
+    from make_accuracy import validation
+
+    stored = json.load(open(os.path.join(ROOT, "profiles", "accuracy.json")))["hypothetical_validation"]
+    fresh = validation()
+    assert set(stored) == set(fresh) and "tilize Default write_batch" in fresh
+    for key, per in fresh.items():
+        assert set(stored[key]) == set(per)
+        for prof, v in per.items():
+            s = stored[key][prof]
+            assert (s["runs"], s["values"], s["data"]) == (v["runs"], v["values"], v["data"]), (key, prof)
+            assert abs(s["mean"] - v["mean"]) <= 0.001 and abs(s["speedup_mean"] - v["speedup_mean"]) <= 0.001
 
 
 def test_platform_scope_carries_no_op_error():
@@ -92,8 +103,11 @@ def test_hypothetical_rows_say_so():
                                                                                          {"use_multicore": False}}]))
     assert validate_response(r) == []
     g, sc = r["candidates"]
-    assert g["accuracy"] == ("hypothetical setup: no simulator measurement; built from costs with 1.2% error on the "
-                             "factory (tilize Default, ttsim-perf)")
+    # split / dfb_blocks have no simulator runs; write_batch has (tilize-wbatch-ttsim-perf.jsonl): partly validated
+    assert g["accuracy"] == ("hypothetical setup, partly validated: write_batch validated on 24 ttsim-perf simulator "
+                             "runs of a kernel variant (write_batch 4, 8): 0.8% mean error, 1.0% on the speedup over the "
+                             "pinned kernel; dfb_blocks, split: no simulator measurement; built from costs with 1.2% "
+                             "error on the factory (tilize Default, ttsim-perf)")
     assert sc["accuracy"].startswith("tilize SingleCore on ttsim-perf: 1.1% mean error")
     assert r["baseline"]["accuracy"] == r["accuracy"]
     assert f"accuracy: {g['accuracy']}" in _text(r)

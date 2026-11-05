@@ -248,11 +248,11 @@
    "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
   },
   "tz.wr_cpb": {
-   "value": 0.0175008,
-   "low": 0.0166258,
-   "high": 0.0183759,
+   "value": 0.0225943,
+   "low": 0.0214646,
+   "high": 0.023724,
    "class": "measurement-fit",
-   "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (perf), calibration/fit_layout.py"
   },
   "tz.rd_setup": {
    "value": 541.477,
@@ -266,7 +266,7 @@
    "low": 1428.04,
    "high": 1578.36,
    "class": "measurement-fit",
-   "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (perf), calibration/fit_layout.py"
   },
   "tz.rd_fixed": {
    "value": 678.202,
@@ -318,32 +318,32 @@
    "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
   },
   "tz.wr_fixed": {
-   "value": 24.0931,
-   "low": 22.8885,
-   "high": 25.2978,
+   "value": 0.169216,
+   "low": 0.160755,
+   "high": 0.177677,
    "class": "measurement-fit",
-   "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (perf), calibration/fit_layout.py"
   },
   "tz.wr_issue": {
-   "value": 42.47,
-   "low": 40.3465,
-   "high": 44.5935,
+   "value": 55.7386,
+   "low": 52.9517,
+   "high": 58.5255,
    "class": "measurement-fit",
-   "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (perf), calibration/fit_layout.py"
   },
   "tz.wr_first": {
-   "value": 82.7239,
-   "low": 78.5877,
-   "high": 86.8601,
+   "value": 92.4945,
+   "low": 87.8698,
+   "high": 97.1192,
    "class": "measurement-fit",
-   "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (perf), calibration/fit_layout.py"
   },
   "tz.wr_tail": {
-   "value": 906.391,
-   "low": 861.072,
-   "high": 951.711,
+   "value": 899.606,
+   "low": 854.626,
+   "high": 944.587,
    "class": "measurement-fit",
-   "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (perf), calibration/fit_layout.py"
   },
   "tz.cu_tail": {
    "value": 759.952,
@@ -2985,18 +2985,18 @@
    "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
   },
   "tz.f32_wr_cpb": {
-   "value": 0.00732299,
-   "low": 0.00695684,
-   "high": 0.00768914,
+   "value": 0.00989501,
+   "low": 0.00940026,
+   "high": 0.0103898,
    "class": "measurement-fit",
-   "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
+   "source": "fitted on tilize fp32 runs (perf) on the bf16 terms, calibration/fit_layout.py"
   },
   "tz.f32_wr_cpb_l1": {
-   "value": 0.0139009,
-   "low": 0.0132059,
-   "high": 0.0145959,
+   "value": 0.0139137,
+   "low": 0.013218,
+   "high": 0.0146094,
    "class": "measurement-fit",
-   "source": "fitted on tilize runs (perf), calibration/fit_layout.py"
+   "source": "fitted on tilize fp32 runs (perf) on the bf16 terms, calibration/fit_layout.py"
   },
   "tzh.f32_cu_first": {
    "value": 0.00988639,
@@ -4054,6 +4054,13 @@
    "high": 7.64233,
    "class": "measurement-fit",
    "source": "fitted on reshard runs (perf), calibration/fit_layout.py"
+  },
+  "tz.wr_bissue": {
+   "value": 1e-10,
+   "low": 9.5e-11,
+   "high": 1.05e-10,
+   "class": "measurement-fit",
+   "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (perf), calibration/fit_layout.py"
   },
   "noc.read_latency.dram": {
    "class": "assumption",

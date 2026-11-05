@@ -1,0 +1,51 @@
+{
+ "tz.wr_fixed": {
+  "value": 22.7583,
+  "low": 21.6203,
+  "high": 23.8962,
+  "class": "measurement-fit",
+  "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
+ },
+ "tz.wr_issue": {
+  "value": 14.3146,
+  "low": 13.5989,
+  "high": 15.0303,
+  "class": "measurement-fit",
+  "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
+ },
+ "tz.wr_cpb": {
+  "value": 0.0184858,
+  "low": 0.0175615,
+  "high": 0.0194101,
+  "class": "measurement-fit",
+  "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
+ },
+ "tz.wr_first": {
+  "value": 2.51404e-08,
+  "low": 2.38834e-08,
+  "high": 2.63974e-08,
+  "class": "measurement-fit",
+  "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
+ },
+ "tz.wr_tail": {
+  "value": 66.5613,
+  "low": 63.2332,
+  "high": 69.8893,
+  "class": "measurement-fit",
+  "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
+ },
+ "tz.wr_setup": {
+  "value": 1140.25,
+  "low": 1083.24,
+  "high": 1197.26,
+  "class": "measurement-fit",
+  "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
+ },
+ "tz.wr_bissue": {
+  "value": 27.5812,
+  "low": 26.2021,
+  "high": 28.9602,
+  "class": "measurement-fit",
+  "source": "fitted on tilize runs and kernel-variant runs (write_batch=4, write_batch=8) (craq-b702fd90), calibration/fit_layout.py"
+ }
+}

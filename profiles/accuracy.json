@@ -1,6 +1,32 @@
 {
  "basis": "mean |model / simulator - 1| at nominal costs over calibration/data/{layout,fp32layout,rowmajor,move,reshard}-<profile>.jsonl (all runs, holdouts included); range = the largest rows (H), width (W) and H x W among the factory's runs",
  "generated_by": "calibration/make_accuracy.py",
+ "hypothetical_validation": {
+  "tilize Default write_batch": {
+   "craq-sim": {
+    "data": "calibration/data/tilize-wbatch-craq-sim.jsonl",
+    "max": 0.0403,
+    "mean": 0.0164,
+    "runs": 24,
+    "speedup_mean": 0.004,
+    "values": [
+     4,
+     8
+    ]
+   },
+   "ttsim-perf": {
+    "data": "calibration/data/tilize-wbatch-ttsim-perf.jsonl",
+    "max": 0.0223,
+    "mean": 0.0084,
+    "runs": 24,
+    "speedup_mean": 0.0101,
+    "values": [
+     4,
+     8
+    ]
+   }
+  }
+ },
  "profiles": {
   "craq-sim": {
    "factories": {
@@ -179,11 +205,11 @@
     "tilize Default": {
      "error": {
       "bf16": {
-       "mean": 0.0127,
+       "mean": 0.0121,
        "runs": 52
       },
       "fp32": {
-       "mean": 0.0086,
+       "mean": 0.0089,
        "runs": 52
       }
      },
@@ -532,11 +558,11 @@
     "tilize Default": {
      "error": {
       "bf16": {
-       "mean": 0.0116,
+       "mean": 0.0117,
        "runs": 56
       },
       "fp32": {
-       "mean": 0.0142,
+       "mean": 0.0143,
        "runs": 56
       }
      },

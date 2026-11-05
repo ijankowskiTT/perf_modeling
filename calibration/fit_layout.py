@@ -2,6 +2,10 @@
 
   python calibration/fit_layout.py --data runs.jsonl --sim craq-b702fd90 --op tilize [--holdout H=1280] [--write craq-sim]
 
+A run with a `design` dict (hypothetical layout knobs run as a kernel variant, e.g. calibration/data/tilize-wbatch-*.jsonl:
+design.write_batch) is planned with plan(..., design=...) and fitted alongside the factory runs; the every-4th holdout
+is taken per factory and design. --terms (bf16) refits only the named terms on top of the profile's values.
+
 Coordinate descent (golden section per key, 4 sweeps) on mean squared log(pred/meas) over the fit runs; prints
 fit and holdout error per factory. --write stores the values in profiles/costs/<profile>.json.
 """
@@ -61,11 +65,19 @@ def load(path, sim, op, dtype="bf16"):
 
 
 def plan_of(r):
-    return plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"])
+    return plan(r["op"], r["H"], r["W"], r["dtype"], r["mem"], r["multicore"], design=r.get("design"))
 
 
 def predict(r, c):
-    return estimate(r["op"], r["H"], r["W"], c, r["dtype"], r["mem"], r["multicore"], trace=3)
+    return estimate(r["op"], r["H"], r["W"], c, r["dtype"], r["mem"], r["multicore"], trace=3, design=r.get("design"))
+
+
+def design_tag(r):
+    """'' for a run of the pinned kernels (a design at its defaults included), else e.g. 'write_batch=4'."""
+    d = {k: v for k, v in (r.get("design") or {}).items() if v is not None}
+    if not d or r.get("kernel_variant", "pinned") == "pinned":
+        return ""
+    return ",".join(f"{k}={v}" for k, v in sorted(d.items()))
 
 
 ROLE_OF = {"reader": "QUASAR_DM2", "writer": "QUASAR_DM3"}
@@ -159,10 +171,12 @@ def report(name, rs, c, worst=0):
     for r in rs:
         p = predict(r, c)
         err = p["span"] / r["span_max"] - 1
-        by.setdefault(p["factory"], []).append(abs(err))
-        rows.append((err, f"{r['mem']} {r['H']}x{r['W']} {'mc' if r['multicore'] else 'sc'} meas {r['span_max']} pred {p['span']:.0f}"))
+        tag = design_tag(r)
+        by.setdefault(p["factory"] + (f" {tag}" if tag else ""), []).append(abs(err))
+        rows.append((err, f"{r['mem']} {r['H']}x{r['W']} {'mc' if r['multicore'] else 'sc'}{' ' + tag if tag else ''} "
+                          f"meas {r['span_max']} pred {p['span']:.0f}"))
     for fac, e in sorted(by.items()):
-        print(f"  {name:8s} {fac:11s} n={len(e):3d} mean {100 * statistics.mean(e):5.2f}%  max {100 * max(e):5.2f}%")
+        print(f"  {name:8s} {fac:24s} n={len(e):3d} mean {100 * statistics.mean(e):5.2f}%  max {100 * max(e):5.2f}%")
     for err, txt in sorted(rows, key=lambda x: -abs(x[0]))[:worst]:
         print(f"      {100 * err:+6.1f}%  {txt}")
 
@@ -173,7 +187,7 @@ def _entry(k, v, a):
     start = ".start_" in k
     return {"value": sig(v), "low": sig(v * 0.95), "high": sig(v * 1.05),
             "class": "measurement" if start else "measurement-fit",
-            "source": "profiler: median kernel start" if start else f"fitted on {a.op} runs ({a.sim}), calibration/fit_layout.py"}
+            "source": "profiler: median kernel start" if start else f"fitted on {a.op} runs{a.variants} ({a.sim}), calibration/fit_layout.py"}
 
 
 def main():
@@ -185,7 +199,8 @@ def main():
     ap.add_argument("--write", help="store the fitted terms in profiles/costs/<profile>.json")
     ap.add_argument("--emit", help="write the fitted terms (profile param entries) to this JSON file instead")
     ap.add_argument("--dtype", default="bf16", help="bf16, or fp32: fit <p>.f32_* overrides on top of the profile")
-    ap.add_argument("--terms", help="fp32: comma-separated terms to fit (default: the factory's terms in FP32_TERMS)")
+    ap.add_argument("--terms", help="comma-separated terms to fit. fp32: default the factory's terms in FP32_TERMS; bf16: "
+                                    "refit only these, every other term (and the kernel starts) at the profile's value")
     ap.add_argument("--only", help="comma-separated cost prefixes to fit (default: every prefix in the runs)")
     a = ap.parse_args()
     f32 = a.dtype == "fp32"
@@ -204,14 +219,16 @@ def main():
 
     skipped = [r for r in rs if not modeled(r)]
     rs = [r for r in rs if modeled(r)]
+    tags = sorted({design_tag(r) for r in rs} - {""})
+    a.variants = f" and kernel-variant runs ({', '.join(tags)})" if tags else ""
     if skipped:
         print(f"  ({len(skipped)} runs use factories not modeled yet, skipped)")
     fac_of = lambda r: plan_of(r)[0]  # noqa: E731
-    if a.holdout == "every4":  # every 4th run of each factory, in a fixed order
-        rs.sort(key=lambda r: (fac_of(r), r["mem"], r["H"], r["W"]))
+    if a.holdout == "every4":  # every 4th run of each factory (and kernel variant), in a fixed order
+        rs.sort(key=lambda r: (fac_of(r), design_tag(r), r["mem"], r["H"], r["W"]))
         seen, hold = {}, []
         for r in rs:
-            fac = fac_of(r)
+            fac = (fac_of(r), design_tag(r))
             seen[fac] = seen.get(fac, 0) + 1
             if seen[fac] % 4 == 2:
                 hold.append(r)
@@ -228,7 +245,7 @@ def main():
     if prof_name:
         params = json.load(open(os.path.join(ROOT, "profiles", "costs", prof_name + ".json")))["params"]
         flags = {k: v["value"] for k, v in params.items() if k in ("noc.barrier_all_kinds",) or k.endswith(".dfb_blocks")}
-        if f32:  # fp32 overrides sit on the whole bf16 profile
+        if f32 or a.terms:  # fp32 overrides / a partial bf16 refit sit on the whole bf16 profile
             flags = {k: v["value"] for k, v in params.items()}
     c = {}
     for p in sorted({pre_of(r) for r in rs}):
@@ -240,9 +257,12 @@ def main():
         hs = [r for r in hold if pre_of(r) == p]
         if not fs:  # nothing to fit on: fit on all of this factory's runs
             fs, hs = hs, []
-        # kernel starts read off the profiler (median role start on a full core, relative to its first kernel)
+        # kernel starts read off the profiler (median role start on a full core, relative to its first kernel); the
+        # pinned kernels' only: a kernel variant's binary starts at its own time
         starts = {"reader": [], "compute": [], "writer": []}
         for r in fs:
+            if design_tag(r):
+                continue
             for core in list(r.get("core_detail", {}).values())[:1]:
                 roles = core["roles"]
                 starts["reader"].append(roles.get("QUASAR_DM2", [0])[0])
@@ -250,9 +270,11 @@ def main():
                 starts["compute"].append(roles.get("QUASAR_NEO0_TRISC0", [0])[0])
         cf = dict(flags)
         sp = f"{p}.f32_" if f32 else f"{p}."
-        cf.update({f"{sp}start_{k}": statistics.median(v) for k, v in starts.items()})
+        part = bool(a.terms) and not f32  # partial bf16 refit: the profile's starts and other terms stay
+        if not part:
+            cf.update({f"{sp}start_{k}": statistics.median(v) for k, v in starts.items()})
         mod = registry.module_for(op0)
-        if not f32:
+        if not f32 and not part:
             cf.update({f"{p}.{k}": v for k, v in INIT.items()})
             cf.update({f"{p}.{k}": v for k, v in getattr(mod, "FIT_INIT", {}).items()})  # an op module's own terms
         keys = keys_for(op0, fac)
@@ -275,7 +297,7 @@ def main():
             if mod and hasattr(mod, "l1_fit_keys"):  # or say which L1 terms a simulator can identify
                 l1 = list(mod.l1_fit_keys(op0, fac, a.sim))
             keys += l1
-            if not f32:
+            if not f32 and not part:
                 cf.update({f"{p}.{k}": l1_init[k] for k in l1 if k in l1_init})  # others: the module's FIT_INIT
         if f32:  # override only what fp32 changes, where the bf16 profile has the term; start from the bf16 value
             allowed = a.terms.split(",") if a.terms else FP32_TERMS
@@ -284,17 +306,23 @@ def main():
                 cf.setdefault(f"{p}.l1_conf_cpb", 0.0)
             keys = [f"f32_{k}" for k in keys if k in allowed and f"{p}.{k}" in cf]
             cf.update({f"{p}.{k}": cf[f"{p}.{k[4:]}"] for k in keys})
+        elif part:
+            keys = a.terms.split(",")
+            cf.update({f"{p}.{k}": cf.get(f"{p}.{k}", INIT.get(k, 0.0)) for k in keys})  # a new term starts at INIT / 0
         cf = fit(fs, cf, [f"{p}.{k}" for k in keys])
         print(f"{op0} {fac} ({p}) on {a.sim}: {len(fs)} fit runs, {len(hs)} holdout ({a.holdout})")
         shown = [k for k in cf if k.startswith(sp) and (".start_" in k or k.split(".", 1)[1] in keys)] if f32 else \
-            [k for k in cf if k.startswith(p + ".")]
+            [f"{p}.{k}" for k in keys] if part else [k for k in cf if k.startswith(p + ".")]
         print("  " + ", ".join(f"{k.split('.')[1]}={cf[k]:.4g}" + (f" (bf16 {cf[p + '.' + k.split('.')[1][4:]]:.4g})"
                                                                    if f32 and ".f32_" in k else "") for k in shown))
         report("fit", fs, cf, worst=3)
         if hs:
             report("holdout", hs, cf, worst=2)
-        c.update({k: v for k, v in cf.items() if (k not in flags or f32) and k.startswith(sp) and
-                  (".start_" in k or k.split(".", 1)[1] in keys)})
+        if part:
+            c.update({f"{p}.{k}": cf[f"{p}.{k}"] for k in keys})
+        else:
+            c.update({k: v for k, v in cf.items() if (k not in flags or f32) and k.startswith(sp) and
+                      (".start_" in k or k.split(".", 1)[1] in keys)})
     entries = {k: _entry(k, v, a) for k, v in c.items()}
     if a.emit:  # for parallel work: merge into a profile later (calibration/merge_params.py)
         old = json.load(open(a.emit)) if os.path.exists(a.emit) else {}

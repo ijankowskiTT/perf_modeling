@@ -164,7 +164,8 @@ def _result(wl, profile, what_if):
         res["warnings"].append(f"fp32 is not calibrated for {op} {factory} on this profile: costs are the bf16 fit")
     if family_of(op) == "tilize" and math.ceil(W / TILE) > 64 and profile["name"] == "craq-sim":
         res["warnings"].append("craq-sim cannot run tilize wider than 64 tiles (mop_expander); this is an extrapolation")
-    res["accuracy"] = accuracy.layout(profile, op, factory, wl["dtype"], hyp, bool(what_if.get("cost_overrides")))
+    knobs = {ch.split("=")[0] for ch in d["changed"]} if hyp else None  # the design knobs this row changes
+    res["accuracy"] = accuracy.layout(profile, op, factory, wl["dtype"], hyp, bool(what_if.get("cost_overrides")), knobs)
     out_of_range = accuracy.range_warning(profile, op, factory, H, W)
     if out_of_range:
         res["warnings"].append(out_of_range)
