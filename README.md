@@ -25,6 +25,7 @@ For a 64k-tile add from DRAM, would 2 more reader threads or 30% faster compute 
 Is it worth implementing per-thread NoC barriers? When would it help?
 How long does tilize of a 3136x64 tensor take, and would height-sharding it help?
 Is resharding a 1024x1024 tensor from 8 to 16 height shards in L1 faster than to 4?
+What is the best multicore setup for tilize of a 64x2048 tensor: cores, split, batching, buffering?
 Use the quasar-perf skill on PR <link>: compare main vs the PR's batching and other options.
 ```
 
@@ -33,6 +34,9 @@ Each answer gives:
 - each option's time, speedup and verdict (`faster`, `no_meaningful_gain`, `inconclusive`);
 - the best choice;
 - the limits.
+
+Reports show how each setup runs: the core grid it uses and each core's reader -> compute -> writer flow, with the
+bottleneck marked, next to charts that compare every option.
 
 Ranges are cost scenarios, not confidence intervals. Unsupported cases are reported as such, never guessed. Add
 "make a report with charts" to get a shareable page.

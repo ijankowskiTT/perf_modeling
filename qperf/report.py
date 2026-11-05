@@ -200,7 +200,7 @@ def _plan(req, r):
     g = s.get("grid") or [8, 4]
     p = {"unit": "clusters" if binary else "cores", "cols": int(g[0]), "rows": int(g[1]),
          "factory": s.get("factory") or cfg.get("factory"), "split": s.get("split"),
-         "scope": "per cluster" if binary and tr else None}
+         "scope": "per cluster" if binary and tr else ("busiest core" if s else None)}
     loads = {}
     for e in r.get("work_split") or []:
         if binary:
@@ -815,8 +815,9 @@ def _sensitivity_charts(sens, slots, req):
 
 def to_html(req, res):
     prof = res.get("profiles", {}).get("costs", {})
+    title = E(f"{(req.get('workload') or {}).get('op', 'qperf')} {req.get('action', 'estimate')} report")
     head = (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" '
-            f'content="width=device-width,initial-scale=1"><title>qperf report</title><style>{CSS}</style></head><body><main>'
+            f'content="width=device-width,initial-scale=1"><title>{title}</title><style>{CSS}</style></head><body><main>'
             f'<h1>qperf: {E(str(req.get("action")))}</h1><p class="sub">{E(_workload(req))} · '
             f'{E(prof.get("name", ""))}@{E(prof.get("revision", ""))}</p>')
     if res["status"] not in ("ok", "partial"):

@@ -62,9 +62,23 @@ the same L1 bank queue there (`<p>.l1_conf_cpb`).
 
 ## Hypothetical variants
 
-These are not in the kernels, and results say so.
-- `barriers: per_thread`: each DM thread waits only on its own transfers.
-- `work_split: dynamic`: DM threads claim batches from one queue, at `dq.claim` (30 cycles assumed) per batch.
+These are not in the kernels, and results say so. They reuse the factory's calibrated per-request, per-byte,
+per-block and per-tile costs, so they compare fairly with the factory, but no simulator has run them.
+- binary_ng `barriers: per_thread`: each DM thread waits only on its own transfers.
+- binary_ng `work_split: dynamic`: DM threads claim batches from one queue, at `dq.claim` (30 cycles assumed) per batch.
+- tilize Default / untilize MultiCore design knobs (`tune` searches them by default; a setup equal to the factory's
+  is not hypothetical):
+
+| Knob | Values | Meaning |
+|---|---|---|
+| `cores` | 1-32 | cores used |
+| `split` | rows, cols, 2d | whole tile-rows per core (factory); tile-rows cut into column chunks; the best rows x chunks grid |
+| `tiles_per_block` | divisor of the chunk | block width: more blocks, more barriers, smaller DFBs |
+| `dfb_blocks` | 1-3 | DFB depth in blocks (DFBs must fit half of L1) |
+| `write_batch` / `read_batch` | 1, 4, 8 | tiles per writer (tilize) / reader (untilize) barrier |
+
+Every tilize / untilize result carries `structure`: the core grid, the split and the busiest core's requests,
+bytes, barriers, compute steps and DFB sizes. Reports draw it.
 
 ## Not modeled
 

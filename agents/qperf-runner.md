@@ -39,7 +39,10 @@ knob overrides.
 - **tilize, untilize, tilize_with_val_padding, untilize_with_unpadding**:
   - workload: `"shape":[1,1,H,W],"placements":{"a":"dram"|"l1"|"borrowed"}`. shape is the unpadded tensor;
     borrowed = height-sharded, tilize only.
-  - knobs: `use_multicore`, `input`. Sensitivity: num_rows | num_cols. No tune.
+  - knobs: `use_multicore`, `input`. Sensitivity: num_rows | num_cols.
+  - tilize Default / untilize MultiCore: "which setup / more cores / batching / buffering" questions = ONE `tune`
+    with no `space` (built-in search: `cores`, `split` rows|cols|2d, `tiles_per_block`, `dfb_blocks`,
+    `write_batch` (tilize) / `read_batch` (untilize)). Those setups are hypothetical (not in the kernels): say so.
   - Name the factory and the limiting thread.
 - **interleaved_to_sharded, sharded_to_interleaved**:
   - add `"shard":{"strategy":"height"|"width"|"block","cores":N}`; placements.a is the interleaved side;
