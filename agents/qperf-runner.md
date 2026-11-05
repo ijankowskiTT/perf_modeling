@@ -59,6 +59,12 @@ knob overrides.
     Block: `"grid":[rows,cols]`; a DRAM side has at most 2 cores (banks).
   - Compare specs with candidates `{"id":"to16","overrides":{"reshard":{"to":{...}}}}`.
 - Any other op: report `unsupported`.
+- **Several ops in one question** (e.g. "wins across layout ops"): write one bundle file
+  `{"title":"...","requests":[req, ...]}` (one survey per op) and run it with `--format html --out <scratch>/r.html`
+  (or text). It ranks kernel changes and layout choices separately. Never write HTML or charts yourself.
+- Survey for interleaved_to_sharded / sharded_to_interleaved / reshard compares layout choices (core count,
+  strategy, target spec), not kernel changes. A DRAM interleaved side is untimed on ttsim-perf: survey those on
+  silicon-hypothesis (assumed DRAM) or with `placements.a: "l1"`.
 
 **Profile** (`costs`):
 - craq-sim is the default. It has no NoC latency or contention and charges reshard transfers per request.

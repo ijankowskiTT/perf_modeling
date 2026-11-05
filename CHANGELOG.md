@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0
+
+- Bundles: several requests in one call render one page (summary per op, kernel changes and layout choices ranked
+  separately, caps from assumed DRAM, a section per request).
+- `survey` for interleaved_to_sharded, sharded_to_interleaved and reshard (layout choices); untimed cells marked.
+
 ## 1.3.0
 
 - Every answer states its op's own accuracy (`accuracy`); no profile note carries another op's error.
