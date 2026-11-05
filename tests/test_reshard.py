@@ -13,6 +13,8 @@ from qperf.ops.reshard import _map_for_reshard, parse_mem, plan, select_factory
 from qperf.profiles import _pick, load
 from qperf.validate import validate_response
 
+from conftest import NO_DM_COSTS
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def req(frm, to, shape=(1, 1, 1024, 1024), layout="tile", costs="craq-sim", **kw):
@@ -47,7 +49,7 @@ def test_more_cores_is_faster():
 
 
 @pytest.mark.parametrize("request_, status", [
-    (req(H8, H4, costs="silicon-hypothesis"), "needs_input"),  # a profile without reshard costs: no numbers
+    (req(H8, H4, costs=NO_DM_COSTS), "needs_input"),  # a profile without reshard costs: no numbers
     (req(H8, {"strategy": "height", "cores": 4, "memory": "dram"}), "invalid"),  # 4 DRAM banks: there are 2
 ])
 def test_errors_carry_no_numbers(request_, status):

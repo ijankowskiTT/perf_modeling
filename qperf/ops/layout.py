@@ -744,4 +744,31 @@ def estimate(op, H, W, costs, dtype="bf16", mem="dram", multicore=True, trace=0,
             bound = costs.get(f"{p}.start_reader", 0.0) + total / gbw + costs.get(f"{p}.drain", 0.0)
             out["l1_bound"] = bound
             out["span"] = max(span, bound)
+    # Whole-op DRAM bound, only where the profile assumes a DRAM bandwidth and opts in (dram.bound_layout: the
+    # simulators do not time DRAM, so craq-sim / ttsim-perf have neither): every core's DRAM reads and writes share
+    # dram.total_bytes_per_cycle x dram.efficiency, after one DRAM read latency.
+    bw = costs.get("dram.total_bytes_per_cycle", 0.0) * costs.get("dram.efficiency", 1.0)
+    if bw and costs.get("dram.bound_layout", 0.0) >= 0.5:
+        nbytes = dram_bytes(op, H, W, ELEM[dtype], loads)
+        if nbytes:
+            bound = (costs.get(f"{p}.start_reader", 0.0) + costs.get("noc.read_latency.dram", 0.0) + nbytes / bw
+                     + costs.get(f"{p}.drain", 0.0))
+            out["dram_bound"], out["dram_bytes"] = bound, nbytes
+            out["span"] = max(out["span"], bound)
     return out
+
+
+def dram_bytes(op, H, W, elem, loads):
+    """Bytes the whole op reads from and writes to DRAM: per DRAM side, the tile-padded tensor for a tiled side and the
+    logical rows for a row-major side (tilize: rows in, tiles out; untilize: tiles in, rows out); the other ops move
+    the logical tensor (a lower bound of their traffic)."""
+    cfg = loads[0][0]
+    tiled = math.ceil(H / TILE) * math.ceil(W / TILE) * TILE * TILE * elem
+    rows = H * W * elem
+    fam = family_of(op)
+    side = {"in": rows, "out": rows}
+    if fam == "tilize":
+        side["out"] = tiled
+    elif fam == "untilize":
+        side["in"] = tiled
+    return (side["in"] if cfg.get("in_place") == "dram" else 0) + (side["out"] if cfg.get("out_place") == "dram" else 0)

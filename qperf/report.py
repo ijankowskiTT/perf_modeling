@@ -7,6 +7,8 @@ import html
 import json
 import math
 
+from .accuracy import range_txt as accuracy_range_txt
+
 ROLE_PARTS = [("useful_busy_frac", "busy"), ("starved_frac", "starved"), ("backpressure_frac", "backpressure"),
               ("transfer_wait_frac", "waiting on NoC")]
 
@@ -361,7 +363,9 @@ def _approaches(req, res):
 def to_markdown(req, res):
     prof = res.get("profiles", {}).get("costs") or {"name": req.get("profiles", {}).get("costs"), "revision": "?"}
     L = [f"# qperf report: {req.get('action')}", "", f"**Workload:** {_workload(req)}  ",
-         f"**Profile:** {prof['name']}@{prof['revision']}  ", f"**Platform:** {res.get('platform_scope', '-')}", ""]
+         f"**Profile:** {prof['name']}@{prof['revision']}  ", f"**Platform:** {res.get('platform_scope', '-')}"
+         + ("  " if res.get("accuracy") else ""), *([f"**Accuracy:** {res['accuracy']}"] if res.get("accuracy") else []),
+         ""]
     if res["status"] not in ("ok", "partial"):
         return "\n".join(L + [f"**{res['status']}:** {res.get('message', '')}", ""])
     if res.get("survey"):
@@ -438,6 +442,7 @@ ul.facts b{color:var(--ink)}.pipe-n{display:none}
 .hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr));gap:0 12px}
 .hm h3{font-size:14px;margin:0 0 2px}.hm .note{margin:0 0 8px}.hx{overflow-x:auto}.tile .v{overflow-wrap:anywhere}
 svg .cell text{fill:var(--ink);font-size:11px}.legend .hatch{background:repeating-linear-gradient(45deg,var(--grid) 0 2px,transparent 2px 5px)}
+.legend .xhatch{background:repeating-linear-gradient(-45deg,color-mix(in srgb,var(--ink) 30%,transparent) 0 1px,var(--mid) 1px 4px)}
 @media (max-width:640px){.pipe-w{display:none}.pipe-n{display:block}.hh .t{margin-left:0}}
 """
 
@@ -873,9 +878,17 @@ def to_html(req, res):
     body = "".join("<tr>" + "".join(f"<td>{E(c.strip())}</td>" for c in row.strip("|").split("|")) + "</tr>" for row in table[2:])
     parts.append('<h2>All numbers</h2><div class="card wrap"><table><tr>' + "".join(f"<th>{E(c)}</th>" for c in head_cells)
                  + f"</tr>{body}</table></div>")
-    parts.append(f'<p class="note">{E(res.get("platform_scope", ""))}</p><details><summary>Request</summary><pre>'
+    parts.append(f'{_scope_notes(res)}<details><summary>Request</summary><pre>'
                  f'{E(json.dumps(req, indent=1))}</pre></details></main></body></html>')
     return "".join(parts)
+
+
+def _scope_notes(res):
+    """The platform (what the simulator times) and the op's accuracy (how close the model is), as notes."""
+    out = f'<p class="note">{E(res.get("platform_scope", ""))}</p>'
+    if res.get("accuracy"):
+        out += f'<p class="note accuracy"><b>Accuracy:</b> {E(res["accuracy"])}</p>'
+    return out
 
 
 # ------------------------------------------------------------------------------------------------ survey
@@ -903,6 +916,24 @@ def _regs_txt(a):
     return ", ".join(f"{_sx(r['shape'])} {r['speedup']:.2f}x" for r in a["regressions"]) or "none"
 
 
+def _cmp_speedup(cmp, aid):
+    """An approach's speedup {geomean, min, max} in survey.compare, or {}."""
+    return ((cmp or {}).get("approaches", {}).get(aid) or {}).get("speedup") or {}
+
+
+def _geo_txt(sp):
+    return "-" if sp.get("geomean") is None else f"{sp['geomean']:.2f}x"
+
+
+def _range_txt(sp):
+    return "-" if sp.get("min") is None else f"{sp['min']:.2f}..{sp['max']:.2f}x"
+
+
+def _outside(sv, i, j):
+    g = sv.get("outside_calibrated_range")
+    return bool(g and g[i][j])
+
+
 def _headline(sv, res):
     """(id, approach) of the best general approach: the first recommendation, else the best geomean."""
     rid = next((r["id"] for r in res.get("recommendations", []) if r.get("id")), None)
@@ -918,9 +949,13 @@ def _survey_md(req, res):
     for r in res.get("recommendations", []):
         L.append(f"- Recommend {r['label']}: {r.get('reason', '')}")
     L += [f"- Warning: {w}" for w in res.get("warnings", [])]
+    cmp = sv.get("compare")
+    me = (res.get("profiles", {}).get("costs") or {}).get("name", "this profile")
+    ccols = f" {me} min..max | {cmp['profile']['name']} geomean | {cmp['profile']['name']} min..max |" if cmp else ""
     L += ["", "## Approaches", "",
-          "| approach | overrides | geomean | best shape | worst shape | faster / neutral / slower | regressions |",
-          "|---|---|---|---|---|---|---|"]
+          f"| approach | overrides | {me + ' ' if cmp else ''}geomean | best shape | worst shape | "
+          f"faster / neutral / slower | regressions |{ccols}",
+          "|---|---|---|---|---|---|---|" + ("---|---|---|" if cmp else "")]
     for aid in _survey_order(sv):
         a = sv["approaches"][aid]
         ov = ", ".join(f"{k}={v}" for k, v in a["overrides"].items()) or "-"
@@ -929,7 +964,13 @@ def _survey_md(req, res):
                  f"{'-' if g is None else f'{g:.2f}x'} | "
                  f"{_sx(a['best']['shape']) + ' ' + format(a['best']['speedup'], '.2f') + 'x' if a['best'] else '-'} | "
                  f"{_sx(a['worst']['shape']) + ' ' + format(a['worst']['speedup'], '.2f') + 'x' if a['worst'] else '-'} | "
-                 f"{_counts_txt(a)} | {a['counts']['slower']} |")
+                 f"{_counts_txt(a)} | {a['counts']['slower']} |" +
+                 (f" {_range_txt(a['speedup'])} | {_geo_txt(_cmp_speedup(cmp, aid))} | "
+                  f"{_range_txt(_cmp_speedup(cmp, aid))} |" if cmp else ""))
+    if cmp:
+        L += ["", f"## On {cmp['profile']['name']} (compare_profile)", "",
+              f"**Platform:** {cmp.get('platform_scope', '-')}  ", f"**Accuracy:** {cmp.get('accuracy', '-')}", ""]
+        L += [f"- {x}" for x in cmp["summary"]]
     L += ["", "## Regressions", ""]
     for aid in _survey_order(sv):
         a = sv["approaches"][aid]
@@ -944,7 +985,11 @@ def _survey_md(req, res):
     L += ["", "## Best approach per shape", "", "| H \\ W | " + " | ".join(str(w) for w in ws) + " |",
           "|---|" + "---|" * len(ws)]
     for i, h in enumerate(hs):
-        L.append(f"| {h} | " + " | ".join(sv["best_per_shape"][i][j] or "skipped" for j in range(len(ws))) + " |")
+        L.append(f"| {h} | " + " | ".join((sv["best_per_shape"][i][j] or "skipped") + (" *" if _outside(sv, i, j) else "")
+                                          for j in range(len(ws))) + " |")
+    if any(_outside(sv, i, j) for i in range(len(hs)) for j in range(len(ws))):
+        rng = sv["calibrated_range"]
+        L += ["", f"\\* extrapolated: outside the calibrated range on {rng['profile']} ({accuracy_range_txt(rng)})"]
     if sv["skipped"]:
         L += ["", "## Skipped shapes", ""] + [f"- {_sx(s['shape'])}: {s['reason']}" for s in sv["skipped"]]
     L += ["", "## Request", "", "```json", json.dumps(req, indent=1), "```", ""]
@@ -960,13 +1005,25 @@ def _hm_frame(hs, ws, cw, idx):
     H = HM_TOP + len(hs) * (HM_H + HM_GAP)
     out = [f'<defs><pattern id="hatch{idx}" width="6" height="6" patternUnits="userSpaceOnUse" '
            f'patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--surface)"/>'
-           f'<line x1="0" y1="0" x2="0" y2="6" stroke="var(--grid)" stroke-width="3"/></pattern></defs>',
+           f'<line x1="0" y1="0" x2="0" y2="6" stroke="var(--grid)" stroke-width="3"/></pattern>'
+           f'<pattern id="xhatch{idx}" width="5" height="5" patternUnits="userSpaceOnUse" '
+           f'patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="5" stroke="var(--ink)" '
+           f'stroke-opacity=".28" stroke-width="1.2"/></pattern></defs>',
            f'<text x="{HM_LAB - 8}" y="14" text-anchor="end">H \\ W</text>']
     for j, w in enumerate(ws):
         out.append(f'<text x="{HM_LAB + j * (cw + HM_GAP) + cw / 2}" y="14" text-anchor="middle">{w}</text>')
     for i, h in enumerate(hs):
         out.append(f'<text x="{HM_LAB - 8}" y="{HM_TOP + i * (HM_H + HM_GAP) + HM_H / 2 + 4}" text-anchor="end">{h}</text>')
     return W, H, out
+
+
+XTIP = " (extrapolated: outside the calibrated range)"
+
+
+def _x_overlay(x, y, cw, idx):
+    """The extrapolation hatch over an evaluated cell (a shape beyond the calibrated range)."""
+    return (f'<rect class="xhatch" x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" fill="url(#xhatch{idx})" '
+            f'pointer-events="none"/>')
 
 
 def _skip_cell(x, y, cw, idx, tip):
@@ -1001,19 +1058,25 @@ def _heatmap(sv, aid, idx, noise):
                            f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">n/a</text></g>')
             else:
                 verdict = "faster" if s > 1 + noise else "slower" if s < 1 - noise else "neutral"
-                tip = (f"{aid} at {h}x{w}: {s:.3f}x, {verdict} (baseline {bt:,.0f} ns -> {bt / s:,.0f} ns)")
-                out.append(f'<g class="cell {verdict}" data-shape="{h}x{w}" data-speedup="{s}"><title>{E(tip)}</title>'
+                xo = _outside(sv, i, j)
+                tip = (f"{aid} at {h}x{w}: {s:.3f}x, {verdict} (baseline {bt:,.0f} ns -> {bt / s:,.0f} ns)"
+                       + (XTIP if xo else ""))
+                out.append(f'<g class="cell {verdict}{" extrapolated" if xo else ""}" data-shape="{h}x{w}" '
+                           f'data-speedup="{s}"><title>{E(tip)}</title>'
                            f'<rect x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" style="fill:{_heat_fill(s, noise)}"/>'
-                           f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">{s:.2f}</text></g>')
+                           + (_x_overlay(x, y, cw, idx) if xo else "") +
+                           f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">{s:.2f}'
+                           f'{"*" if xo else ""}</text></g>')
     return (f'<svg class="heatmap" data-approach="{E(aid)}" viewBox="0 0 {W} {H}" style="width:{W}px;height:{H}px;max-width:none" role="img" '
             f'aria-label="Speedup of {E(aid)} vs the baseline per shape">' + "".join(out) + "</svg>")
 
 
-def _heat_legend(noise):
+def _heat_legend(noise, extrapolated=False):
     stops = [(0.25, "0.25x"), (0.5, "0.5x"), (0.8, "0.8x"), (1.0, f"1x ±{noise:.0%}"), (1.25, "1.25x"), (2.0, "2x"),
              (4.0, "4x+")]
     items = "".join(f'<span><i style="background:{_heat_fill(v, noise)}"></i>{E(t)}</span>' for v, t in stops)
-    return (f'<div class="legend">{items}<span><i class="hatch"></i>skipped</span>'
+    xh = ('<span><i class="xhatch"></i>* extrapolated: outside the calibrated range</span>' if extrapolated else "")
+    return (f'<div class="legend">{items}<span><i class="hatch"></i>skipped</span>{xh}'
             f'<span><i style="border:1px dashed var(--axis)"></i>n/a: knobs invalid at the shape</span></div>')
 
 
@@ -1041,12 +1104,18 @@ def _best_map(sv, idx):
             fill = "var(--mid)" if b == "baseline" else f"color-mix(in srgb, {_col(slot[b])} 60%, var(--surface))"
             tip = f"{h}x{w}: {b}" + ("" if b == "baseline" else f" {s:.2f}x") + \
                   (f" (baseline {sv['baseline_ns'][i][j]:,.0f} ns)" if sv["baseline_ns"][i][j] is not None else "")
-            out.append(f'<g class="cell best" data-best="{E(b)}"><title>{E(tip)}</title><rect x="{x}" y="{y}" '
-                       f'width="{cw}" height="{HM_H}" rx="4" style="fill:{fill}"/>'
+            xo = _outside(sv, i, j)
+            tip += XTIP if xo else ""
+            out.append(f'<g class="cell best{" extrapolated" if xo else ""}" data-best="{E(b)}"><title>{E(tip)}</title>'
+                       f'<rect x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" style="fill:{fill}"/>'
+                       + (_x_overlay(x, y, cw, idx) if xo else "") +
                        f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">{E(_fit(b, cw - 8, 6.2))}</text></g>')
     legend = "".join(f'<span><i style="background:{_col(slot[k])}"></i>{E(k)} ({freq[k]})</span>' for k in order)
     n_base = sum(b == "baseline" for row in sv["best_per_shape"] for b in row)
     legend += f'<span><i style="background:var(--mid)"></i>baseline: nothing faster ({n_base})</span>'
+    n_x = (sv.get("stats") or {}).get("outside_calibrated_range")
+    if n_x:
+        legend += f'<span><i class="xhatch"></i>extrapolated: outside the calibrated range ({n_x})</span>'
     return (f'<svg class="bestmap" viewBox="0 0 {W} {H}" style="width:{W}px;height:{H}px;max-width:none" role="img" '
             f'aria-label="Fastest approach per shape">' + "".join(out) + f'</svg><div class="legend">{legend}</div>')
 
@@ -1081,23 +1150,36 @@ def _survey_html(req, res):
                f'{st.get("approaches", len(order))} approaches; {st.get("plans_evaluated", "?")} distinct plans timed '
                f'({st.get("plans_reused", "?")} reused) in {st.get("eval_ms", "?")} ms. {E(sv.get("speedup_basis", ""))}.'
                f'</p></div>')
-    head = ("approach", "overrides", "geomean", "best shape", "worst shape", "faster / neutral / slower", "regressions")
+    cmp = sv.get("compare")
+    me = (res.get("profiles", {}).get("costs") or {}).get("name", "")
+    head = ("approach", "overrides", f"{me} geomean" if cmp else "geomean", "best shape", "worst shape",
+            "faster / neutral / slower", "regressions")
+    if cmp:
+        cn = cmp["profile"]["name"]
+        head += (f"{me} min..max", f"{cn} geomean", f"{cn} min..max")
     body = []
     for aid in order:
         a = sv["approaches"][aid]
         g = a["speedup"]["geomean"]
         tag = ' <span class="tag">hypothetical</span>' if a["hypothetical"] else ""
+        extra = "".join(f"<td>{E(t)}</td>" for t in (_range_txt(a["speedup"]), _geo_txt(_cmp_speedup(cmp, aid)),
+                                                       _range_txt(_cmp_speedup(cmp, aid)))) if cmp else ""
         body.append(f'<tr class="surv"><td><b>{E(aid)}</b>{tag}</td>'
                     f'<td>{E(", ".join(f"{k}={v}" for k, v in a["overrides"].items()) or "-")}</td>'
                     f'<td>{"-" if g is None else f"{g:.2f}x"}</td>'
                     f'<td>{E(_sx(a["best"]["shape"]) + " · " + format(a["best"]["speedup"], ".2f") + "x") if a["best"] else "-"}</td>'
                     f'<td>{E(_sx(a["worst"]["shape"]) + " · " + format(a["worst"]["speedup"], ".2f") + "x") if a["worst"] else "-"}</td>'
-                    f'<td>{E(_counts_txt(a))}</td><td>{E(_regs_txt(a))}</td></tr>')
+                    f'<td>{E(_counts_txt(a))}</td><td>{E(_regs_txt(a))}</td>{extra}</tr>')
     out.append('<h2>Approaches</h2><div class="card wrap"><table><tr>' + "".join(f"<th>{E(c)}</th>" for c in head)
-               + "</tr>" + "".join(body) + "</table></div>")
+               + "</tr>" + "".join(body) + "</table>"
+               + (f'<p class="note"><b>{E(cmp["profile"]["name"])}:</b> {E(cmp.get("platform_scope", ""))} '
+                  f'<b>Accuracy:</b> {E(cmp.get("accuracy", ""))}</p><ul class="kp">'
+                  + "".join(f"<li>{E(x)}</li>" for x in cmp["summary"]) + "</ul>" if cmp else "") + "</div>")
+    n_x = st.get("outside_calibrated_range")
     out.append(f'<h2>Speedup vs baseline per shape</h2><p class="note">Rows: tensor rows H; columns: width W. Blue: '
-               f'faster than the baseline, red: slower, gray: within ±{NOISE:.0%}. Hover a cell for the times.</p>'
-               f'<div class="card">{_heat_legend(NOISE)}</div><div class="hm-grid">')
+               f'faster than the baseline, red: slower, gray: within ±{NOISE:.0%}. Hover a cell for the times.'
+               + (f' Hatched with *: {n_x} shapes outside the calibrated range (extrapolated).' if n_x else "") +
+               f'</p><div class="card">{_heat_legend(NOISE, bool(n_x))}</div><div class="hm-grid">')
     for k, aid in enumerate(order):
         a = sv["approaches"][aid]
         g = a["speedup"]["geomean"]
@@ -1115,6 +1197,6 @@ def _survey_html(req, res):
     if sv["skipped"]:
         out.append('<h2>Skipped shapes</h2><div class="card"><ul class="kp">'
                    + "".join(f"<li>{E(_sx(s['shape']))}: {E(s['reason'])}</li>" for s in sv["skipped"]) + "</ul></div>")
-    out.append(f'<p class="note">{E(res.get("platform_scope", ""))}</p><details><summary>Request</summary><pre>'
+    out.append(f'{_scope_notes(res)}<details><summary>Request</summary><pre>'
                f'{E(json.dumps(req, indent=1))}</pre></details>')
     return "".join(out)

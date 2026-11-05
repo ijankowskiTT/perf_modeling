@@ -38,6 +38,8 @@ def _text(res):
         out.append("profiles: " + ", ".join(f"{k}={v['name']}@{v['revision']}" for k, v in res["profiles"].items()))
     if res.get("platform_scope"):
         out.append(f"platform: {res['platform_scope']}")
+    if res.get("accuracy"):
+        out.append(f"accuracy: {res['accuracy']}")
 
     def row(r, tag):
         if not r.get("valid"):
@@ -51,6 +53,8 @@ def _text(res):
         if r.get("roles"):
             s += "\n      " + "  ".join(f"{k}: busy {v['useful_busy_frac']:.0%} starved {v['starved_frac']:.0%} "
                                       f"backpressure {v['backpressure_frac']:.0%}" for k, v in r["roles"].items())
+        if r.get("accuracy") and r["accuracy"] != res.get("accuracy"):
+            s += f"\n      accuracy: {r['accuracy']}"
         s += "".join(f"\n      warning: {w}" for w in r.get("warnings", []))
         return s
 
@@ -75,7 +79,7 @@ def _text(res):
         out += _survey_text(res["survey"])
     for r in res.get("recommendations", []):
         out.append(f"  recommend: {r.get('label')} {r.get('speedup_range', '')} {r.get('reason', '')}")
-    for w in res.get("warnings", []) if "survey" in res else []:
+    for w in res.get("warnings", []):
         out.append(f"  warning: {w}")
     for a in res.get("applied_defaults", []):
         out.append(f"  default: {a}")
@@ -83,23 +87,44 @@ def _text(res):
 
 
 def _survey_text(sv):
-    """Survey: the summary lines, then one row per approach (geomean, min / max with their shape, counts)."""
+    """Survey: the summary lines, then one row per approach (geomean, min / max with their shape, counts); with
+    survey.compare, the other profile's geomean and min .. max next to them, then its summary lines."""
     st = sv.get("stats") or {}
+    n_out = st.get("outside_calibrated_range")
     out = [f"  survey: {len(sv['heights'])} heights x {len(sv['widths'])} widths, {st.get('evaluated', '?')} shapes "
-           f"evaluated, {len(sv['skipped'])} skipped; {st.get('plans_evaluated', '?')} plans timed "
-           f"({st.get('plans_reused', '?')} reused) in {st.get('eval_ms', '?')} ms"]
+           f"evaluated, {len(sv['skipped'])} skipped" +
+           (f", {n_out} extrapolated (outside the calibrated range)" if n_out else "") +
+           f"; {st.get('plans_evaluated', '?')} plans timed ({st.get('plans_reused', '?')} reused) in "
+           f"{st.get('eval_ms', '?')} ms"]
     out += [f"    {line}" for line in sv["summary"]]
+    cmp = sv.get("compare")
+    cname = cmp["profile"]["name"] if cmp else ""
     shape = lambda x: "x".join(str(d) for d in x["shape"]) if x else "-"  # noqa: E731
-    out.append(f"    {'approach':20s} {'geomean':>8s}  {'min @ shape':18s} {'max @ shape':18s} faster/neutral/slower/invalid")
+
+    def other(aid):
+        if not cmp:
+            return ""
+        sp = (cmp["approaches"].get(aid) or {}).get("speedup") or {}
+        if sp.get("geomean") is None:
+            return " | -"
+        return f" | {sp['geomean']:7.2f}x  {sp['min']:.2f}..{sp['max']:.2f}x"
+
+    head = f" | {cname} geomean, min..max" if cmp else ""
+    out.append(f"    {'approach':20s} {'geomean':>8s}  {'min @ shape':18s} {'max @ shape':18s} "
+               f"{'faster/neutral/slower/invalid':29s}{head}")
     for aid, a in sorted(sv["approaches"].items(), key=lambda kv: -(kv[1]["speedup"]["geomean"] or 0)):
         sp, c = a["speedup"], a["counts"]
+        cnt = f"{c['faster']}/{c['neutral']}/{c['slower']}/{c['invalid']}"
         if sp["geomean"] is None:
-            out.append(f"    {aid:20s} {'-':>8s}  {'-':18s} {'-':18s} {c['faster']}/{c['neutral']}/{c['slower']}/{c['invalid']}")
+            out.append(f"    {aid:20s} {'-':>8s}  {'-':18s} {'-':18s} {cnt:29s}{other(aid)}")
             continue
         out.append(f"    {aid:20s} {sp['geomean']:7.2f}x  {_at(a['worst'], shape):18s} {_at(a['best'], shape):18s} "
-                   f"{c['faster']}/{c['neutral']}/{c['slower']}/{c['invalid']}")
+                   f"{cnt:29s}{other(aid)}")
     for s in sv["skipped"]:
         out.append(f"    skipped {shape(s)}: {s['reason']}")
+    if cmp:
+        out.append(f"  compare_profile {cname}@{cmp['profile']['revision']}: {cmp.get('accuracy', '')}")
+        out += [f"    {line}" for line in cmp["summary"]]
     return out
 
 

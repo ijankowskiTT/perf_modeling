@@ -9,13 +9,27 @@ scenario has the HIGHER bandwidth). Rerun after recalibrating ttsim-perf.
 import copy
 import json
 import os
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from qperf.ops import layout, registry  # noqa: E402
+
 GHZ = 1.35  # assumed AICLK (HAS preliminary: 0.76 / 1.33 / 1.55 GHz NoC; Tensix ~1.4 GHz)
 
 
 def cyc(ns):
     return round(ns * GHZ, 1)
+
+
+# binary_ng instruction terms (the compute terms are in compute_variants)
+BINARY_PREFIXES = ("start", "end", "rd", "wr", "compute", "dfb", "dq")
+
+
+def layout_prefixes():
+    """Cost prefixes of every data-movement factory: qperf/ops/layout.py and the registered op modules (move,
+    reshard). Their terms are instruction-level ttsim-perf fits, copied as the binary_ng ones."""
+    return sorted(set(layout.PREFIX.values()) | {p for m in registry.MODULES for p in m.PREFIX.values()})
 
 
 def main():
@@ -34,10 +48,17 @@ def main():
         "transfer latency/bandwidth are assumptions (no Quasar silicon or DRAM-timed simulator data)",
         "ttsim-perf start-up (DM kernels ~4 us after Neo) kept as is; it may be a simulator artifact",
     ]
-    p = d["params"]
-    for k in list(p):
-        if k.startswith("noc.") or k.startswith("dram."):
-            del p[k]
+    # ttsim-perf's binary_ng and data-movement (layout family) instruction terms; its measured NoC terms are replaced
+    # by the assumptions below. Any other term is an error: decide whether it belongs here first.
+    fam = tuple(layout_prefixes())
+    p = d["params"] = {}
+    for k, v in src["params"].items():
+        pre = k.split(".", 1)[0]
+        if pre in ("noc", "dram"):
+            continue
+        if pre not in BINARY_PREFIXES + fam:
+            raise SystemExit(f"ttsim-perf term {k}: neither a binary_ng nor a layout-family term")
+        p[k] = copy.deepcopy(v)
     A = {"class": "assumption"}
     p["noc.read_latency.dram"] = dict(A, value=cyc(350), low=cyc(200), high=cyc(800),
                                       source="~350 ns DRAM read: Aether-study estimate carried in RES:1003-1004, not measured")
@@ -54,6 +75,10 @@ def main():
                                            low=round(1500e9 / (GHZ * 1e9), 1), high=round(256e9 / (GHZ * 1e9), 1),
                                            source="QSR1.A1 875 GB/s nominal; fast = QSR3.A2 1.5 TB/s, slow = bring-up 256 GB/s (RES:1594-1600)")
     p["dram.efficiency"] = dict(A, value=0.75, low=0.75, high=0.5, source="eta max 75% (O2O study)")
+    p["dram.bound_layout"] = dict(A, value=1, source="data-movement ops (qperf/ops/layout.py estimate): bound the whole "
+                                                     "op by all cores' DRAM bytes / (dram.total_bytes_per_cycle x "
+                                                     "dram.efficiency) after one DRAM read latency; the simulators do "
+                                                     "not time DRAM, so only this profile sets it")
     out = os.path.join(ROOT, "profiles", "costs", "silicon-hypothesis.json")
     json.dump(d, open(out, "w"), indent=1)
     print(out, d["revision"])

@@ -1,0 +1,712 @@
+{
+ "basis": "mean |model / simulator - 1| at nominal costs over calibration/data/{layout,fp32layout,rowmajor,move,reshard}-<profile>.jsonl (all runs, holdouts included); range = the largest rows (H), width (W) and H x W among the factory's runs",
+ "generated_by": "calibration/make_accuracy.py",
+ "profiles": {
+  "craq-sim": {
+   "factories": {
+    "interleaved_to_sharded Default": {
+     "error": {
+      "bf16": {
+       "mean": 0.0147,
+       "runs": 47
+      },
+      "fp32": {
+       "mean": 0.0151,
+       "runs": 47
+      }
+     },
+     "max_elems": 4194304,
+     "max_h": 4096,
+     "max_w": 4096,
+     "runs": 94
+    },
+    "interleaved_to_sharded RowMajor": {
+     "error": {
+      "bf16": {
+       "mean": 0.0007,
+       "runs": 55
+      }
+     },
+     "max_elems": 2097152,
+     "max_h": 4096,
+     "max_w": 4096,
+     "runs": 55
+    },
+    "interleaved_to_sharded RowMajorUnaligned": {
+     "error": {
+      "bf16": {
+       "mean": 0.0061,
+       "runs": 30
+      }
+     },
+     "max_elems": 522240,
+     "max_h": 2048,
+     "max_w": 3000,
+     "runs": 30
+    },
+    "move Overlap": {
+     "error": {
+      "bf16": {
+       "mean": 0.0037,
+       "runs": 52
+      },
+      "fp32": {
+       "mean": 0.002,
+       "runs": 8
+      }
+     },
+     "max_elems": 4194304,
+     "max_h": 2048,
+     "max_w": 2048,
+     "runs": 60
+    },
+    "move OverlapRowMajor": {
+     "error": {
+      "bf16": {
+       "mean": 0.0022,
+       "runs": 69
+      },
+      "fp32": {
+       "mean": 0.003,
+       "runs": 6
+      }
+     },
+     "max_elems": 2097152,
+     "max_h": 4096,
+     "max_w": 2048,
+     "runs": 75
+    },
+    "reshard CopyPages": {
+     "error": {
+      "bf16": {
+       "mean": 0.0191,
+       "runs": 38
+      }
+     },
+     "max_elems": 1048576,
+     "max_h": 2048,
+     "max_w": 2048,
+     "runs": 38
+    },
+    "reshard Generic": {
+     "error": {
+      "bf16": {
+       "mean": 0.0045,
+       "runs": 44
+      }
+     },
+     "max_elems": 262144,
+     "max_h": 1024,
+     "max_w": 2048,
+     "runs": 44
+    },
+    "reshard SameHeight": {
+     "error": {
+      "bf16": {
+       "mean": 0.0003,
+       "runs": 55
+      }
+     },
+     "max_elems": 524288,
+     "max_h": 512,
+     "max_w": 2048,
+     "runs": 55
+    },
+    "reshard SameHeightWrite": {
+     "error": {
+      "bf16": {
+       "mean": 0.0001,
+       "runs": 24
+      }
+     },
+     "max_elems": 524288,
+     "max_h": 512,
+     "max_w": 2048,
+     "runs": 24
+    },
+    "reshard SameWidth": {
+     "error": {
+      "bf16": {
+       "mean": 0.0174,
+       "runs": 110
+      }
+     },
+     "max_elems": 524288,
+     "max_h": 2048,
+     "max_w": 1024,
+     "runs": 110
+    },
+    "reshard SameWidthWrite": {
+     "error": {
+      "bf16": {
+       "mean": 0.0017,
+       "runs": 49
+      }
+     },
+     "max_elems": 262144,
+     "max_h": 2048,
+     "max_w": 1024,
+     "runs": 49
+    },
+    "sharded_to_interleaved Default": {
+     "error": {
+      "bf16": {
+       "mean": 0.0171,
+       "runs": 47
+      },
+      "fp32": {
+       "mean": 0.0171,
+       "runs": 47
+      }
+     },
+     "max_elems": 4194304,
+     "max_h": 4096,
+     "max_w": 4096,
+     "runs": 94
+    },
+    "sharded_to_interleaved RowMajor": {
+     "error": {
+      "bf16": {
+       "mean": 0.0017,
+       "runs": 81
+      }
+     },
+     "max_elems": 2097152,
+     "max_h": 4096,
+     "max_w": 4096,
+     "runs": 81
+    },
+    "tilize Default": {
+     "error": {
+      "bf16": {
+       "mean": 0.0127,
+       "runs": 52
+      },
+      "fp32": {
+       "mean": 0.0086,
+       "runs": 52
+      }
+     },
+     "max_elems": 6291456,
+     "max_h": 4096,
+     "max_w": 2048,
+     "runs": 104
+    },
+    "tilize Sharded": {
+     "error": {
+      "bf16": {
+       "mean": 0.005,
+       "runs": 21
+      },
+      "fp32": {
+       "mean": 0.0058,
+       "runs": 21
+      }
+     },
+     "max_elems": 2097152,
+     "max_h": 4096,
+     "max_w": 1536,
+     "runs": 42
+    },
+    "tilize SingleCore": {
+     "error": {
+      "bf16": {
+       "mean": 0.0164,
+       "runs": 33
+      },
+      "fp32": {
+       "mean": 0.015,
+       "runs": 31
+      }
+     },
+     "max_elems": 1572864,
+     "max_h": 1024,
+     "max_w": 2048,
+     "runs": 64
+    },
+    "tilize_with_val_padding Default": {
+     "error": {
+      "bf16": {
+       "mean": 0.0067,
+       "runs": 28
+      },
+      "fp32": {
+       "mean": 0.0066,
+       "runs": 28
+      }
+     },
+     "max_elems": 3000000,
+     "max_h": 3000,
+     "max_w": 2000,
+     "runs": 56
+    },
+    "tilize_with_val_padding SingleCore": {
+     "error": {
+      "bf16": {
+       "mean": 0.0242,
+       "runs": 30
+      },
+      "fp32": {
+       "mean": 0.007,
+       "runs": 30
+      }
+     },
+     "max_elems": 1000000,
+     "max_h": 1024,
+     "max_w": 2048,
+     "runs": 60
+    },
+    "untilize Block": {
+     "error": {
+      "bf16": {
+       "mean": 0.0052,
+       "runs": 39
+      },
+      "fp32": {
+       "mean": 0.0218,
+       "runs": 39
+      }
+     },
+     "max_elems": 7602176,
+     "max_h": 928,
+     "max_w": 8192,
+     "runs": 78
+    },
+    "untilize MultiCore": {
+     "error": {
+      "bf16": {
+       "mean": 0.0043,
+       "runs": 54
+      },
+      "fp32": {
+       "mean": 0.0036,
+       "runs": 53
+      }
+     },
+     "max_elems": 12582912,
+     "max_h": 4096,
+     "max_w": 6144,
+     "runs": 107
+    },
+    "untilize SingleCore": {
+     "error": {
+      "bf16": {
+       "mean": 0.0081,
+       "runs": 33
+      },
+      "fp32": {
+       "mean": 0.0092,
+       "runs": 31
+      }
+     },
+     "max_elems": 1572864,
+     "max_h": 1024,
+     "max_w": 2048,
+     "runs": 64
+    },
+    "untilize_with_unpadding Block": {
+     "error": {
+      "bf16": {
+       "mean": 0.0129,
+       "runs": 7
+      },
+      "fp32": {
+       "mean": 0.0236,
+       "runs": 7
+      }
+     },
+     "max_elems": 3500000,
+     "max_h": 500,
+     "max_w": 7000,
+     "runs": 14
+    },
+    "untilize_with_unpadding Interleaved": {
+     "error": {
+      "bf16": {
+       "mean": 0.0056,
+       "runs": 26
+      },
+      "fp32": {
+       "mean": 0.0153,
+       "runs": 26
+      }
+     },
+     "max_elems": 3000000,
+     "max_h": 3000,
+     "max_w": 1000,
+     "runs": 52
+    },
+    "untilize_with_unpadding SingleCore": {
+     "error": {
+      "bf16": {
+       "mean": 0.0245,
+       "runs": 30
+      },
+      "fp32": {
+       "mean": 0.026,
+       "runs": 30
+      }
+     },
+     "max_elems": 1000000,
+     "max_h": 1024,
+     "max_w": 2048,
+     "runs": 60
+    }
+   },
+   "revision": "2026-11-03.fit6+fp32"
+  },
+  "ttsim-perf": {
+   "factories": {
+    "interleaved_to_sharded Default": {
+     "error": {
+      "bf16": {
+       "mean": 0.018,
+       "runs": 47
+      },
+      "fp32": {
+       "mean": 0.0227,
+       "runs": 47
+      }
+     },
+     "max_elems": 4194304,
+     "max_h": 4096,
+     "max_w": 4096,
+     "runs": 94
+    },
+    "interleaved_to_sharded RowMajor": {
+     "error": {
+      "bf16": {
+       "mean": 0.019,
+       "runs": 62
+      }
+     },
+     "max_elems": 2097152,
+     "max_h": 4096,
+     "max_w": 4096,
+     "runs": 62
+    },
+    "interleaved_to_sharded RowMajorUnaligned": {
+     "error": {
+      "bf16": {
+       "mean": 0.009,
+       "runs": 33
+      }
+     },
+     "max_elems": 522240,
+     "max_h": 2048,
+     "max_w": 3000,
+     "runs": 33
+    },
+    "move Overlap": {
+     "error": {
+      "bf16": {
+       "mean": 0.0138,
+       "runs": 52
+      },
+      "fp32": {
+       "mean": 0.0092,
+       "runs": 8
+      }
+     },
+     "max_elems": 4194304,
+     "max_h": 2048,
+     "max_w": 2048,
+     "runs": 60
+    },
+    "move OverlapRowMajor": {
+     "error": {
+      "bf16": {
+       "mean": 0.0154,
+       "runs": 69
+      },
+      "fp32": {
+       "mean": 0.0104,
+       "runs": 6
+      }
+     },
+     "max_elems": 2097152,
+     "max_h": 4096,
+     "max_w": 2048,
+     "runs": 75
+    },
+    "reshard CopyPages": {
+     "error": {
+      "bf16": {
+       "mean": 0.0145,
+       "runs": 38
+      }
+     },
+     "max_elems": 1048576,
+     "max_h": 2048,
+     "max_w": 2048,
+     "runs": 38
+    },
+    "reshard Generic": {
+     "error": {
+      "bf16": {
+       "mean": 0.095,
+       "runs": 44
+      }
+     },
+     "max_elems": 262144,
+     "max_h": 1024,
+     "max_w": 2048,
+     "runs": 44
+    },
+    "reshard SameHeight": {
+     "error": {
+      "bf16": {
+       "mean": 0.1617,
+       "runs": 50
+      }
+     },
+     "max_elems": 524288,
+     "max_h": 512,
+     "max_w": 2048,
+     "runs": 50
+    },
+    "reshard SameHeightWrite": {
+     "error": {
+      "bf16": {
+       "mean": 0.0,
+       "runs": 24
+      }
+     },
+     "max_elems": 524288,
+     "max_h": 512,
+     "max_w": 2048,
+     "runs": 24
+    },
+    "reshard SameWidth": {
+     "error": {
+      "bf16": {
+       "mean": 0.0312,
+       "runs": 110
+      }
+     },
+     "max_elems": 524288,
+     "max_h": 2048,
+     "max_w": 1024,
+     "runs": 110
+    },
+    "reshard SameWidthWrite": {
+     "error": {
+      "bf16": {
+       "mean": 0.0,
+       "runs": 49
+      }
+     },
+     "max_elems": 262144,
+     "max_h": 2048,
+     "max_w": 1024,
+     "runs": 49
+    },
+    "sharded_to_interleaved Default": {
+     "error": {
+      "bf16": {
+       "mean": 0.0192,
+       "runs": 47
+      },
+      "fp32": {
+       "mean": 0.0202,
+       "runs": 47
+      }
+     },
+     "max_elems": 4194304,
+     "max_h": 4096,
+     "max_w": 4096,
+     "runs": 94
+    },
+    "sharded_to_interleaved RowMajor": {
+     "error": {
+      "bf16": {
+       "mean": 0.0078,
+       "runs": 85
+      }
+     },
+     "max_elems": 2097152,
+     "max_h": 4096,
+     "max_w": 4096,
+     "runs": 85
+    },
+    "tilize Default": {
+     "error": {
+      "bf16": {
+       "mean": 0.0116,
+       "runs": 56
+      },
+      "fp32": {
+       "mean": 0.0142,
+       "runs": 56
+      }
+     },
+     "max_elems": 8388608,
+     "max_h": 4096,
+     "max_w": 4096,
+     "runs": 112
+    },
+    "tilize Sharded": {
+     "error": {
+      "bf16": {
+       "mean": 0.0036,
+       "runs": 21
+      },
+      "fp32": {
+       "mean": 0.0104,
+       "runs": 21
+      }
+     },
+     "max_elems": 2097152,
+     "max_h": 4096,
+     "max_w": 1536,
+     "runs": 42
+    },
+    "tilize SingleCore": {
+     "error": {
+      "bf16": {
+       "mean": 0.0108,
+       "runs": 33
+      },
+      "fp32": {
+       "mean": 0.0068,
+       "runs": 31
+      }
+     },
+     "max_elems": 1572864,
+     "max_h": 1024,
+     "max_w": 2048,
+     "runs": 64
+    },
+    "tilize_with_val_padding Default": {
+     "error": {
+      "bf16": {
+       "mean": 0.0079,
+       "runs": 28
+      },
+      "fp32": {
+       "mean": 0.0043,
+       "runs": 28
+      }
+     },
+     "max_elems": 3000000,
+     "max_h": 3000,
+     "max_w": 2000,
+     "runs": 56
+    },
+    "tilize_with_val_padding SingleCore": {
+     "error": {
+      "bf16": {
+       "mean": 0.0276,
+       "runs": 30
+      },
+      "fp32": {
+       "mean": 0.0126,
+       "runs": 30
+      }
+     },
+     "max_elems": 1000000,
+     "max_h": 1024,
+     "max_w": 2048,
+     "runs": 60
+    },
+    "untilize Block": {
+     "error": {
+      "bf16": {
+       "mean": 0.007,
+       "runs": 39
+      },
+      "fp32": {
+       "mean": 0.0062,
+       "runs": 39
+      }
+     },
+     "max_elems": 7602176,
+     "max_h": 928,
+     "max_w": 8192,
+     "runs": 78
+    },
+    "untilize MultiCore": {
+     "error": {
+      "bf16": {
+       "mean": 0.0081,
+       "runs": 54
+      },
+      "fp32": {
+       "mean": 0.0135,
+       "runs": 53
+      }
+     },
+     "max_elems": 12582912,
+     "max_h": 4096,
+     "max_w": 6144,
+     "runs": 107
+    },
+    "untilize SingleCore": {
+     "error": {
+      "bf16": {
+       "mean": 0.0104,
+       "runs": 33
+      },
+      "fp32": {
+       "mean": 0.0058,
+       "runs": 31
+      }
+     },
+     "max_elems": 1572864,
+     "max_h": 1024,
+     "max_w": 2048,
+     "runs": 64
+    },
+    "untilize_with_unpadding Block": {
+     "error": {
+      "bf16": {
+       "mean": 0.0072,
+       "runs": 7
+      },
+      "fp32": {
+       "mean": 0.0089,
+       "runs": 7
+      }
+     },
+     "max_elems": 3500000,
+     "max_h": 500,
+     "max_w": 7000,
+     "runs": 14
+    },
+    "untilize_with_unpadding Interleaved": {
+     "error": {
+      "bf16": {
+       "mean": 0.0042,
+       "runs": 26
+      },
+      "fp32": {
+       "mean": 0.0042,
+       "runs": 26
+      }
+     },
+     "max_elems": 3000000,
+     "max_h": 3000,
+     "max_w": 1000,
+     "runs": 52
+    },
+    "untilize_with_unpadding SingleCore": {
+     "error": {
+      "bf16": {
+       "mean": 0.0253,
+       "runs": 30
+      },
+      "fp32": {
+       "mean": 0.022,
+       "runs": 30
+      }
+     },
+     "max_elems": 1000000,
+     "max_h": 1024,
+     "max_w": 2048,
+     "runs": 60
+    }
+   },
+   "revision": "2026-11-03.fit8+fp32"
+  }
+ }
+}

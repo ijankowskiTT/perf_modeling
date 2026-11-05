@@ -336,6 +336,10 @@
             "minimum": 1
           },
           "description": "default [64, 128, ..., 2048]"
+        },
+        "compare_profile": {
+          "type": "string",
+          "description": "also run the survey on this cost profile (e.g. craq-sim next to ttsim-perf) and report every approach's speedup on both (survey.compare)"
         }
       }
     },

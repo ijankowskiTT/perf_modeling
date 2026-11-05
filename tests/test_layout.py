@@ -11,6 +11,8 @@ from qperf.ops.layout import estimate, plan, sub_block_width
 from qperf.profiles import _pick, load
 from qperf.validate import validate_response
 
+from conftest import NO_DM_COSTS
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -48,7 +50,7 @@ def test_sensitivity_wider_is_slower():
 @pytest.mark.parametrize("request_, status", [
     (req("untilize", place="borrowed"), "unsupported"),
     (req("tilize_with_val_padding", (1, 1, 3000, 500), action="tune"), "unsupported"),  # no design knobs
-    (req(costs="silicon-hypothesis"), "needs_input"),
+    (req(costs=NO_DM_COSTS), "needs_input"),  # a profile without tilize costs: no numbers
 ])
 def test_unsupported_and_missing_costs_carry_no_numbers(request_, status):
     r = analyze(request_)

@@ -14,9 +14,11 @@ from __future__ import annotations
 import math
 import time
 
+from . import accuracy
 from .api import NOISE
-from .layout_api import LayoutError, _costs, _result, _workload
+from .layout_api import CRAQ_SMALL_REQUESTS, LayoutError, _costs, _result, _workload
 from .ops.layout import DESIGN_FACTORIES, TILE, estimate, plan, resolve_design
+from .profiles import load
 
 DEFAULT_HEIGHTS = [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]
 DEFAULT_WIDTHS = [64, 128, 256, 512, 1024, 2048]
@@ -79,8 +81,9 @@ def _approaches(req, batch_knob):
     return out
 
 
-def run_survey(req, base_knobs, profile, what_if, analysis, t_start):
-    """The survey part of the response: {"survey", "recommendations", "warnings", "status"}."""
+def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=True):
+    """The survey part of the response: {"survey", "recommendations", "warnings", "status", "accuracy"}. With
+    survey.compare_profile (and compare), the same survey on that profile goes to survey.compare."""
     w = req["workload"]
     op = w["op"]
     if op not in SURVEY_OPS:
@@ -111,7 +114,8 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start):
         f = plan(wl["op"], wl["H"], wl["W"], wl["dtype"], wl["mem"], wl["use_multicore"])[0]
         d = resolve_design(op, f, H, W, wl["dtype"], wl["design"]) if wl.get("design") else None
         hyp = bool(d and d["hypothetical"])
-        return wl, (wl["mem"], wl["use_multicore"], f, d["sig"] if hyp else "factory"), hyp, f
+        small = hyp and d["tiles_per_block"] < math.ceil(W / TILE)  # shorter stick reads / row writes
+        return wl, (wl["mem"], wl["use_multicore"], f, d["sig"] if hyp else "factory"), (hyp, small), f
 
     def time_ns(wl, sig):
         nonlocal n_eval, n_reused
@@ -127,6 +131,9 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start):
     base_grid = [[None] * nW for _ in heights]
     grids = {aid: [[None] * nW for _ in heights] for aid, _ in approaches}
     hyp_any = {aid: False for aid, _ in approaches}
+    shrinks = {aid: False for aid, _ in approaches}  # a plan with shorter NoC requests than the factory's (craq-sim)
+    outside = [[False] * nW for _ in heights]  # beyond the factory's calibrated shape range on this profile
+    rng = accuracy.calibrated_range(profile, op, factory_name(op))
     invalid = {aid: 0 for aid, _ in approaches}
     best = [[None] * nW for _ in heights]
     skipped, not_evaluated, base_warnings = [], [], None
@@ -153,6 +160,7 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start):
                 base_warnings = [x for x in _result(bwl, profile, what_if)["warnings"] if not x.startswith("hypothetical")]
             bt = time_ns(bwl, bsig)
             base_grid[i][j] = round(bt, 1)
+            outside[i][j] = accuracy.outside(rng, H, W)
             row = []
             for aid, ov in approaches:
                 try:
@@ -161,7 +169,8 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start):
                     invalid[aid] += 1
                     continue
                 s = 1.0 if sig == bsig else bt / time_ns(wl, sig)
-                hyp_any[aid] |= hyp
+                hyp_any[aid] |= hyp[0]
+                shrinks[aid] |= hyp[1]
                 grids[aid][i][j] = round(s, 3)
                 row.append((round(s, 3), len(ov), aid))
             best[i][j] = _best_of(row)
@@ -216,6 +225,16 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start):
     warnings = list(base_warnings or [])
     if any(hyp_any.values()):
         warnings.append(HYPOTHETICAL_WARNING)
+    n_out = sum(outside[i][j] for i in range(nH) for j in range(nW))
+    if n_out:
+        note = (f"{n_out} of {len(evaluated)} evaluated shapes are outside the calibrated range for {op} "
+                f"{factory_name(op)} on {accuracy.range_on(profile, rng)} ({accuracy.range_txt(rng)}): extrapolated "
+                f"(survey.outside_calibrated_range; hatched in the report)")
+        summary.append(note)
+        warnings.append(note)
+    small = [aid for aid, _ in approaches if shrinks[aid]]
+    if small and profile["name"] == "craq-sim":
+        warnings.append(CRAQ_SMALL_REQUESTS.format(ids=", ".join(small)))
     if skipped:
         reasons = sorted({s["reason"] for s in skipped})
         warnings.append(f"{len(skipped)} of {nH * nW} shapes skipped: " + "; ".join(reasons))
@@ -224,19 +243,58 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start):
     if not evaluated and not out_of_time:
         raise LayoutError("unsupported", "survey: no shape can be evaluated: " +
                           "; ".join(sorted({s["reason"] for s in skipped})))
-    return {
+    fac, dtype = factory_name(op), w.get("dtype", "bf16")
+    acc = accuracy.layout(profile, op, fac, dtype, False, bool(what_if.get("cost_overrides")))
+    if any(hyp_any.values()) and not accuracy.source_of(profile)[1]:
+        acc += "; approaches marked hypothetical: " + accuracy.hypothetical_note(profile, op, fac, dtype).removeprefix(
+            "hypothetical setup: ")
+    elif any(hyp_any.values()):  # a derived profile
+        acc += "; the approaches marked hypothetical are not in the kernels either: no simulator measurement"
+    res = {
         "status": "partial" if out_of_time else "ok",
         "warnings": warnings,
         "recommendations": recs,
+        "accuracy": acc,
         "survey": {"heights": heights, "widths": widths, "skipped": skipped, "baseline_ns": base_grid,
                    "approaches": out, "best_per_shape": best, "summary": summary,
+                   "outside_calibrated_range": outside, "calibrated_range": rng,
                    "stats": {"shapes": nH * nW, "evaluated": len(evaluated), "skipped": len(skipped),
                              "not_evaluated": not_evaluated, "plans_evaluated": n_eval, "plans_reused": n_reused,
                              "approaches": len(approaches), "out_of_time": out_of_time, "time_budget_s": budget_s,
-                             "eval_ms": eval_ms},
+                             "eval_ms": eval_ms, "outside_calibrated_range": n_out},
                    "speedup_basis": f"nominal costs; faster / slower beyond {NOISE:.0%} (the compare verdict "
                                     f"threshold), neutral within it"},
     }
+    other = spec.get("compare_profile")
+    if other and compare:
+        res["survey"]["compare"] = cmp = _compare(req, base_knobs, other, what_if, analysis, t_start, res)
+        if cmp["status"] == "partial":
+            res["status"] = "partial"
+        res["warnings"] += [f"compare_profile {other}: {x}" for x in cmp["warnings"]]
+    return res
+
+
+def factory_name(op):
+    """The factory a survey times (the one with the design knobs)."""
+    return "Default" if op == "tilize" else "MultiCore"
+
+
+def _compare(req, base_knobs, name, what_if, analysis, t_start, primary):
+    """survey.compare: the same survey (grid, approaches, baseline) on profile `name`; per approach its speedup
+    geomean / min / max, extremes and counts there, next to the requested profile's."""
+    prof, pid = load("costs", name)
+    try:
+        r = run_survey(req, base_knobs, prof, what_if, analysis, t_start, compare=False)
+    except LayoutError as e:
+        raise LayoutError(e.status, f"survey.compare_profile {name}: {e.message}")
+    sv = r["survey"]
+    return {"profile": pid, "status": r["status"], "platform_scope": prof.get("platform_scope", ""),
+            "accuracy": r["accuracy"],
+            "approaches": {aid: {k: a[k] for k in ("speedup", "counts", "worst", "best")}
+                           for aid, a in sv["approaches"].items()},
+            "summary": sv["summary"], "warnings": [x for x in r["warnings"] if x not in primary["warnings"]],
+            "stats": {k: sv["stats"][k] for k in ("evaluated", "skipped", "plans_evaluated", "eval_ms",
+                                                  "outside_calibrated_range")}}
 
 
 def _best_of(row):

@@ -10,7 +10,7 @@ import itertools
 import math
 import time
 
-from . import ENGINE_VERSION, SCHEMA_VERSION
+from . import ENGINE_VERSION, SCHEMA_VERSION, accuracy
 from .bounds import cluster_bounds, global_dram_bound
 from .cache import LRU
 from .constraints import check
@@ -358,7 +358,7 @@ def _compact(r, detail):
         return r
     keep = ("label", "config", "valid", "errors", "warnings", "result_kind", "time_ns", "lower_bound_ns",
             "per_tile_ns", "bottleneck", "near_binding", "roles", "l1", "extrapolated", "comparison", "id",
-            "steady_state_ns_per_tile_per_cluster", "bounds_ns", "structure")
+            "steady_state_ns_per_tile_per_cluster", "bounds_ns", "structure", "accuracy", "outside_calibrated_range")
     out = {k: r[k] for k in keep if k in r}
     if "l1" in out:
         out["l1"] = {"ring_bytes": r["l1"]["ring_bytes"], "fits": r["l1"]["fits"]}
@@ -423,6 +423,8 @@ def _analyze(req, t_start):
               "assumptions": _assumptions(costs, what_if), "warnings": []}
     if costs.get("platform_scope"):
         result["platform_scope"] = costs["platform_scope"]
+    result["accuracy"] = accuracy.binary(costs, wl["op"], wl["dtype"], wl["placements_list"],
+                                         bool(what_if.get("cost_overrides")))
     if hyp:
         result["hypothetical"] = hyp
         result["assumptions"].append(f"HYPOTHETICAL program change, not the pinned factory: {hyp}")

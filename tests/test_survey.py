@@ -41,7 +41,7 @@ def test_default_survey_runs_and_validates(op, costs):
     sv = r["survey"]
     assert sv["heights"] == DEFAULT_HEIGHTS and sv["widths"] == DEFAULT_WIDTHS
     assert list(sv["approaches"]) == [a for a, _ in DEFAULT_APPROACHES]
-    assert len(sv["summary"]) == len(DEFAULT_APPROACHES)
+    assert len(sv["summary"]) == len(DEFAULT_APPROACHES) + bool(sv["stats"]["outside_calibrated_range"])
     assert r["runtime_ms"] < 15000
     assert sum("hypothetical layout designs" in w for w in r["warnings"]) == 1
     assert r["platform_scope"] and r["recommendations"]

@@ -16,7 +16,7 @@ import itertools
 import math
 import time
 
-from . import ENGINE_VERSION, SCHEMA_VERSION
+from . import ENGINE_VERSION, SCHEMA_VERSION, accuracy
 from .api import NOISE, RequestError, _compact, _compare_rows, _ranking, _recommend
 from .ops import registry
 from .ops.layout import (DESIGN_FACTORIES, DESIGN_KNOBS, GRID, SHARD_OPS, STRATEGY, TILE, estimate, family_of, plan,
@@ -30,6 +30,26 @@ MEM_OF = {"dram": "dram", "l1": "l1", "borrowed": "hs"}
 # the factory default, "half" = half the core's chunk. Combos the shape cannot take are dropped, equal plans deduped.
 DEFAULT_LAYOUT_SPACE = {"cores": [8, 16, 32], "split": ["rows", "cols", "2d"], "tiles_per_block": [None, "half"],
                         "dfb_blocks": [1, 2], "batch": [1, 4, 8]}
+# craq-sim's DM costs are per request with little per byte: plans with shorter requests than the factory's gain more
+# there than on ttsim-perf (format: ids = the setups that shrink requests)
+CRAQ_SMALL_REQUESTS = ("craq-sim charges each NoC request a fixed cost with little per-byte cost, so setups that shrink "
+                       "the requests (split cols / 2d or fewer tiles_per_block: shorter stick reads / row writes; here "
+                       "{ids}) look better here than on ttsim-perf, which times L1 NoC transfers; ttsim-perf gives the "
+                       "more conservative number")
+
+
+def _shrinks_requests(r, W):
+    """A hypothetical row whose blocks are narrower than the tensor row (shorter stick reads / row writes)."""
+    c = r.get("config") or {}
+    return bool(c.get("hypothetical")) and c.get("tiles_per_block", math.inf) < math.ceil(W / TILE)
+
+
+def _craq_warning(profile, rows, W):
+    """CRAQ_SMALL_REQUESTS naming (up to 3 of) the rows whose plans shrink the requests, on craq-sim only."""
+    ids = [r["id"] for r in rows if r.get("valid") and _shrinks_requests(r, W)]
+    if not ids or profile["name"] != "craq-sim":
+        return []
+    return [CRAQ_SMALL_REQUESTS.format(ids=", ".join(ids[:3]) + (f" and {len(ids) - 3} more" if len(ids) > 3 else ""))]
 
 
 def layout_ops():
@@ -144,6 +164,11 @@ def _result(wl, profile, what_if):
         res["warnings"].append(f"fp32 is not calibrated for {op} {factory} on this profile: costs are the bf16 fit")
     if family_of(op) == "tilize" and math.ceil(W / TILE) > 64 and profile["name"] == "craq-sim":
         res["warnings"].append("craq-sim cannot run tilize wider than 64 tiles (mop_expander); this is an extrapolation")
+    res["accuracy"] = accuracy.layout(profile, op, factory, wl["dtype"], hyp, bool(what_if.get("cost_overrides")))
+    out_of_range = accuracy.range_warning(profile, op, factory, H, W)
+    if out_of_range:
+        res["warnings"].append(out_of_range)
+        res["outside_calibrated_range"] = True
     ghz = profile["clock"]["GHz"]
     costs = {sc: _costs(profile, sc, what_if.get("cost_overrides"), what_if.get("compute_service_scale", 1.0))
              for sc in SCENARIOS}
@@ -163,18 +188,28 @@ def _result(wl, profile, what_if):
     frac, wrole, wkind = max([(r["starved_frac"], k, "starved") for k, r in roles.items()] +
                              [(r["backpressure_frac"], k, "backpressure") for k, r in roles.items()])
     tiles = math.ceil(H / TILE) * math.ceil(W / TILE)
-    # the shared network to / from L1 binds, not a thread
+    # the shared network to / from L1 binds, not a thread; or (a profile with an assumed DRAM bandwidth) DRAM
     l1_binds = nominal.get("l1_bound") and nominal["l1_bound"] >= nominal["span"] - 1e-9
+    dram_binds = nominal.get("dram_bound") and nominal["dram_bound"] >= nominal["span"] - 1e-9
     res.update({
         "result_kind": "finite_buffer_estimate",
         "time_ns": {k: round(r["span"] / ghz, 1) for k, r in runs.items()},
         "time_cycles": round(nominal["span"], 1),
         "per_tile_ns": round(nominal["span"] / ghz / tiles, 3),
-        "bottleneck": {"resource": "noc_l1_global" if l1_binds else busiest, "busiest_role": busiest,
+        "bottleneck": {"resource": "dram_global" if dram_binds else "noc_l1_global" if l1_binds else busiest,
+                       "busiest_role": busiest,
                        "dominant_wait": {"role": wrole, "kind": wkind, "fraction": frac} if frac > 0.05 else None},
         "roles": roles,
         "work_split": [{"blocks_per_core": c["blocks"], "tiles_per_block": c["wt"], "cores": n} for c, n, _ in nominal["loads"]],
     })
+    if "dram_bound" in nominal:  # reported as binary_ng reports its global DRAM bound
+        res["lower_bound_ns"] = round(nominal["dram_bound"] / ghz, 1)
+        res["bounds_ns"] = {"dram_global": round(nominal["dram_bound"] / ghz, 1)}
+        if dram_binds:
+            res["bottleneck"]["bound_share_of_estimate"] = 1.0
+            res["warnings"].append(f"bound by the {accuracy.assumed_dram(profile)}: all cores' DRAM traffic "
+                                   f"({nominal['dram_bytes'] / 2**20:.1f} MiB) cannot move faster; the busiest core alone "
+                                   f"would take {span / ghz:.0f} ns")
     st = structure(op, factory, H, W, nominal["plan"], busiest_cfg, costs["nominal"])
     if st:
         res["structure"] = st
@@ -277,6 +312,7 @@ def _tune(req, base_knobs, base_wl, base, costs, what_if, spec, analysis, detail
                             "leaves the rest unevaluated, not proven worse",
                    "evaluated_ids": [r["id"] for r in evaluated]},
         "recommendations": _recommend([_compact(r, "compact") for r in evaluated if r is not base_row], top_k),
+        "warnings": _craq_warning(costs, [r for r in evaluated if r is not base_row], base_wl["W"]),
     }
 
 
@@ -310,10 +346,13 @@ def analyze_layout(req, t_start):
             wl = {"workload": {k: v for k, v in req["workload"].items() if k != "shape"}, "baseline": base_knobs,
                   "survey": {k: result["survey"][k] for k in ("heights", "widths")},
                   "approaches": {k: a["overrides"] for k, a in result["survey"]["approaches"].items()}}
+            if "compare" in result["survey"]:
+                wl["compare_profile"] = result["survey"]["compare"]["profile"]
         else:
             wl = _workload(req["workload"], base_knobs)
             base = _result(wl, costs, what_if)
             result["baseline"] = _compact(base, detail)
+            result["accuracy"] = base["accuracy"]
         if action == "compare":
             rows = []
             for c in req.get("candidates", []):
@@ -329,6 +368,7 @@ def analyze_layout(req, t_start):
                 rows.append(_compact(r, detail))
             result["candidates"] = rows
             result["recommendations"] = _recommend(rows, analysis.get("top_k", 3))
+            result["warnings"] += _craq_warning(costs, rows, wl["W"])
         elif action == "tune":
             result.update(_tune(req, base_knobs, wl, base, costs, what_if, req.get("tune") or {}, analysis, detail,
                                 t_start))

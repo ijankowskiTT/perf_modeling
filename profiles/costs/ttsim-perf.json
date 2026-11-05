@@ -3,7 +3,7 @@
  "name": "ttsim-perf",
  "revision": "2026-11-03.fit8+fp32",
  "platform": "ttsim-perf (ENABLE_PERF=1)",
- "platform_scope": "cycle-approximate Tensix and Rocket timing (incl. cold first-iteration costs); L1-interleaved NoC transfers ARE timed (8.5% mean error), DRAM transfers are NOT. Times are simulator cycles reported as ns (1 cycle = 1 ns by convention), not silicon.",
+ "platform_scope": "cycle-approximate Tensix and Rocket timing (incl. cold first-iteration costs); L1-interleaved NoC transfers ARE timed, DRAM transfers are NOT. Times are simulator cycles reported as ns (1 cycle = 1 ns by convention), not silicon.",
  "calibration": {
   "commit": "0fff850f3c6",
   "dataset": "calibration/data/ttsim-perf.jsonl (sim perf)",

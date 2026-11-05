@@ -92,6 +92,10 @@
     "platform_scope": {
       "type": "string"
     },
+    "accuracy": {
+      "type": "string",
+      "description": "how close the model is for THIS op and factory on this profile: binary_ng the mean errors of docs/CALIBRATION.md; data-movement ops the factory's mean error over the profile's calibration runs (profiles/accuracy.json); a hypothetical setup or a derived profile (silicon-hypothesis) says it has no measurement. platform_scope describes the simulator, not the op's error"
+    },
     "hypothetical": {
       "type": "object"
     },
@@ -591,6 +595,223 @@
             },
             "eval_ms": {
               "type": "number"
+            },
+            "outside_calibrated_range": {
+              "type": "integer",
+              "description": "evaluated shapes outside the calibrated range"
+            }
+          }
+        },
+        "outside_calibrated_range": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "boolean"
+            }
+          },
+          "description": "per [height][width]: true = an evaluated shape outside the factory's calibrated range on this profile (extrapolated)"
+        },
+        "calibrated_range": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "max_h": {
+              "type": "integer"
+            },
+            "max_w": {
+              "type": "integer"
+            },
+            "max_elems": {
+              "type": "integer"
+            },
+            "runs": {
+              "type": "integer"
+            },
+            "profile": {
+              "type": "string"
+            }
+          },
+          "description": "the factory's calibrated shape range (largest rows, width, elements over its runs on profile)"
+        },
+        "compare": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "survey.compare_profile: the same survey on another cost profile; per approach the speedup there",
+          "required": [
+            "profile",
+            "status",
+            "approaches",
+            "summary"
+          ],
+          "properties": {
+            "profile": {
+              "$ref": "#/$defs/profile_id"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial"
+              ]
+            },
+            "platform_scope": {
+              "type": "string"
+            },
+            "accuracy": {
+              "type": "string"
+            },
+            "approaches": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "speedup",
+                  "counts"
+                ],
+                "properties": {
+                  "speedup": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "geomean",
+                      "min",
+                      "max"
+                    ],
+                    "properties": {
+                      "geomean": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "min": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "max": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "counts": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "faster",
+                      "neutral",
+                      "slower",
+                      "invalid"
+                    ],
+                    "properties": {
+                      "faster": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "neutral": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "slower": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "invalid": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    }
+                  },
+                  "worst": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": false,
+                    "required": [
+                      "shape",
+                      "speedup"
+                    ],
+                    "properties": {
+                      "shape": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        },
+                        "description": "[H, W]"
+                      },
+                      "speedup": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "best": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": false,
+                    "required": [
+                      "shape",
+                      "speedup"
+                    ],
+                    "properties": {
+                      "shape": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        },
+                        "description": "[H, W]"
+                      },
+                      "speedup": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "summary": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stats": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evaluated": {
+                  "type": "integer"
+                },
+                "skipped": {
+                  "type": "integer"
+                },
+                "plans_evaluated": {
+                  "type": "integer"
+                },
+                "eval_ms": {
+                  "type": "number"
+                },
+                "outside_calibrated_range": {
+                  "type": "integer"
+                }
+              }
             }
           }
         }
@@ -1131,6 +1352,14 @@
             }
           },
           "description": "tilize/untilize: the busiest core's work and DM pattern and the core grid (for report diagrams)"
+        },
+        "accuracy": {
+          "type": "string",
+          "description": "this row's accuracy (factory, dtype; hypothetical setups: no simulator measurement, built from costs with the factory's error)"
+        },
+        "outside_calibrated_range": {
+          "type": "boolean",
+          "description": "the shape exceeds the factory's calibrated range on this profile (rows, width or elements > 1.25 x the largest calibration run): extrapolated; the warning names the range"
         }
       }
     },
