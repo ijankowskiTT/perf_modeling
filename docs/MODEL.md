@@ -103,7 +103,23 @@ bytes, barriers, compute steps and DFB sizes. Reports draw it.
 - Shapes beyond 1.25x the calibrated rows, width or elements are flagged as extrapolated (hatched in survey reports).
 - On craq-sim, setups with smaller requests (column / 2d splits, smaller blocks) carry a warning: craq-sim charges
   per request, not per byte. `survey.compare_profile` reruns a survey on a second profile.
-- silicon-hypothesis caps data-movement ops by an assumed DRAM bandwidth (875 GB/s x 0.75): bottleneck `dram_global`.
+- silicon-hypothesis times DRAM with a channel model (below); answers show each channel's busy share.
+
+## DRAM (silicon-hypothesis)
+
+No simulator times Quasar DRAM. ttsim-perf has a DRAM model fitted to Blackhole silicon, but only for Blackhole.
+`qperf/dram.py` uses the same structure with Quasar's layout and assumed rates:
+- **Channels:** 2, at NoC (2,7) and (4,0), from the soc descriptor. Interleaved page p goes to bank p mod 2; a DRAM
+  shard k to bank k.
+- **Streaming:** each access holds its channel for bytes / rate cycles. Requests from all cores queue per channel in
+  time order, so channels saturate and a single-bank shard uses one channel.
+- **Latency:** a read that finds its channel idle (> 8 cycles) waits 142 cycles more (Blackhole's constant), plus
+  fixed and per-hop NoC latency. Batching keeps a channel busy and hides this latency.
+- **Rate:** 243 B/cycle per channel nominal (875 GB/s x 0.75 at 1.35 GHz, split over 2 channels). Scenarios: 1.5 TB/s
+  and 256 GB/s.
+
+It is a hypothesis: the structure comes from Blackhole, and the rates are assumptions. Recalibrate once ttsim times
+Quasar DRAM or silicon exists.
 
 ## Costs
 

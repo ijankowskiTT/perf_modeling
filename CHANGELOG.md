@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.0
+
+- Quasar DRAM channel model on silicon-hypothesis (`qperf/dram.py`). It uses ttsim-perf's Blackhole DRAM structure
+  (per-channel streaming, idle-read latency, time-ordered queuing across cores) with Quasar's 2 channels and assumed
+  rates. It shows whether batching hides DRAM latency, single-bank shards using one channel, and latency-bound
+  readers. craq-sim and ttsim-perf results are unchanged.
+- Results report per-channel DRAM busy share. Sensitivity sweeps get a 1 s default budget.
+
 ## 1.5.2
 
 - `check-drift --ref pr/N` reports `included` when the PR is already merged into the pinned code (its head branch may

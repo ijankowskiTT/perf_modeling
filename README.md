@@ -123,6 +123,11 @@ Not covered (answered as `unsupported`, never with a number):
 
 No Quasar silicon exists yet: times are simulator cycles. Confirm close calls (<3%) with one simulator run.
 
+DRAM: neither simulator times Quasar DRAM. The `silicon-hypothesis` profile adds a Quasar DRAM channel model: 2
+channels with per-channel queuing and idle-read latency, using ttsim-perf's Blackhole structure at assumed rates. It
+shows when an op is DRAM-bound and whether batching hides DRAM latency. It is a hypothesis until it can be
+calibrated.
+
 ## Findings
 
 For `add`/`multiply` from DRAM on 32 clusters (craq-sim):

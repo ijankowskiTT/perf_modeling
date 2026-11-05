@@ -116,6 +116,12 @@ from DRAM across tile counts. Where does each win or regress? Make a report with
   - Batch 2 would be 5.8% faster for multiply at 8 tiles per cluster.
   - DM batch 16 is 4-11% faster for large adds, but that result has no DRAM time behind it.
 - Report: [batching](https://claude.ai/artifact/UoWwykpLuKVMJXBR9m3qJ8?sk=k947PDf0x5kEOHkJV1E9Ng) (Tenstorrent only).
+- With DRAM timed (silicon-hypothesis, 1.6.0 channel model), from 64 tiles per cluster up every scheme is DRAM-bound,
+  with both channels 78-99% busy:
+  - the PR rule still beats no batching by 15-25%, because batching hides DRAM's idle-read latency;
+  - DM batch 16's craq-sim win disappears (1.00x);
+  - fixed 4 ties the rule.
+  Add "and with DRAM timed" to the prompt to get this part.
 
 ## What-ifs and plans
 

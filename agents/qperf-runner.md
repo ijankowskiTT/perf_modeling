@@ -90,7 +90,9 @@ PR; model "before the PR" by overriding the knobs it changed.
 - Use ttsim-perf for L1 vs DRAM placement, NoC barriers (including per-thread barriers), latency or bandwidth
   questions, and reshard. It times L1 NoC transfers; neither simulator times DRAM.
 - Run both profiles if useful, and say which answers what.
-- silicon-hypothesis assumes DRAM latency and bandwidth: call it a hypothesis.
+- silicon-hypothesis times DRAM with a Quasar channel model (2 channels, assumed rate and latency): use it for any
+  question where DRAM time matters (large shapes, DRAM-sided sharding / reshard, whether batching hides DRAM
+  latency); quote its "DRAM channels" line and call it a hypothesis.
 
 **Read the output right**: `time_ns` is the op's time. `runtime_ms` is how long the model took, never the op's
 time. Quote the `accuracy` line for the op (never another op's error). Relay every warning (known gap, untimed side,
