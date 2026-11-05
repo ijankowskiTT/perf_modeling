@@ -15,8 +15,10 @@ factory / height x8) and every approach; speedup = baseline time / approach time
 knobs resolve to the baseline's plan at a shape is neutral there (speedup exactly 1.0); equal plans are timed once per
 shape. Shapes the factory routes elsewhere (untilize wide -> Block, use_multicore false -> SingleCore), that the
 profile's simulator cannot run (craq-sim tilize wider than 64 tiles) or that the baseline cannot take are skipped with a
-reason. Per shape the baseline's limiter (busiest role, or a global L1 / DRAM bound) and, on a profile with an assumed
-DRAM bandwidth, where the DRAM bound caps a plan are recorded too.
+reason. Per shape the baseline's limiter (busiest role, or a global L1 / DRAM bound), the cores every plan uses
+(baseline_cores; per approach cores, and core_split for kernel changes) and, on a profile with an assumed DRAM
+bandwidth, where the DRAM bound caps a plan are recorded too; when that profile's low / high cost scenarios differ
+(silicon-hypothesis) both are timed as well, and cells whose verdict depends on the scenario are marked and counted.
 """
 
 from __future__ import annotations
@@ -25,9 +27,9 @@ import math
 import time
 
 from . import accuracy
-from .api import NOISE
+from .api import NOISE, band
 from .layout_api import CRAQ_SMALL_REQUESTS, LayoutError, _costs, _result, _workload
-from .ops.layout import DESIGN_FACTORIES, DESIGN_KNOBS, SHARD_OPS, TILE, estimate, plan, resolve_design
+from .ops.layout import DESIGN_FACTORIES, DESIGN_KNOBS, GRID, SHARD_OPS, TILE, estimate, plan, resolve_design
 from .profiles import load
 
 DEFAULT_HEIGHTS = [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]
@@ -84,8 +86,60 @@ UNTIMED_NOTE = ("{n} of {m} compared cells involve a side {profile} does not tim
                 "(survey grids mark them untimed; reports hatch them)")
 
 
+DRAM_KEYS = ("dram.total_bytes_per_cycle", "dram.efficiency", "noc.read_latency.dram")
+
+
 def shape_label(h, w):
     return f"{h}x{w}"
+
+
+def _cores_of(e, kernel):
+    """(cores used, core split or None) of one estimate() result, as the report's 'How it runs' counts them: every
+    load of the plan for the factories it describes (structure.cores_used of tilize / untilize), else the loads that
+    run (work_split of the sharding ops and reshard). The split (kernel changes): 'rows', or 'cols' / '2d' with row
+    cores x column chunks."""
+    if not kernel:
+        return sum(n for _, n, _ in e["loads"]), None
+    cores = sum(n for _, n in e["plan"])
+    cfg = e["plan"][0][0]
+    split = cfg.get("split", "rows")
+    return cores, split if split == "rows" else f"{split} {cfg['row_cores']}x{cfg['col_chunks']}"
+
+
+def cores_line(heights, grid, total=GRID):
+    """The baseline's core count over the grid as one line: 'today uses 1 core at H=32, 2 at H=64, ..., all 32 from
+    H=1024' when it depends on H only, else its range (and from which H every shape uses all cores); None when no
+    shape was evaluated."""
+    rows = [(h, sorted({v for v in row if v is not None})) for h, row in zip(heights, grid)]
+    rows = [(h, vs) for h, vs in rows if vs]
+    if not rows:
+        return None
+    every = sorted({v for _, vs in rows for v in vs})
+    if len(every) == 1:
+        v = every[0]
+        return f"today uses {'all ' + str(total) if v == total else f'{v} of {total}'} cores at every evaluated shape"
+    full = None
+    for k in range(len(rows)):
+        if all(vs == [total] for _, vs in rows[k:]):
+            full = rows[k][0]
+            break
+    if all(len(vs) == 1 for _, vs in rows):
+        runs = []
+        for h, (v,) in rows:
+            if runs and runs[-1][0] == v:
+                runs[-1][2] = h
+            else:
+                runs.append([v, h, h])
+        parts = []
+        for k, (v, h0, h1) in enumerate(runs):
+            if v == total and h0 == full:
+                parts.append(f"all {total} from H={h0}")
+                continue
+            n = f"{v} core{'' if v == 1 else 's'}" if k == 0 else str(v)
+            parts.append(f"{n} at H={h0}" if h0 == h1 else f"{n} at H={h0}..{h1}")
+        return "today uses " + ", ".join(parts)
+    out = f"today uses {every[0]}..{every[-1]} of {total} cores depending on the shape (H and W)"
+    return out + (f", all {total} from H={full}" if full is not None else "")
 
 
 def kind_of(op):
@@ -258,8 +312,14 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
     costs = _costs(profile, "nominal", what_if.get("cost_overrides"), what_if.get("compute_service_scale", 1.0))
     ghz = profile["clock"]["GHz"]
     dram_bounded = bool(costs.get("dram.total_bytes_per_cycle")) and costs.get("dram.bound_layout", 0.0) >= 0.5
+    # the low / high cost scenarios, timed only where they can move a verdict: a profile with an assumed DRAM bandwidth
+    # whose scenarios differ (silicon-hypothesis); elsewhere every cost moves together and speedups barely change
+    scen_costs = {sc: _costs(profile, sc, what_if.get("cost_overrides"), what_if.get("compute_service_scale", 1.0))
+                  for sc in ("low", "high")} if dram_bounded else {}
+    if scen_costs and all(scen_costs[sc].get(k) == costs.get(k) for sc in scen_costs for k in DRAM_KEYS):
+        scen_costs = {}
     t_eval = time.perf_counter()
-    cache = {}
+    cache, scache = {}, {}
     n_eval = n_reused = 0
     notes = []  # the profile's notes on untimed sides, once each
 
@@ -281,7 +341,7 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
         return wl, (wl["mem"], wl["use_multicore"], f, d["sig"] if hyp else "factory"), (hyp, small), f, False
 
     def time_ns(wl, sig):
-        """(time ns, limiter, DRAM-capped) of one plan."""
+        """(time ns, limiter, DRAM-capped, cores used, core split) of one plan."""
         nonlocal n_eval, n_reused
         if sig in cache:
             n_reused += 1
@@ -289,12 +349,27 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
         n_eval += 1
         e = estimate(wl["op"], wl["H"], wl["W"], costs, wl["dtype"], wl["mem"], wl["use_multicore"],
                      design=wl.get("design"))
-        cache[sig] = (e["span"] / ghz, _limiter(e), bool(e.get("dram_bound") and e["dram_bound"] >= e["span"] - 1e-9))
+        cache[sig] = (e["span"] / ghz, _limiter(e), bool(e.get("dram_bound") and e["dram_bound"] >= e["span"] - 1e-9),
+                      *_cores_of(e, kernel))
         return cache[sig]
+
+    def scen_ns(wl, sig):
+        """(low, high) scenario times of one plan (only with scen_costs; not counted in the plan stats)."""
+        if sig not in scache:
+            scache[sig] = tuple(estimate(wl["op"], wl["H"], wl["W"], scen_costs[sc], wl["dtype"], wl["mem"],
+                                         wl["use_multicore"], design=wl.get("design"))["span"] / ghz
+                                for sc in ("low", "high"))
+        return scache[sig]
 
     nH, nW = len(heights), len(widths)
     base_grid = [[None] * nW for _ in heights]
+    base_cores = [[None] * nW for _ in heights]
+    base_split = [[None] * nW for _ in heights]
     grids = {aid: [[None] * nW for _ in heights] for aid, _ in approaches}
+    core_grids = {aid: [[None] * nW for _ in heights] for aid, _ in approaches}
+    split_grids = {aid: [[None] * nW for _ in heights] for aid, _ in approaches}
+    scen_grids = {aid: [[None] * nW for _ in heights] for aid, _ in approaches}  # [low, high] speedups
+    dep_grids = {aid: [[None] * nW for _ in heights] for aid, _ in approaches}  # verdict differs between scenarios
     untimed_grids = {aid: [[None] * nW for _ in heights] for aid, _ in approaches}
     hyp_any = {aid: False for aid, _ in approaches}
     shrinks = {aid: False for aid, _ in approaches}  # a plan with shorter NoC requests than the factory's (craq-sim)
@@ -315,6 +390,7 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
                 not_evaluated.append([H, W])
                 continue
             cache.clear()  # signatures are per shape
+            scache.clear()
             try:
                 bwl, bsig, _, factory, b_untimed = resolve(H, W, base_knobs)
             except (LayoutError, ValueError) as e:
@@ -328,8 +404,10 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
                 continue
             if base_warnings is None:  # profile checks (needs_input, fp32 not calibrated, known gaps) on one shape
                 base_warnings = [x for x in _result(bwl, profile, what_if)["warnings"] if not x.startswith("hypothetical")]
-            bt, neck, bcap = time_ns(bwl, bsig)
+            bt, neck, bcap, bcores, bsplit = time_ns(bwl, bsig)
             base_grid[i][j] = round(bt, 1)
+            base_cores[i][j], base_split[i][j] = bcores, bsplit
+            bscen = scen_ns(bwl, bsig) if scen_costs else None
             base_info["factories"][factory] = base_info["factories"].get(factory, 0) + 1
             base_info["limiters"][neck] = base_info["limiters"].get(neck, 0) + 1
             base_info["dram_capped"] += bcap
@@ -345,11 +423,18 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
                     invalid[aid] += 1
                     continue
                 if sig == bsig:
-                    s, cap = 1.0, bcap
+                    s, cap, ncores, nsplit = 1.0, bcap, bcores, bsplit
+                    sc = (1.0, 1.0) if bscen else None
                 else:
-                    t, _, cap = time_ns(wl, sig)
+                    t, _, cap, ncores, nsplit = time_ns(wl, sig)
                     s = bt / t
                     differs[aid] = True
+                    sc = tuple(b / x for b, x in zip(bscen, scen_ns(wl, sig))) if bscen else None
+                core_grids[aid][i][j], split_grids[aid][i][j] = ncores, nsplit
+                if sc:
+                    scen_grids[aid][i][j] = [round(x, 3) for x in sc]
+                    # on the speedups as reported (3 decimals), as the faster / slower counts
+                    dep_grids[aid][i][j] = len({band(round(x, 3)) for x in (s, *sc)}) > 1
                 hyp_any[aid] |= hyp[0]
                 shrinks[aid] |= hyp[1]
                 facs[aid][f] = facs[aid].get(f, 0) + 1
@@ -373,6 +458,13 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
              "counts": {"faster": sum(s > 1 + NOISE for s, _, _ in vals), "slower": sum(s < 1 - NOISE for s, _, _ in vals),
                         "invalid": invalid[aid]}}
         a["counts"]["neutral"] = len(vals) - a["counts"]["faster"] - a["counts"]["slower"]
+        a["cores"] = core_grids[aid]
+        if kernel:
+            a["core_split"] = split_grids[aid]
+        if scen_costs:
+            a["scenario_speedups"] = scen_grids[aid]
+            a["depends_on_scenario"] = dep_grids[aid]
+            a["scenario_dependent_cells"] = sum(bool(x) for row in dep_grids[aid] for x in row)
         if not kernel:
             a["untimed"] = untimed_grids[aid]
             a["untimed_cells"] = sum(bool(x) for row in untimed_grids[aid] for x in row)
@@ -415,10 +507,15 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
             s += f", invalid on {c['invalid']}"
         if a.get("untimed_cells"):
             s += f"; untimed on {a['untimed_cells']}/{n}: not meaningful on {profile['name']}"
+        if a.get("scenario_dependent_cells"):
+            s += f"; verdict depends on the cost scenario (low / high) at {a['scenario_dependent_cells']}/{n} shapes"
         return s
 
     order = sorted(out, key=lambda k: -(out[k]["speedup"]["geomean"] or 0))
     summary = [line(k, out[k]) for k in order]
+    today = cores_line(heights, base_cores)
+    if today:
+        summary.insert(0, f"baseline: {today}")
     recs = _recommend(out, order, analysis.get("top_k", 3), profile["name"])
     warnings = list(base_warnings or [])
     warnings += [x for x in notes if x not in warnings]
@@ -496,6 +593,10 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
                    "speedup_basis": f"nominal costs; faster / slower beyond {NOISE:.0%} (the compare verdict "
                                     f"threshold), neutral within it"},
     }
+    res["survey"]["baseline_cores"] = base_cores
+    if kernel:
+        res["survey"]["baseline_core_split"] = base_split
+    res["survey"]["scenarios_checked"] = bool(scen_costs)
     if defaults_applied:
         res["applied_defaults"] = defaults_applied
     other = spec.get("compare_profile")
@@ -528,8 +629,8 @@ def _compare(req, base_knobs, name, what_if, analysis, t_start, primary):
     sv = r["survey"]
     return {"profile": pid, "status": r["status"], "platform_scope": prof.get("platform_scope", ""),
             "accuracy": r["accuracy"],
-            "approaches": {aid: {k: a[k] for k in ("speedup", "counts", "worst", "best", "dram_capped", "untimed_cells")
-                                 if k in a}
+            "approaches": {aid: {k: a[k] for k in ("speedup", "counts", "worst", "best", "dram_capped", "untimed_cells",
+                                                   "scenario_dependent_cells") if k in a}
                            for aid, a in sv["approaches"].items()},
             "summary": sv["summary"], "warnings": [x for x in r["warnings"] if x not in primary["warnings"]],
             "stats": {k: sv["stats"][k] for k in ("evaluated", "skipped", "plans_evaluated", "eval_ms",

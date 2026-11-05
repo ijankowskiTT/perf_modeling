@@ -89,6 +89,14 @@
         "type": "string"
       }
     },
+    "time_unit": {
+      "type": "string",
+      "enum": [
+        "cycles",
+        "ns"
+      ],
+      "description": "what every time_ns value of this response is: cycles = simulator cycles reported as ns by the 1 cycle = 1 ns convention (craq-sim, ttsim-perf); ns = real nanoseconds at the profile's clock (silicon-hypothesis). Field names keep _ns either way"
+    },
     "platform_scope": {
       "type": "string"
     },
@@ -353,6 +361,32 @@
           },
           "description": "baseline time per [height][width]; null = skipped"
         },
+        "baseline_cores": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "description": "cores the baseline plan uses per [height][width] (structure.cores_used of tilize / untilize, the running cores of the layout choices); null = skipped"
+        },
+        "baseline_core_split": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "description": "kernel changes: the baseline's core split per [height][width]: rows, or cols / 2d with row cores x column chunks ('2d 2x16'); null = skipped"
+        },
         "approaches": {
           "type": "object",
           "additionalProperties": {
@@ -516,6 +550,32 @@
                 },
                 "description": "speedup vs baseline per [height][width]; null = skipped, not evaluated or invalid"
               },
+              "cores": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "description": "cores the approach's plan uses per [height][width]; null = skipped, not evaluated or invalid"
+              },
+              "core_split": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "description": "kernel changes: the approach's core split per [height][width] (rows, 'cols 8x4', '2d 2x16': row cores x column chunks)"
+              },
               "wins_where": {
                 "type": [
                   "string",
@@ -574,6 +634,40 @@
                 "type": "integer",
                 "minimum": 0,
                 "description": "profiles with an assumed DRAM bandwidth (silicon-hypothesis): shapes where the DRAM bound sets the approach's time"
+              },
+              "scenario_speedups": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "description": "scenarios_checked: [low, high] cost-scenario speedups per [height][width] (low = the fast scenario); null = not evaluated or invalid"
+              },
+              "depends_on_scenario": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "description": "scenarios_checked: per [height][width], true = the low, nominal and high speedups fall on different sides of the NOISE band (the verdict depends on the cost scenario)"
+              },
+              "scenario_dependent_cells": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "scenarios_checked: cells marked depends_on_scenario"
               }
             }
           }
@@ -599,6 +693,10 @@
         },
         "speedup_basis": {
           "type": "string"
+        },
+        "scenarios_checked": {
+          "type": "boolean",
+          "description": "true when the low / high cost scenarios were timed too (a profile with an assumed DRAM bandwidth whose scenarios differ: silicon-hypothesis); approaches then carry scenario_speedups, depends_on_scenario and scenario_dependent_cells"
         },
         "stats": {
           "type": "object",
@@ -831,6 +929,11 @@
                     "type": "integer",
                     "minimum": 0,
                     "description": "layout choices: cells marked untimed"
+                  },
+                  "scenario_dependent_cells": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "scenarios_checked on that profile: cells whose verdict depends on the cost scenario"
                   }
                 }
               }
@@ -1243,6 +1346,17 @@
                 "no_meaningful_gain",
                 "inconclusive"
               ]
+            },
+            "verdict_depends_on_scenario": {
+              "type": "boolean",
+              "enum": [
+                true
+              ],
+              "description": "present (true) when the low / nominal / high speedups fall on different sides of the NOISE band: the verdict depends on the cost scenario"
+            },
+            "scenario_note": {
+              "type": "string",
+              "description": "with verdict_depends_on_scenario: the speedups that differ, e.g. '1.00x at the assumed DRAM bandwidth, 1.17x with the fast scenario (low costs)'"
             }
           }
         },

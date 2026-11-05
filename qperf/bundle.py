@@ -481,6 +481,22 @@ def _basis(b):
             f"invalid for the option or skipped for the baseline). Rows on another grid or a single shape come last.")
 
 
+def units_note(b):
+    """One line when the bundle mixes simulator cycles (craq-sim, ttsim-perf) with real ns (silicon-hypothesis), else
+    None."""
+    by = {}
+    for x in b["results"]:
+        u = x["result"].get("time_unit")
+        if u:
+            by.setdefault(u, set()).add(_prof(x["request"], x["result"]))
+    if len(by) < 2:
+        return None
+    cyc, ns = sorted(by["cycles"]), sorted(by["ns"])
+    return (f"Times: {', '.join(cyc)} report{'s' if len(cyc) == 1 else ''} simulator cycles (cyc; 1 cycle = 1 ns by "
+            f"convention), {', '.join(ns)} real ns at {'its' if len(ns) == 1 else 'their'} assumed clock; do not compare "
+            f"times across them (speedups are unitless).")
+
+
 def _section_title(x, i):
     q, r = x["request"], x["result"]
     return f"{i}. {_op(q)} {q.get('action', 'estimate')} on {_prof(q, r)}"
@@ -489,7 +505,8 @@ def _section_title(x, i):
 def to_text(b):
     from .cli import _text
 
-    L = [f"# {b['title']}", f"{len(b['results'])} requests; " + _basis(b), "", "Summary by op"]
+    L = [f"# {b['title']}", f"{len(b['results'])} requests; " + _basis(b)] + [n for n in [units_note(b)] if n]
+    L += ["", "Summary by op"]
     L += [f"  {s['text']}" for s in b["summary"]]
     for key, name, what in TABLES:
         rows = b["rankings"][key]
@@ -523,7 +540,9 @@ def to_markdown(b):
     from .report import _how_text, _plan, _shown
     from .report import to_markdown as md1
 
-    L = [f"# {b['title']}", "", f"{len(b['results'])} requests. {_basis(b)}", "", "## Summary by op", ""]
+    L = [f"# {b['title']}", "", f"{len(b['results'])} requests. {_basis(b)}", ""]
+    L += [units_note(b), ""] if units_note(b) else []
+    L += ["## Summary by op", ""]
     L += [f"- {s['text']}" for s in b["summary"]]
     for key, name, what in TABLES:
         rows = b["rankings"][key]
@@ -568,7 +587,11 @@ details.req>summary .note{display:block;margin-top:2px}details.req[open]{padding
 details.req>summary::before{content:"\\25B8";display:inline-block;width:16px;color:var(--ink2)}
 details.req[open]>summary::before{content:"\\25BE"}
 details.req h2{font-size:15px}details.req .card{background:var(--page)}
-.muted{color:var(--muted)}svg.mini{display:inline-block;width:64px;height:10px;vertical-align:-1px;margin-right:6px}
+.muted{color:var(--muted)}.mini{display:inline-block;position:relative;width:64px;height:10px;vertical-align:-1px;
+margin-right:6px;background:linear-gradient(var(--track),var(--track)) 0 4px/100% 2px no-repeat}
+.mini::after{content:"";position:absolute;left:31.5px;top:0;width:1px;height:10px;background:var(--ink2)}
+.mini b{position:absolute;top:1px;height:8px;border-radius:2px}.mini .w{background:var(--win)}
+.mini .l{background:var(--loss)}.mini .n{background:var(--axis)}.mini .u{background:var(--deemph)}
 """
 
 
@@ -578,14 +601,11 @@ def _mini_bar(r):
     g = r["geomean"]
     if not g:
         return ""
-    w, mid = 64, 32
+    mid = 32
     x = max(-1.0, min(1.0, math.log2(g) / 2)) * mid
-    col = "var(--deemph)" if r["untimed_cells"] else "var(--win)" if g > 1.02 else "var(--loss)" if g < 0.98 else "var(--axis)"
+    col = "u" if r["untimed_cells"] else "w" if g > 1.02 else "l" if g < 0.98 else "n"
     x0, bw = (mid, max(x, 1.5)) if x >= 0 else (mid + x, -x)
-    return (f'<svg class="mini" viewBox="0 0 {w} 10" width="{w}" height="10" aria-hidden="true">'
-            f'<rect x="0" y="4" width="{w}" height="2" fill="var(--track)"/>'
-            f'<rect x="{x0:.1f}" y="1" width="{bw:.1f}" height="8" rx="2" fill="{col}"/>'
-            f'<line x1="{mid}" y1="0" x2="{mid}" y2="10" stroke="var(--ink2)" stroke-width="1"/></svg>')
+    return f'<i class="mini" aria-hidden="true"><b class="{col}" style="left:{x0:.1f}px;width:{bw:.1f}px"></b></i>'
 
 
 def _op_col(b, op):
@@ -598,14 +618,14 @@ def _dot(b, op):
 
 
 def to_html(b):
-    from .report import CSS, _how_html, _slots, body_html
+    from .report import CSS, _how_html, _slots, bin_css, body_html, defs
 
-    head = (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" '
-            f'content="width=device-width,initial-scale=1"><title>{E(b["title"])}</title>'
-            f'<style>{CSS}{BUNDLE_CSS}</style></head><body><main>')
     profs = sorted({_prof(x["request"], x["result"]) for x in b["results"]})
-    parts = [head, f'<h1>{E(b["title"])}</h1><p class="sub">{len(b["results"])} requests · profiles '
-                   f'{E(", ".join(profs))} · grid {E(b["grid"]["text"])}</p>']
+    parts = [f'<h1>{E(b["title"])}</h1><p class="sub">{len(b["results"])} requests · profiles '
+             f'{E(", ".join(profs))} · grid {E(b["grid"]["text"])}</p>']
+    note = units_note(b)
+    if note:
+        parts.append(f'<p class="note units">{E(note)}</p>')
     parts.append('<div class="card"><h2 style="margin-top:0">Summary by op</h2><ul class="sum">')
     parts += [f'<li>{_dot(b, s["op"])}{E(s["text"])}</li>' for s in b["summary"]]
     parts.append("</ul></div>")
@@ -657,9 +677,12 @@ def to_html(b):
             label = (f"How it runs at {shape_label(*ex['shape'])}: baseline"
                      + (f" vs {ex['approach']}" if ex["approach"] else ""))
             parts.append(how.replace("<h2>How it runs</h2>", f"<h2>{E(label)}</h2>", 1))
-        parts.append(body_html(q, r, uid=f"r{i}_") + "</details>")
+        parts.append(body_html(q, r) + "</details>")
     parts.append("</main></body></html>")
-    return "".join(parts)
+    body = "".join(parts)
+    return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" '
+            f'content="width=device-width,initial-scale=1"><title>{E(b["title"])}</title>'
+            f'<style>{CSS}{BUNDLE_CSS}{bin_css(body)}</style></head><body>{defs(body)}<main>' + body)
 
 
 def to_json(b):

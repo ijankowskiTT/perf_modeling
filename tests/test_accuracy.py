@@ -103,10 +103,10 @@ def test_hypothetical_rows_say_so():
                                                                                          {"use_multicore": False}}]))
     assert validate_response(r) == []
     g, sc = r["candidates"]
-    # split / dfb_blocks have no simulator runs; write_batch has (tilize-wbatch-ttsim-perf.jsonl): partly validated
+    # dfb_blocks has no simulator runs (split 2d resolves to rows at 2048x512); write_batch has: partly validated
     assert g["accuracy"] == ("hypothetical setup, partly validated: write_batch validated on 24 ttsim-perf simulator "
                              "runs of a kernel variant (write_batch 4, 8): 0.8% mean error, 1.0% on the speedup over the "
-                             "pinned kernel; dfb_blocks, split: no simulator measurement; built from costs with 1.2% "
+                             "pinned kernel; dfb_blocks: no simulator measurement; built from costs with 1.2% "
                              "error on the factory (tilize Default, ttsim-perf)")
     assert sc["accuracy"].startswith("tilize SingleCore on ttsim-perf: 1.1% mean error")
     assert r["baseline"]["accuracy"] == r["accuracy"]
@@ -154,7 +154,8 @@ def test_survey_marks_extrapolated_cells_once():
     assert len(note) == 1 and note[0].startswith(f"{n} of 54 evaluated shapes")
     assert sum("outside the calibrated range" in w for w in r["warnings"]) == 1
     html = to_html(survey_req(), r)
-    cells = re.findall(r'<g class="cell (faster|neutral|slower) extrapolated"', html)
+    heat = "".join(re.findall(r'<div class="heatmap hmap".*?</div>', html))
+    cells = [c for c in re.findall(r'<i class="([^"]*)"', heat) if "x" in c.split()]
     assert len(cells) == n * len(sv["approaches"]) and "xhatch" in html
     assert " *" in to_markdown(survey_req(), r).split("## Best approach per shape")[1]
     assert f"{n} extrapolated" in _text(r)

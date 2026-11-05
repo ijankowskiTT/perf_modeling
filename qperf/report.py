@@ -6,16 +6,38 @@ from __future__ import annotations
 import html
 import json
 import math
+import re
 
 from .accuracy import range_txt as accuracy_range_txt
+from .ops.layout import GRID
 from .survey import describe
 
 ROLE_PARTS = [("useful_busy_frac", "busy"), ("starved_frac", "starved"), ("backpressure_frac", "backpressure"),
               ("transfer_wait_frac", "waiting on NoC")]
 
 
-def _ns(v):
-    return "-" if v is None else f"{v:,.0f} ns"
+def _ns(v, u="ns"):
+    return "-" if v is None else f"{v:,.0f} {u}"
+
+
+def tunit(res):
+    """The label of a response's times: 'cyc' when time_unit is cycles (the simulators' 1 cycle = 1 ns convention:
+    craq-sim, ttsim-perf), else 'ns' (silicon-hypothesis, or a response without time_unit)."""
+    return "cyc" if (res or {}).get("time_unit") == "cycles" else "ns"
+
+
+TIME_NOTE = {"cyc": "simulator cycles (cyc; time_ns carries them by the 1 cycle = 1 ns convention)",
+             "ns": "nanoseconds at the profile's clock"}
+
+
+def unit_word(res):
+    return "cycles" if tunit(res) == "cyc" else "ns"
+
+
+def _verdict(c):
+    """A comparison's verdict, marked when it depends on the cost scenario."""
+    v = (c or {}).get("verdict", "")
+    return v + (" (depends on scenario)" if (c or {}).get("verdict_depends_on_scenario") else "")
 
 
 def _ticks(vmax, n=4):
@@ -77,10 +99,11 @@ def _workload(req):
 
 def key_points(req, res):
     pts = []
+    u = tunit(res)
     b = res.get("baseline")
     if b and b.get("valid"):
         t = b["time_ns"]
-        pts.append(f"Baseline {b['label']}: {_ns(t['nominal'])} ({_ns(t['low'])} .. {_ns(t['high'])}), "
+        pts.append(f"Baseline {b['label']}: {_ns(t['nominal'], u)} ({_ns(t['low'], u)} .. {_ns(t['high'], u)}), "
                    f"limited by {b['bottleneck']['resource']}.")
     best = _best(res)
     if best:
@@ -90,6 +113,11 @@ def key_points(req, res):
             pts.append(f"Best alternative {rid} ({r['label']}): {s:.2f}x faster in every cost scenario.")
         else:
             pts.append(f"No alternative is clearly faster (best: {rid}, {s:.2f}x, {c['verdict']}).")
+    base_label = (res.get("baseline") or {}).get("label")
+    for rid, r, is_base in _rows(res):
+        c = r.get("comparison") or {}
+        if not is_base and c.get("verdict_depends_on_scenario") and r.get("label") != base_label:
+            pts.append(f"{rid}: the verdict depends on the cost scenario: {c.get('scenario_note', '')}.")
     sens = res.get("sensitivity")
     if sens:
         base_pts = [p for p in sens["series"].get("baseline", []) if p.get("time_ns")]
@@ -101,8 +129,8 @@ def key_points(req, res):
             if len(ok) >= 2:
                 a, z = ok[0], ok[-1]
                 necks = sorted({p["bottleneck"] for p in ok})
-                pts.append(f"{sid}: {sens['param']} {a['value']} -> {z['value']} moves time {_ns(a['time_ns'])} -> "
-                           f"{_ns(z['time_ns'])} ({z['time_ns'] / a['time_ns'] - 1:+.0%}); bottleneck "
+                pts.append(f"{sid}: {sens['param']} {a['value']} -> {z['value']} moves time {_ns(a['time_ns'], u)} -> "
+                           f"{_ns(z['time_ns'], u)} ({z['time_ns'] / a['time_ns'] - 1:+.0%}); bottleneck "
                            f"{' / '.join(necks)}.")
         for x in sens.get("ranking_changes", []):
             pts.append(f"Ranking changes between {x['between']} at about {x['at_about']}.")
@@ -349,24 +377,27 @@ def _how_text(p):
 def _approaches(req, res):
     """(id, changes text, time, speedup, verdict, bottleneck, tags) per config, the baseline first."""
     base = res.get("baseline") or {}
+    u = tunit(res)
     out = []
     for rid, r, is_base in _rows(res):
         ch = _changes(req, base, rid, r)
         tags = (["hypothetical"] if _hypothetical(r) else []) + ([] if r.get("valid") else ["invalid"])
         sp = _speedup(r)
         out.append((rid, "(baseline)" if is_base else (", ".join(f"{k} {_fmtv(v)}" for k, v in ch.items()) or "-"),
-                    _ns((r.get("time_ns") or {}).get("nominal")) if r.get("valid") else "invalid",
-                    "" if is_base or sp is None else f"{sp:.2f}x", (r.get("comparison") or {}).get("verdict", ""),
+                    _ns((r.get("time_ns") or {}).get("nominal"), u) if r.get("valid") else "invalid",
+                    "" if is_base or sp is None else f"{sp:.2f}x", _verdict(r.get("comparison")),
                     (r.get("bottleneck") or {}).get("resource", ""), ", ".join(tags)))
     return out
 
 
 def to_markdown(req, res):
     prof = res.get("profiles", {}).get("costs") or {"name": req.get("profiles", {}).get("costs"), "revision": "?"}
-    L = [f"# qperf report: {req.get('action')}", "", f"**Workload:** {_workload(req)}  ",
-         f"**Profile:** {prof['name']}@{prof['revision']}  ", f"**Platform:** {res.get('platform_scope', '-')}"
-         + ("  " if res.get("accuracy") else ""), *([f"**Accuracy:** {res['accuracy']}"] if res.get("accuracy") else []),
-         ""]
+    u = tunit(res)
+    head = [f"**Workload:** {_workload(req)}", f"**Profile:** {prof['name']}@{prof['revision']}",
+            f"**Platform:** {res.get('platform_scope', '-')}"]
+    head += [f"**Times:** {TIME_NOTE[u]}"] if res.get("time_unit") else []
+    head += [f"**Accuracy:** {res['accuracy']}"] if res.get("accuracy") else []
+    L = [f"# qperf report: {req.get('action')}", ""] + [x + "  " for x in head[:-1]] + [head[-1], ""]
     if res["status"] not in ("ok", "partial"):
         return "\n".join(L + [f"**{res['status']}:** {res.get('message', '')}", ""])
     if res.get("survey"):
@@ -387,8 +418,8 @@ def to_markdown(req, res):
         t = r["time_ns"]
         c = r.get("comparison") or {}
         sp = c.get("speedup_vs_baseline", {}).get("nominal")
-        L.append(f"| {rid} | {r['label']} | {_ns(t['nominal'])} | {t['low']:,.0f} .. {t['high']:,.0f} | "
-                 f"{'' if base else f'{sp:.2f}x'} | {c.get('verdict', '')} | {r['bottleneck']['resource']} |")
+        L.append(f"| {rid} | {r['label']} | {_ns(t['nominal'], u)} | {t['low']:,.0f} .. {t['high']:,.0f} | "
+                 f"{'' if base else f'{sp:.2f}x'} | {_verdict(c)} | {r['bottleneck']['resource']} |")
     b = res.get("baseline")
     if b and b.get("roles"):
         L += ["", "## Where the baseline's time goes", "", "| role | threads | " + " | ".join(n for _, n in ROLE_PARTS) + " |",
@@ -401,7 +432,7 @@ def to_markdown(req, res):
         L += ["", f"## Sensitivity to {sens['param']}", "", "| | " + " | ".join(str(v) for v in vals) + " |",
               "|---|" + "---|" * len(vals)]
         for sid, series in sens["series"].items():
-            L.append(f"| {sid} | " + " | ".join(_ns(p.get("time_ns")) for p in series) + " |")
+            L.append(f"| {sid} | " + " | ".join(_ns(p.get("time_ns"), u) for p in series) + " |")
     L += ["", "## Request", "", "```json", json.dumps(req, indent=1), "```", ""]
     return "\n".join(L)
 
@@ -438,11 +469,33 @@ th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--grid)}th{col
 .hh .t{margin-left:auto;font-variant-numeric:tabular-nums}
 .tag{font-size:12px;border:1px solid var(--ring);border-radius:999px;padding:0 8px;color:var(--ink2);white-space:nowrap}
 .hrow{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;margin:10px 0 12px}
-svg.cores{width:204px;flex:none}ul.facts{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)}
+.cores{display:grid;gap:4px;width:204px;flex:none}.cores span{display:contents}.cores i{height:22px;border-radius:4px}
+.cores .on{background:var(--c);opacity:var(--o)}.cores .off{background:var(--track);box-shadow:inset 0 0 0 1px var(--grid)}
+ul.facts{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)}
 ul.facts b{color:var(--ink)}.pipe-n{display:none}
 .hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr));gap:0 12px}
 .hm h3{font-size:14px;margin:0 0 2px}.hm .note{margin:0 0 8px}.hx{overflow-x:auto}.tile .v{overflow-wrap:anywhere}
-svg .cell text{fill:var(--ink);font-size:11px}.legend .hatch{background:repeating-linear-gradient(45deg,var(--grid) 0 2px,transparent 2px 5px)}
+.hmap{display:grid;grid-template-rows:20px;grid-auto-rows:28px;gap:2px;width:max-content;font:11px system-ui,sans-serif}
+.hmap>*{border-radius:4px;text-align:center;line-height:28px;white-space:nowrap;overflow:hidden;position:relative;
+font-style:normal;color:var(--ink)}.hmap>b{font-weight:400;font-size:12px;color:var(--ink2);line-height:normal;
+align-self:center;overflow:visible}.hmap>b.e{text-align:right;padding-right:6px}.hmap i{background-color:var(--mid)}
+.hmap .x{background-image:repeating-linear-gradient(-45deg,color-mix(in srgb,var(--ink) 28%,transparent) 0 1.2px,
+transparent 1.2px 5px)}.hmap .k{background:repeating-linear-gradient(45deg,var(--grid) 0 3px,var(--surface) 3px 6px);
+box-shadow:inset 0 0 0 1px var(--grid)}.hmap .u,.hmap .na,.hmap .bu{border:1px dashed var(--ink2);line-height:26px}
+.hmap .u,.hmap .na{background:var(--surface)}.hmap .na{border-color:var(--axis)}
+.hmap .d::after{content:"";position:absolute;top:3.5px;right:4.5px;width:5px;height:5px;border-radius:50%;
+background:var(--ink)}.hmap .p0{background-color:color-mix(in srgb,var(--s1) 60%,var(--surface))}
+.hmap .p1{background-color:color-mix(in srgb,var(--s2) 60%,var(--surface))}
+.hmap .p2{background-color:color-mix(in srgb,var(--s3) 60%,var(--surface))}
+.hmap .p3{background-color:color-mix(in srgb,var(--s4) 60%,var(--surface))}
+.hmap .p4{background-color:color-mix(in srgb,var(--s5) 60%,var(--surface))}
+.hmap .p5{background-color:color-mix(in srgb,var(--s6) 60%,var(--surface))}
+.hmap .p6{background-color:color-mix(in srgb,var(--deemph) 60%,var(--surface))}
+svg .c{text-anchor:middle}svg .e{text-anchor:end}svg .bx{fill:var(--surface);stroke:var(--axis)}
+svg .mb{fill:var(--page);stroke:var(--axis);stroke-dasharray:4 3}svg .al{fill:none;stroke:var(--axis);stroke-width:1.5}
+svg .ah{fill:var(--axis)}svg .tr{fill:var(--track)}
+.legend .dot{width:6px;height:6px;border-radius:50%;background:var(--ink);margin:0 8px 1px 2px}
+.legend .hatch{background:repeating-linear-gradient(45deg,var(--grid) 0 2px,transparent 2px 5px)}
 .legend .xhatch{background:repeating-linear-gradient(-45deg,color-mix(in srgb,var(--ink) 30%,transparent) 0 1px,var(--mid) 1px 4px)}
 @media (max-width:640px){.pipe-w{display:none}.pipe-n{display:block}.hh .t{margin-left:0}}
 """
@@ -459,11 +512,10 @@ def _fit(s, px, cw=CW):
 
 
 def _grid_svg(p, col):
-    """The chip's core (cluster) grid; the cores a config uses are filled in its color, lighter when they carry a
-    smaller share of the work (the uneven tail of the split)."""
+    """The chip's core (cluster) grid, a CSS grid of 22 px squares: the cores a config uses are filled in its color,
+    lighter when they carry a smaller share of the work (the uneven tail of the split). Consecutive cores with the same
+    load share one tooltip (a display:contents group)."""
     cols, rows = p["cols"], p["rows"]
-    c, g = 22, 4
-    W, H = cols * (c + g) - g, rows * (c + g) - g
     total = cols * rows
     used = p["used"] or 0
     cells = []
@@ -474,56 +526,66 @@ def _grid_svg(p, col):
     else:
         cells = [(1.0, "")] * used
     unit1 = p["unit"][:-1]
-    out = [f'<svg class="cores" viewBox="0 0 {W} {H}" data-used="{min(used, total)}" role="img" '
-           f'aria-label="{min(used, total)} of {total} {p["unit"]} used">']
+    out = [f'<div class="cores" data-used="{min(used, total)}" role="img" aria-label="{min(used, total)} of {total} '
+           f'{p["unit"]} used" style="--c:{col};grid-template-columns:repeat({cols},22px)">']
+    runs = []  # [first, last, share, text, used]: consecutive cells with the same load share one group and tooltip
     for i in range(total):
-        x, y = (i % cols) * (c + g), (i // cols) * (c + g)
-        if i < len(cells):
-            f, txt = cells[i]
-            out.append(f'<rect class="on" x="{x}" y="{y}" width="{c}" height="{c}" rx="4" fill="{col}" '
-                       f'fill-opacity="{0.4 + 0.6 * f:.2f}"><title>{unit1} {i}{": " + E(txt) if txt else ""}</title></rect>')
+        key = (*cells[i], True) if i < len(cells) else (0.0, "idle", False)
+        if runs and tuple(runs[-1][2:]) == key:
+            runs[-1][1] = i
         else:
-            out.append(f'<rect class="off" x="{x + .5}" y="{y + .5}" width="{c - 1}" height="{c - 1}" rx="4" '
-                       f'fill="var(--track)" stroke="var(--grid)"><title>{unit1} {i}: idle</title></rect>')
-    out.append("</svg>")
+            runs.append([i, i, *key])
+    for a, b, f, txt, on in runs:
+        who = f"{unit1} {a}" if a == b else f"{p['unit']} {a}-{b}"
+        if on:
+            out.append(f'<span title="{E(who + (": " + txt if txt else ""))}" style="--o:{0.4 + 0.6 * f:.2f}">'
+                       + '<i class="on"></i>' * (b - a + 1) + "</span>")
+        else:
+            out.append(f'<span title="{E(who)}: idle">' + '<i class="off"></i>' * (b - a + 1) + "</span>")
+    out.append("</div>")
     return "".join(out)
+
+
+def _n(v):
+    """A coordinate with at most one decimal and no trailing zeros: 68.0 -> '68', 273.5 -> '273.5'."""
+    return f"{v:.1f}".rstrip("0").rstrip(".")
 
 
 def _arrow(x1, y1, x2, y2):
     """A line with a filled head at (x2, y2); horizontal or vertical."""
     if y1 == y2:
-        head = f"M{x2} {y2} l-7 -4 v8 z"
-        x2 -= 6
+        line, head = f"M{_n(x1)} {_n(y1)}H{_n(x2 - 6)}", f"M{_n(x2)} {_n(y2)}l-7-4v8z"
     else:
-        head = f"M{x2} {y2} l-4 -7 h8 z"
-        y2 -= 6
-    return (f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="var(--axis)" stroke-width="1.5"/>'
-            f'<path d="{head}" fill="var(--axis)"/>')
+        line, head = f"M{_n(x1)} {_n(y1)}V{_n(y2 - 6)}", f"M{_n(x2)} {_n(y2)}l-4-7h8z"
+    return f'<path class="al" d="{line}"/><path class="ah" d="{head}"/>'
 
 
-def _node_box(n, x, y, w, h, col):
-    tip = E(n["title"] + (": " + ", ".join(n["lines"]) if n["lines"] else "")
-            + (f" | busy {n['busy']:.0%} of the run" if n.get("busy") is not None else "")
-            + (" | bottleneck" if n.get("hot") else ""))
+def _node_box(n, x, y, w, h, col, tip=True):
+    """The box of one pipeline node: (opening <g> with its tooltip and box, closing tag). tip=False: no tooltip (the
+    narrow copy of a pipeline the wide one already describes)."""
+    tip = ("<title>" + E(n["title"] + (": " + ", ".join(n["lines"]) if n["lines"] else "")
+                         + (f" | busy {n['busy']:.0%} of the run" if n.get("busy") is not None else "")
+                         + (" | bottleneck" if n.get("hot") else "")) + "</title>") if tip else ""
+    geo = f'x="{_n(x + .5)}" y="{_n(y + .5)}" width="{_n(w - 1)}" height="{_n(h - 1)}"'
     if n["kind"] == "mem":
-        box = (f'<rect x="{x + .5}" y="{y + .5}" width="{w - 1}" height="{h - 1}" rx="8" fill="var(--page)" '
-               f'stroke="var(--axis)" stroke-dasharray="4 3"/>')
+        box = f'<rect class="mb" {geo} rx="8"/>'
     else:
-        box = (f'<rect x="{x + .5}" y="{y + .5}" width="{w - 1}" height="{h - 1}" rx="{6 if n["kind"] == "dfb" else 8}" '
-               f'fill="var(--surface)" stroke="{col if n.get("hot") else "var(--axis)"}" '
-               f'stroke-width="{2 if n.get("hot") else 1}"/>')
+        box = (f'<rect class="bx" {geo} rx="{6 if n["kind"] == "dfb" else 8}"'
+               + (f' style="stroke:{col};stroke-width:2"' if n.get("hot") else "") + "/>")
         if n.get("hot"):
-            box += f'<rect x="{x + 1}" y="{y + 1}" width="{w - 2}" height="{h - 2}" rx="8" fill="{col}" fill-opacity=".12"/>'
-    return f'<g class="node {n["kind"]}"><title>{tip}</title>{box}', "</g>"
+            box += (f'<rect x="{_n(x + 1)}" y="{_n(y + 1)}" width="{_n(w - 2)}" height="{_n(h - 2)}" rx="8" fill="{col}" '
+                    f'fill-opacity=".12"/>')
+    return f'<g class="node {n["kind"]}">{tip}{box}', "</g>"
 
 
 def _busy_bar(n, x, y, w, col):
     f = min(1.0, max(0.0, n["busy"]))
     bw = w - 64
-    out = f'<rect x="{x}" y="{y}" width="{bw}" height="6" rx="3" fill="var(--track)"/>'
+    out = f'<rect class="tr" x="{_n(x)}" y="{_n(y)}" width="{_n(bw)}" height="6" rx="3"/>'
     if bw * f >= 1:
-        out += f'<rect x="{x}" y="{y}" width="{bw * f:.1f}" height="6" rx="3" fill="{col if n.get("hot") else "var(--ink2)"}"/>'
-    return out + f'<text x="{x + w}" y="{y + 7}" text-anchor="end" class="v">{f:.0%} busy</text>'
+        out += (f'<rect x="{_n(x)}" y="{_n(y)}" width="{bw * f:.1f}" height="6" rx="3" '
+                f'fill="{col if n.get("hot") else "var(--ink2)"}"/>')
+    return out + f'<text x="{_n(x + w)}" y="{_n(y + 7)}" class="v e">{f:.0%} busy</text>'
 
 
 def _pipe_svg(nodes, col, narrow=False):
@@ -539,9 +601,9 @@ def _pipe_svg(nodes, col, narrow=False):
             w = WID[n["kind"]]
             a, z = _node_box(n, x, y0, w, h, col)
             out.append(a)
+            cx = _n(x + w / 2)
             if n.get("hot"):
-                out.append(f'<text x="{x + w / 2}" y="12" text-anchor="middle" class="v b">bottleneck</text>')
-            cx = x + w / 2
+                out.append(f'<text x="{cx}" y="12" class="v b c">bottleneck</text>')
             if n["kind"] == "role":
                 out.append(f'<text x="{x + 10}" y="{y0 + 20}" class="v b">{E(_fit(n["title"], w - 20, 7.2))}</text>')
                 for j, ln in enumerate(n["lines"][:3]):
@@ -551,17 +613,15 @@ def _pipe_svg(nodes, col, narrow=False):
             else:
                 lines = n["lines"][:3]
                 ty = y0 + (34 if n["kind"] == "dfb" else h / 2 - 7.5 * len(lines) + 4)
-                out.append(f'<text x="{cx}" y="{ty}" text-anchor="middle" class="v b">{E(n["title"])}</text>')
+                out.append(f'<text x="{cx}" y="{_n(ty)}" class="v b c">{E(n["title"])}</text>')
                 for j, ln in enumerate(lines):
-                    out.append(f'<text x="{cx}" y="{ty + 17 + 15 * j}" text-anchor="middle">{E(_fit(ln, w - 12))}</text>')
+                    out.append(f'<text x="{cx}" y="{_n(ty + 17 + 15 * j)}" class="c">{E(_fit(ln, w - 12))}</text>')
                 if n["kind"] == "dfb" and n.get("slots"):
                     k = min(int(n["slots"]), 8)
-                    sx0 = cx - (k * 12 - 3) / 2
-                    for j in range(k):
-                        out.append(f'<rect x="{sx0 + 12 * j:.1f}" y="{y0 + h - 22}" width="9" height="9" rx="2" '
-                                   f'fill="none" stroke="var(--ink2)"/>')
+                    sx0 = x + w / 2 - (k * 12 - 3) / 2
+                    out += [f'<use href="#sl" x="{_n(sx0 + 12 * j)}" y="{y0 + h - 22}"/>' for j in range(k)]
                     if n["slots"] > 8:
-                        out.append(f'<text x="{sx0 + 12 * k + 2:.1f}" y="{y0 + h - 14}">+</text>')
+                        out.append(f'<text x="{_n(sx0 + 12 * k + 2)}" y="{y0 + h - 14}">+</text>')
             out.append(z)
             if i < len(nodes) - 1:
                 out.append(_arrow(x + w + 3, y0 + h / 2, x + w + gap - 3, y0 + h / 2))
@@ -573,12 +633,12 @@ def _pipe_svg(nodes, col, narrow=False):
         for i, n in enumerate(nodes):
             role = n["kind"] == "role"
             h = 28 + 15 * len(n["lines"][:3]) + (16 if n.get("busy") is not None else 0) if role else 30
-            a, z = _node_box(n, x, y, w, h, col)
+            a, z = _node_box(n, x, y, w, h, col, tip=False)
             out.append(a)
             if role:
                 out.append(f'<text x="{x + 10}" y="{y + 19}" class="v b">{E(n["title"])}</text>')
                 if n.get("hot"):
-                    out.append(f'<text x="{x + w - 10}" y="{y + 19}" text-anchor="end" class="v b">bottleneck</text>')
+                    out.append(f'<text x="{x + w - 10}" y="{y + 19}" class="v b e">bottleneck</text>')
                 for j, ln in enumerate(n["lines"][:3]):
                     out.append(f'<text x="{x + 10}" y="{y + 37 + 15 * j}">{E(_fit(ln, w - 20))}</text>')
                 if n.get("busy") is not None:
@@ -586,7 +646,7 @@ def _pipe_svg(nodes, col, narrow=False):
             else:
                 out.append(f'<text x="{x + 10}" y="{y + 19}" class="v b">{E(n["title"])}</text>')
                 if n["lines"]:
-                    out.append(f'<text x="{x + w - 10}" y="{y + 19}" text-anchor="end">'
+                    out.append(f'<text x="{x + w - 10}" y="{y + 19}" class="e">'
                                f'{E(_fit(MID.join(n["lines"]), w - 110))}</text>')
             out.append(z)
             if i < len(nodes) - 1:
@@ -620,7 +680,7 @@ def _how_html(req, res, slots):
         sp = _speedup(r)
         tags = ""
         if rid != "baseline" and r.get("comparison"):
-            tags += f'<span class="tag">{sp:.2f}x · {E(r["comparison"].get("verdict", ""))}</span>'
+            tags += f'<span class="tag">{sp:.2f}x · {E(_verdict(r["comparison"]))}</span>'
         if _hypothetical(r):
             tags += '<span class="tag">hypothetical</span>'
         facts = []
@@ -634,7 +694,7 @@ def _how_html(req, res, slots):
         grid = _grid_svg(p, col) if p["used"] is not None else ""
         out.append(f'<div class="card how" data-config="{E(str(rid))}"><div class="hh"><span><i class="sw" '
                    f'style="background:{col}"></i><b>{E(str(rid))}</b></span><span class="lab">{E(r.get("label", ""))}</span>'
-                   f'{tags}<span class="t">{_ns(t)}</span></div>'
+                   f'{tags}<span class="t">{_ns(t, tunit(res))}</span></div>'
                    f'<div class="hrow">{grid}<ul class="facts">' + "".join(f"<li>{f}</li>" for f in facts) + '</ul></div>'
                    f'<div class="pipe-w">{_pipe_svg(p["nodes"], col)}</div>'
                    f'<div class="pipe-n">{_pipe_svg(p["nodes"], col, narrow=True)}</div></div>')
@@ -677,7 +737,7 @@ def _bars(res, best_id, slots):
         sp = _speedup(r)
         val = f'{t["nominal"]:,.0f}' + (f" · {sp:.2f}x" if rid != "baseline" and sp is not None else "")
         name = _fit(str(rid) + (" (best)" if rid == best_id else ""), lab - 16)
-        tip = f"{rid}: {r['label']} | {t['nominal']:,.0f} ns ({t['low']:,.0f} .. {t['high']:,.0f})"
+        tip = f"{rid}: {r['label']} | {t['nominal']:,.0f} {tunit(res)} ({t['low']:,.0f} .. {t['high']:,.0f})"
         out.append(f'<g class="bar"><title>{E(tip)}</title>'
                    f'<text x="{lab - 10}" y="{y + bh / 2 + 4}" text-anchor="end" class="v{" b" if rid == best_id else ""}">'
                    f'{E(name)}</text>'
@@ -833,24 +893,29 @@ def _sensitivity_charts(sens, slots, req):
 def to_html(req, res):
     prof = res.get("profiles", {}).get("costs", {})
     title = E(f"{(req.get('workload') or {}).get('op', 'qperf')} {req.get('action', 'estimate')} report")
+    body = body_html(req, res)
     head = (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" '
-            f'content="width=device-width,initial-scale=1"><title>{title}</title><style>{CSS}</style></head><body><main>'
+            f'content="width=device-width,initial-scale=1"><title>{title}</title><style>{CSS}{bin_css(body)}</style>'
+            f'</head><body>{defs(body)}<main>'
             f'<h1>qperf: {E(str(req.get("action")))}</h1><p class="sub">{E(_workload(req))} · '
-            f'{E(prof.get("name", ""))}@{E(prof.get("revision", ""))}</p>')
-    return head + body_html(req, res) + "</main></body></html>"
+            f'{E(prof.get("name", ""))}@{E(prof.get("revision", ""))}'
+            + (f' · times in {unit_word(res)}' if res.get("time_unit") else "") + '</p>')
+    return head + body + "</main></body></html>"
 
 
 def body_html(req, res, uid=""):
     """One result's report body (everything below the page title): to_html's page content, and one request's section
-    of a bundle page (qperf/bundle.py). uid: suffix that keeps SVG pattern ids unique on a page of several results."""
+    of a bundle page (qperf/bundle.py). The page around it carries CSS + bin_css(body) and DEFS once. uid: unused
+    (the SVG defs are once per page)."""
     if res["status"] not in ("ok", "partial"):
         return f'<div class="card"><b>{E(res["status"])}</b>: {E(res.get("message", ""))}</div>'
     if res.get("survey"):
-        return _survey_html(req, res, uid)
+        return _survey_html(req, res)
     b = res["baseline"]
     best = _best(res)
     slots = _slots(res)
-    tiles = [("Baseline time", _ns(b["time_ns"]["nominal"]), b["label"]),
+    u = tunit(res)
+    tiles = [("Baseline time", _ns(b["time_ns"]["nominal"], u), b["label"]),
              ("Bottleneck", b["bottleneck"]["resource"], f"busiest role: {b['bottleneck'].get('busiest_role', '-')}")]
     if best and best[2]["comparison"]["verdict"] == "faster":
         tiles.insert(1, ("Best alternative", f"{best[0]:.2f}x faster", best[1]))
@@ -867,7 +932,8 @@ def body_html(req, res, uid=""):
     best_id = best[1] if best and best[2]["comparison"]["verdict"] == "faster" else None
     if len(_rows(res)) > 1:
         parts.append(_approaches_html(req, res, slots))
-        parts.append('<h2>Predicted time per configuration (ns)</h2><div class="card chart">' + _bars(res, best_id, slots) +
+        parts.append(f'<h2>Predicted time per configuration ({unit_word(res)})</h2><div class="card chart">'
+                     + _bars(res, best_id, slots) +
                      '<p class="note">Bar: nominal estimate, with the speedup vs the baseline. Whisker: all costs at their '
                      'low / high scenario. (best): the alternative that is faster in every scenario.</p></div>')
     if res.get("sensitivity"):
@@ -973,7 +1039,8 @@ def _survey_md(req, res):
         ov = describe(a["overrides"]) or "-"
         g = a["speedup"]["geomean"]
         L.append(f"| {aid}{' (hypothetical)' if a['hypothetical'] else ''}"
-                 f"{' (untimed on ' + str(a['untimed_cells']) + ')' if a.get('untimed_cells') else ''} | {ov} | "
+                 f"{' (untimed on ' + str(a['untimed_cells']) + ')' if a.get('untimed_cells') else ''}"
+                 f"{' (scenario-dependent on ' + str(a['scenario_dependent_cells']) + ')' if a.get('scenario_dependent_cells') else ''} | {ov} | "
                  f"{'-' if g is None else f'{g:.2f}x'} | "
                  f"{_sx(a['best']['shape']) + ' ' + format(a['best']['speedup'], '.2f') + 'x' if a['best'] else '-'} | "
                  f"{_sx(a['worst']['shape']) + ' ' + format(a['worst']['speedup'], '.2f') + 'x' if a['worst'] else '-'} | "
@@ -995,6 +1062,9 @@ def _survey_md(req, res):
     if L[-1] == "":
         L.append("- none: no approach is slower than the baseline beyond the noise threshold at any shape")
     hs, ws = sv["heights"], sv["widths"]
+    cores = _cores_md(sv)
+    if cores:
+        L += ["", "## Cores used today", "", f"The baseline plan's cores per shape, of {GRID}.", ""] + cores
     L += ["", "## Best approach per shape", "", "| H \\ W | " + " | ".join(str(w) for w in ws) + " |",
           "|---|" + "---|" * len(ws)]
     for i, h in enumerate(hs):
@@ -1011,39 +1081,48 @@ def _survey_md(req, res):
     return L
 
 
-HM_CELL, HM_H, HM_GAP, HM_LAB, HM_TOP = 56, 28, 2, 52, 22
+HM_CELL, BEST_CELL, CORE_CELL = 56, 92, 44  # cell widths (px) of the speedup heatmaps, the best map, the cores map
+
+# Shapes the page's SVG charts share, defined once per page (to_html, bundle.to_html) instead of once per chart: the
+# DFB slots of the pipelines (#sl).
+DEFS = ('<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>'
+        '<rect id="sl" width="9" height="9" rx="2" fill="none" stroke="var(--ink2)"/></defs></svg>')
+BIN_RE = re.compile(r'class="([wl])(\d+)\b')
 
 
-def _hm_frame(hs, ws, cw, idx):
-    """SVG head (width labels, hatch pattern) and geometry for a heights x widths grid of cells cw wide."""
-    W = HM_LAB + len(ws) * (cw + HM_GAP)
-    H = HM_TOP + len(hs) * (HM_H + HM_GAP)
-    out = [f'<defs><pattern id="hatch{idx}" width="6" height="6" patternUnits="userSpaceOnUse" '
-           f'patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--surface)"/>'
-           f'<line x1="0" y1="0" x2="0" y2="6" stroke="var(--grid)" stroke-width="3"/></pattern>'
-           f'<pattern id="xhatch{idx}" width="5" height="5" patternUnits="userSpaceOnUse" '
-           f'patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="5" stroke="var(--ink)" '
-           f'stroke-opacity=".28" stroke-width="1.2"/></pattern></defs>',
-           f'<text x="{HM_LAB - 8}" y="14" text-anchor="end">H \\ W</text>']
-    for j, w in enumerate(ws):
-        out.append(f'<text x="{HM_LAB + j * (cw + HM_GAP) + cw / 2}" y="14" text-anchor="middle">{w}</text>')
-    for i, h in enumerate(hs):
-        out.append(f'<text x="{HM_LAB - 8}" y="{HM_TOP + i * (HM_H + HM_GAP) + HM_H / 2 + 4}" text-anchor="end">{h}</text>')
-    return W, H, out
+def defs(body):
+    """DEFS when the page body uses them, else nothing."""
+    return DEFS if 'href="#sl"' in body else ""
 
 
-XTIP = " (extrapolated: outside the calibrated range)"
+def bin_css(body):
+    """One CSS rule per speedup colour class the page uses (see _bin), instead of a style string per cell."""
+    used = sorted(set(BIN_RE.findall(body)), key=lambda x: (x[0], int(x[1])))
+    return "".join(f".hmap .{k}{p}{{background-color:color-mix(in srgb,var(--{'win' if k == 'w' else 'loss'}) {p}%,"
+                   f"var(--mid))}}" for k, p in used)
 
 
-def _x_overlay(x, y, cw, idx):
-    """The extrapolation hatch over an evaluated cell (a shape beyond the calibrated range)."""
-    return (f'<rect class="xhatch" x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" fill="url(#xhatch{idx})" '
-            f'pointer-events="none"/>')
+# The heatmaps are CSS grids (.hmap): a label column, a header row and one cell (<i>) per shape, 28 px high with 2 px
+# gaps, coloured by class (bin_css; .x extrapolated hatch, .k skipped hatch, .u untimed, .na invalid, .d the scenario
+# dot), each with one tooltip (its title).
+def _grid_open(cls, cw, n, label, extra=""):
+    return (f'<div class="{cls} hmap"{extra} role="img" aria-label="{E(label)}" '
+            f'style="grid-template-columns:50px repeat({n},{cw}px)">')
 
 
-def _skip_cell(x, y, cw, idx, tip):
-    return (f'<g class="cell skipped"><title>{E(tip)}</title><rect x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" '
-            f'fill="url(#hatch{idx})" stroke="var(--grid)"/></g>')
+def _hm_head(ws, corner="H \\ W"):
+    return f'<b class="e">{E(corner)}</b>' + "".join(f"<b>{w}</b>" for w in ws)
+
+
+XTIP = " (extrapolated)"
+UTIP = " (untimed: not meaningful on this profile)"
+
+
+def _cell(cls, tip, label=""):
+    """One grid cell; no class = neutral (the --mid default of .hmap i)."""
+    cls = cls.strip()
+    attr = f' class="{cls}"' if cls else ""
+    return f'<i{attr} title="{E(tip)}">{label}</i>'
 
 
 def _heat_fill(s, noise):
@@ -1055,51 +1134,58 @@ def _heat_fill(s, noise):
     return f"color-mix(in srgb, var({'--win' if s > 1 else '--loss'}) {15 + 55 * t:.0f}%, var(--mid))"
 
 
-UTIP = " (untimed: the profile does not time a side of this comparison; not meaningful)"
+def _bin(s, noise):
+    """_heat_fill as a colour class: '' (neutral: the cell default), w<percent> (faster), l<percent> (slower); bin_css
+    defines them."""
+    if abs(s - 1) <= noise:
+        return ""
+    t = min(1.0, abs(math.log2(s)) / 2)
+    return f"{'w' if s > 1 else 'l'}{15 + 55 * t:.0f}"
 
 
-def _heatmap(sv, aid, idx, noise):
+def _cores_txt(cores, split, i, j):
+    """', 32 of 32 cores, 2d 2x16' for one cell of a cores grid and its core split ('rows', the factory's split, is
+    left out), or ''."""
+    n = cores[i][j] if cores else None
+    if n is None:
+        return ""
+    sp = split[i][j] if split else None
+    return f", {n} of {GRID} cores" + (f", {sp}" if sp and sp != "rows" else "")
+
+
+def _heatmap(sv, aid, noise, u="ns"):
+    """One approach's speedup per shape: a cell per shape in its colour class with the speedup; the tooltip gives the
+    speedup, the approach's time and cores and, where the verdict depends on the cost scenario (dot), the low / high
+    scenario speedups."""
     a = sv["approaches"][aid]
-    ug = a.get("untimed")
-    hs, ws, cw = sv["heights"], sv["widths"], HM_CELL
-    skipped = {tuple(s["shape"]): s["reason"] for s in sv["skipped"]}
-    W, H, out = _hm_frame(hs, ws, cw, idx)
+    ug, cg, sg = a.get("untimed"), a.get("cores"), a.get("core_split")
+    scen, dep = a.get("scenario_speedups"), a.get("depends_on_scenario")
+    hs, ws = sv["heights"], sv["widths"]
+    skipped = {tuple(s["shape"]) for s in sv["skipped"]}
+    out = [_grid_open("heatmap", HM_CELL, len(ws), f"Speedup of {aid} vs the baseline per shape",
+                      f' data-approach="{E(aid)}"'), _hm_head(ws)]
     for i, h in enumerate(hs):
+        out.append(f'<b class="e">{h}</b>')
         for j, w in enumerate(ws):
-            x, y = HM_LAB + j * (cw + HM_GAP), HM_TOP + i * (HM_H + HM_GAP)
             s, bt = a["grid"][i][j], sv["baseline_ns"][i][j]
-            if bt is None:
-                out.append(_skip_cell(x, y, cw, idx, f"{h}x{w}: {skipped.get((h, w), 'not evaluated')}"))
-            elif s is None:
-                out.append(f'<g class="cell invalid"><title>{E(aid)} at {h}x{w}: the shape cannot take these knobs '
-                           f'(baseline {bt:,.0f} ns)</title><rect x="{x + .5}" y="{y + .5}" width="{cw - 1}" '
-                           f'height="{HM_H - 1}" rx="4" fill="var(--surface)" stroke="var(--axis)" stroke-dasharray="3 2"/>'
-                           f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">n/a</text></g>')
-            else:
-                verdict = "faster" if s > 1 + noise else "slower" if s < 1 - noise else "neutral"
-                xo = _outside(sv, i, j)
-                un = bool(ug and ug[i][j])
-                tip = (f"{aid} at {h}x{w}: {s:.3f}x, {verdict} (baseline {bt:,.0f} ns -> {bt / s:,.0f} ns)"
-                       + (XTIP if xo else "") + (UTIP if un else ""))
-                if un:
-                    out.append(f'<g class="cell {verdict}{" extrapolated" if xo else ""} untimed" data-shape="{h}x{w}" '
-                               f'data-speedup="{s}"><title>{E(tip)}</title>'
-                               f'<rect x="{x + .5}" y="{y + .5}" width="{cw - 1}" height="{HM_H - 1}" rx="4" '
-                               f'fill="var(--surface)" stroke="var(--ink2)" stroke-dasharray="2 2"/>'
-                               f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">{s:.2f}'
-                               f'{"*" if xo else ""}†</text></g>')
-                    continue
-                out.append(f'<g class="cell {verdict}{" extrapolated" if xo else ""}" data-shape="{h}x{w}" '
-                           f'data-speedup="{s}"><title>{E(tip)}</title>'
-                           f'<rect x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" style="fill:{_heat_fill(s, noise)}"/>'
-                           + (_x_overlay(x, y, cw, idx) if xo else "") +
-                           f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">{s:.2f}'
-                           f'{"*" if xo else ""}</text></g>')
-    return (f'<svg class="heatmap" data-approach="{E(aid)}" viewBox="0 0 {W} {H}" style="width:{W}px;height:{H}px;max-width:none" role="img" '
-            f'aria-label="Speedup of {E(aid)} vs the baseline per shape">' + "".join(out) + "</svg>")
+            if bt is None:  # the reason is in the best map's tooltip and the skipped list, once per survey
+                out.append(_cell("k", "skipped" if (h, w) in skipped else "not evaluated"))
+                continue
+            if s is None:
+                out.append(_cell("na", "knobs invalid at this shape", "n/a"))
+                continue
+            xo, un, d = _outside(sv, i, j), bool(ug and ug[i][j]), bool(dep and dep[i][j])
+            # the shape is the cell's row and column; * (extrapolated) and † (untimed) are in the label and the legend
+            tip = f"{s:.3f}x, {bt / s:,.0f} {u}" + _cores_txt(cg, sg, i, j)
+            if d:
+                tip += "; fast {:.2f}x, slow {:.2f}x".format(*scen[i][j])
+            label = f"{s:.2f}" + ("*" if xo else "") + ("†" if un else "")
+            cls = "u" if un else _bin(s, noise) + (" x" if xo else "") + (" d" if d else "")
+            out.append(_cell(cls, tip, label))
+    return "".join(out) + "</div>"
 
 
-def _heat_legend(noise, extrapolated=False, untimed=False):
+def _heat_legend(noise, extrapolated=False, untimed=False, dependent=False):
     stops = [(0.25, "0.25x"), (0.5, "0.5x"), (0.8, "0.8x"), (1.0, f"1x ±{noise:.0%}"), (1.25, "1.25x"), (2.0, "2x"),
              (4.0, "4x+")]
     items = "".join(f'<span><i style="background:{_heat_fill(v, noise)}"></i>{E(t)}</span>' for v, t in stops)
@@ -1107,13 +1193,15 @@ def _heat_legend(noise, extrapolated=False, untimed=False):
     if untimed:
         xh += ('<span><i style="border:1px dashed var(--ink2)"></i>† untimed: the profile does not time a side; '
                'not meaningful</span>')
+    if dependent:
+        xh += ('<span><i class="dot"></i>verdict depends on the cost scenario (hover: fast = low costs, slow = high '
+               'costs)</span>')
     return (f'<div class="legend">{items}<span><i class="hatch"></i>skipped</span>{xh}'
             f'<span><i style="border:1px dashed var(--axis)"></i>n/a: knobs invalid at the shape</span></div>')
 
 
-def _best_map(sv, idx):
+def _best_map(sv, u="ns"):
     hs, ws = sv["heights"], sv["widths"]
-    cw = 92
     freq = {}
     for row in sv["best_per_shape"]:
         for b in row:
@@ -1123,29 +1211,22 @@ def _best_map(sv, idx):
     order.sort(key=lambda k: -freq[k])
     slot = {k: n for n, k in enumerate(order)}
     skipped = {tuple(s["shape"]): s["reason"] for s in sv["skipped"]}
-    W, H, out = _hm_frame(hs, ws, cw, idx)
+    out = [_grid_open("bestmap", BEST_CELL, len(ws), "Fastest approach per shape"), _hm_head(ws)]
     for i, h in enumerate(hs):
+        out.append(f'<b class="e">{h}</b>')
         for j, w in enumerate(ws):
-            x, y = HM_LAB + j * (cw + HM_GAP), HM_TOP + i * (HM_H + HM_GAP)
             b = sv["best_per_shape"][i][j]
             if b is None:
-                out.append(_skip_cell(x, y, cw, idx, f"{h}x{w}: {skipped.get((h, w), 'not evaluated')}"))
+                out.append(_cell("k", f"{h}x{w}: {skipped.get((h, w), 'not evaluated')}"))
                 continue
             s = 1.0 if b == "baseline" else sv["approaches"][b]["grid"][i][j]
-            fill = "var(--mid)" if b == "baseline" else f"color-mix(in srgb, {_col(slot[b])} 60%, var(--surface))"
+            bt = sv["baseline_ns"][i][j]
             tip = f"{h}x{w}: {b}" + ("" if b == "baseline" else f" {s:.2f}x") + \
-                  (f" (baseline {sv['baseline_ns'][i][j]:,.0f} ns)" if sv["baseline_ns"][i][j] is not None else "")
-            xo = _outside(sv, i, j)
-            tip += XTIP if xo else ""
-            un = _untimed(sv, i, j)
-            tip += UTIP if un else ""
-            out.append(f'<g class="cell best{" extrapolated" if xo else ""}{" untimed" if un else ""}" data-best="{E(b)}">'
-                       f'<title>{E(tip)}</title>'
-                       f'<rect x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" style="fill:{fill}"'
-                       + (' stroke="var(--ink2)" stroke-dasharray="2 2"' if un else "") + '/>'
-                       + (_x_overlay(x, y, cw, idx) if xo else "") +
-                       f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">'
-                       f'{E(_fit(b, cw - 8 - (8 if un else 0), 6.2))}{"†" if un else ""}</text></g>')
+                  (f" (baseline {bt:,.0f} {u})" if bt is not None else "")
+            xo, un = _outside(sv, i, j), _untimed(sv, i, j)
+            tip += (XTIP if xo else "") + (UTIP if un else "")
+            cls = ("" if b == "baseline" else f"p{min(slot[b], MAX_SLOTS)}") + (" x" if xo else "") + (" bu" if un else "")
+            out.append(_cell(cls, tip, E(_fit(b, BEST_CELL - 8 - (8 if un else 0), 6.2)) + ("†" if un else "")))
     legend = "".join(f'<span><i style="background:{_col(slot[k])}"></i>{E(k)} ({freq[k]})</span>' for k in order)
     n_base = sum(b == "baseline" for row in sv["best_per_shape"] for b in row)
     legend += f'<span><i style="background:var(--mid)"></i>baseline: nothing faster ({n_base})</span>'
@@ -1155,8 +1236,64 @@ def _best_map(sv, idx):
     if any(_untimed(sv, i, j) for i in range(len(hs)) for j in range(len(ws))):
         legend += ('<span><i style="border:1px dashed var(--ink2)"></i>† untimed: the profile does not time a '
                    'side; not meaningful</span>')
-    return (f'<svg class="bestmap" viewBox="0 0 {W} {H}" style="width:{W}px;height:{H}px;max-width:none" role="img" '
-            f'aria-label="Fastest approach per shape">' + "".join(out) + f'</svg><div class="legend">{legend}</div>')
+    return "".join(out) + f'</div><div class="legend">{legend}</div>'
+
+
+def _cores_by_h(bc):
+    """True when the baseline's core count depends on H only (one value per evaluated row)."""
+    return all(len({v for v in row if v is not None}) <= 1 for row in bc)
+
+
+def _cores_map(sv, u="ns"):
+    """The baseline's cores per shape, compact: one strip over H when the count depends on H only, else a small grid;
+    shaded by the share of the GRID cores used."""
+    bc = sv.get("baseline_cores")
+    if not bc or not any(v is not None for row in bc for v in row):
+        return ""
+    hs, ws = sv["heights"], sv["widths"]
+    sp = sv.get("baseline_core_split")
+
+    def cell(n, tip):
+        return (f'<i style="background:color-mix(in srgb,var(--s1) {15 + 55 * n / GRID:.0f}%,var(--surface))" '
+                f'title="{E(tip)}">{n}</i>')
+
+    def split(i, j):
+        return f", {sp[i][j]}" if sp and sp[i][j] else ""
+
+    label = "Cores the baseline uses per shape"
+    if _cores_by_h(bc):
+        cols = [(i, h) for i, h in enumerate(hs) if any(v is not None for v in bc[i])]
+        out = [_grid_open("coremap", CORE_CELL, len(cols), label), _hm_head([h for _, h in cols], "H"),
+               '<b class="e">cores</b>']
+        for i, h in cols:
+            js = [j for j, v in enumerate(bc[i]) if v is not None]
+            n = bc[i][js[0]]
+            where = "at every W" if len(js) == len(ws) else f"at the {len(js)} evaluated widths"
+            out.append(cell(n, f"H={h}: {n} of {GRID} cores{split(i, js[0])} {where}"))
+    else:
+        out = [_grid_open("coremap", CORE_CELL, len(ws), label), _hm_head(ws)]
+        for i, h in enumerate(hs):
+            out.append(f'<b class="e">{h}</b>')
+            for j, w in enumerate(ws):
+                n, bt = bc[i][j], sv["baseline_ns"][i][j]
+                out.append(_cell("k", f"{h}x{w}: skipped") if n is None else
+                           cell(n, f"{h}x{w}: {n} of {GRID} cores{split(i, j)}"
+                                + (f" (baseline {bt:,.0f} {u})" if bt is not None else "")))
+    return "".join(out) + "</div>"
+
+
+def _cores_md(sv):
+    """The baseline's cores per shape as a markdown table: one row over H when it depends on H only."""
+    bc = sv.get("baseline_cores")
+    if not bc or not any(v is not None for row in bc for v in row):
+        return []
+    hs, ws = sv["heights"], sv["widths"]
+    if _cores_by_h(bc):
+        cols = [(h, next(v for v in row if v is not None)) for h, row in zip(hs, bc) if any(v is not None for v in row)]
+        return ["| H | " + " | ".join(str(h) for h, _ in cols) + " |", "|---|" + "---|" * len(cols),
+                "| cores | " + " | ".join(str(n) for _, n in cols) + " |"]
+    return (["| H \\ W | " + " | ".join(str(w) for w in ws) + " |", "|---|" + "---|" * len(ws)]
+            + [f"| {h} | " + " | ".join("-" if v is None else str(v) for v in row) + " |" for h, row in zip(hs, bc)])
 
 
 def _survey_html(req, res, uid=""):
@@ -1203,6 +1340,8 @@ def _survey_html(req, res, uid=""):
         tag = ' <span class="tag">hypothetical</span>' if a["hypothetical"] else ""
         if a.get("untimed_cells"):
             tag += f' <span class="tag">untimed on {a["untimed_cells"]}</span>'
+        if a.get("scenario_dependent_cells"):
+            tag += f' <span class="tag">scenario-dependent on {a["scenario_dependent_cells"]}</span>'
         extra = "".join(f"<td>{E(t)}</td>" for t in (_range_txt(a["speedup"]), _geo_txt(_cmp_speedup(cmp, aid)),
                                                        _range_txt(_cmp_speedup(cmp, aid)))) if cmp else ""
         body.append(f'<tr class="surv"><td><b>{E(aid)}</b>{tag}</td>'
@@ -1218,26 +1357,40 @@ def _survey_html(req, res, uid=""):
                   + "".join(f"<li>{E(x)}</li>" for x in cmp["summary"]) + "</ul>" if cmp else "") + "</div>")
     n_x = st.get("outside_calibrated_range")
     n_u = sum(a.get("untimed_cells", 0) for a in sv["approaches"].values())
+    n_d = sum(a.get("scenario_dependent_cells", 0) for a in sv["approaches"].values())
+    u = tunit(res)
+    cores = _cores_map(sv, u)
+    if cores:
+        line = next((x.removeprefix("baseline: ") for x in sv["summary"] if x.startswith("baseline: ")), "")
+        out.append(f'<h2>Cores used today</h2><div class="card"><p class="note" style="margin-top:0">'
+                   f'{E(line[0].upper() + line[1:]) + ". " if line else ""}The baseline plan\'s cores per shape, of '
+                   f'{GRID}; hover for the split.</p><div class="hx">{cores}</div></div>')
     out.append(f'<h2>Speedup vs baseline per shape</h2><p class="note">Rows: tensor rows H; columns: width W. Blue: '
-               f'faster than the baseline, red: slower, gray: within ±{NOISE:.0%}. Hover a cell for the times.'
+               f'faster than the baseline, red: slower, gray: within ±{NOISE:.0%}. Hover a cell for its time '
+               f'({unit_word(res)}) and cores.'
                + (f' Hatched with *: {n_x} shapes outside the calibrated range (extrapolated).' if n_x else "")
-               + (' Dashed with †: untimed, not meaningful on this profile.' if n_u else "") +
-               f'</p><div class="card">{_heat_legend(NOISE, bool(n_x), bool(n_u))}</div><div class="hm-grid">')
-    for k, aid in enumerate(order):
+               + (' Dashed with †: untimed, not meaningful on this profile.' if n_u else "")
+               + (f' Dot: {n_d} cells whose verdict depends on the cost scenario (low / high); hover for both.'
+                  if n_d else "") +
+               f'</p><div class="card">{_heat_legend(NOISE, bool(n_x), bool(n_u), bool(n_d))}</div><div class="hm-grid">')
+    for aid in order:
         a = sv["approaches"][aid]
         g = a["speedup"]["geomean"]
         where = "; ".join(x for x in (a.get("wins_where") and f"wins {a['wins_where']}",
                                       a.get("loses_where") and f"loses {a['loses_where']}") if x)
+        dep = a.get("scenario_dependent_cells")
         out.append(f'<div class="card hm" data-approach="{E(aid)}"><h3>{E(aid)}'
                    f'{" <span class=tag>hypothetical</span>" if a["hypothetical"] else ""}'
                    f'{" <span class=tag>untimed</span>" if a.get("untimed_cells") else ""}</h3>'
                    f'<p class="note">{E(describe(a["overrides"]) or "no overrides")} · '
                    f'{"-" if g is None else f"{g:.2f}x geomean"} · {E(_counts_txt(a))} faster / neutral / slower'
-                   f'{" · " + E(where) if where else ""}</p><div class="hx">{_heatmap(sv, aid, f"{uid}{k}", NOISE)}</div></div>')
+                   f'{" · " + E(where) if where else ""}'
+                   f'{f" · verdict depends on the scenario at {dep}" if dep else ""}</p>'
+                   f'<div class="hx">{_heatmap(sv, aid, NOISE, u)}</div></div>')
     out.append("</div>")
     out.append('<h2>Best approach per shape</h2><div class="card"><p class="note" style="margin-top:0">The fastest '
                f'approach at each shape when it beats the baseline by more than {NOISE:.0%}; otherwise baseline. '
-               f'Legend counts are shapes won.</p><div class="hx">{_best_map(sv, f"{uid}{len(order)}")}</div></div>')
+               f'Legend counts are shapes won.</p><div class="hx">{_best_map(sv, u)}</div></div>')
     if sv["skipped"]:
         out.append('<h2>Skipped shapes</h2><div class="card"><ul class="kp">'
                    + "".join(f"<li>{E(_sx(s['shape']))}: {E(s['reason'])}</li>" for s in sv["skipped"]) + "</ul></div>")
