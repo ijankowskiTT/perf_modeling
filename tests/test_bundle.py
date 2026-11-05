@@ -174,14 +174,29 @@ def test_html_page_tables_sections_components_and_themes():
     assert page.count('<details class="req"') == len(REQS)
     # each section reuses the single-request components: accuracy, how it runs, heatmaps, the best map
     assert page.count('class="note accuracy"') >= len(REQS) and page.count("How it runs at") == len(REQS)
-    assert page.count('class="bestmap"') == len(REQS) and page.count('<svg class="heatmap"') >= 30
-    assert page.count('class="cell') > 1000 and 'class="cell faster untimed"' in page  # i2s cells on ttsim-perf
-    ids = re.findall(r'<pattern id="([^"]+)"', page)
-    assert len(ids) == len(set(ids))  # unique pattern ids across the sections
+    assert page.count('class="bestmap hmap"') == len(REQS) and page.count('<div class="heatmap hmap"') >= 30
+    assert page.count("<i") > 1000 and '<i class="u"' in page  # untimed: i2s cells on ttsim-perf
+    ids = re.findall(r' id="([^"]+)"', page)
+    assert len(ids) == len(set(ids)) and page.count("<defs>") == 1  # shared SVG defs once per page
     assert "prefers-color-scheme:dark" in page and ':root[data-theme="dark"]' in page and "--o1" in page
     assert "max-width:960px" in page and "overflow-x:auto" in page  # phone width: tables scroll inside cards
     # one color per op, the same in the summary, both tables and the section border
     assert page.count('style="background:var(--o1)"') > 10 and "border-left:3px solid var(--o4)" in page
+
+
+def test_html_page_weight_and_mixed_units_note():
+    b = B()
+    page = bundle.to_html(b)
+    # 5 requests, 36 heatmaps: ~1 MB with per-cell SVG markup; colour classes, CSS-grid cells and shared defs
+    assert len(page.encode()) < 350_000
+    assert page.count(' title="') > 2000 and "<title>" not in page.split("Speedup vs baseline per shape", 1)[1].split(
+        "Best approach per shape", 1)[0]  # one tooltip per heatmap cell, as an attribute
+    assert not re.search(r'<i [^>]*style="fill:color-mix', page) and ".hmap .w" in page  # bins as classes
+    # ttsim-perf (cycles) and silicon-hypothesis (ns) in one bundle: one line says so in every format
+    note = bundle.units_note(b)
+    assert note.startswith("Times: ttsim-perf reports simulator cycles") and "silicon-hypothesis real ns" in note
+    assert note in bundle.to_text(b) and note in bundle.to_markdown(b) and note.replace("'", "&#x27;") in page
+    assert bundle.units_note(bundle.run([REQS[1], REQS[3]], None)) is None  # all on ttsim-perf
 
 
 def test_cli_bundle_forms_agree_and_json_carries_everything(tmp_path):
@@ -223,21 +238,22 @@ def test_compare_and_tune_rows_join_the_right_table():
 
 # ------------------------------------------------------------------------------------------------ single request
 
-# sha256 of the single-request CLI outputs (timings masked) as rendered at b256c04, before the bundle existed; a
-# deliberate change of the single-request reports or a refit regenerates them: python tests/test_bundle.py
+# sha256 of the single-request CLI outputs (timings masked); regenerated deliberately for the survey / report polish
+# (cores per shape, cycles vs ns labels, scenario-dependent verdicts, lighter HTML). A deliberate change of the
+# single-request reports or a refit regenerates them: python tests/test_bundle.py
 SINGLE = {
-    "reshard_compare_ttsim.html": "a634122e00a470b076b191eff5d979c23b9d76a22b071dfdb3734b886c6434fb",
-    "reshard_compare_ttsim.md": "f59a9730fb386bc8c70c6b155ca7faed5a095c8d205f2ac5e80a9f9373388213",
-    "reshard_compare_ttsim.text": "38ee8587f8d8967404fe76c41a4a8491f62628334b69bfc6e70c3d8816fc59c0",
-    "shard_cores.html": "73d3918610ff5eb44908706b39fc8a9a814aaa1a7be3a6a7bb71d0025e61064a",
-    "shard_cores.md": "290bdf90fa73fbb57540243eb94874a8a652301791e6a80326e2e6c04ddc3256",
-    "shard_cores.text": "e395480bd5e3a5958dd3978582a927b353d1a594bea53160415d5c27a6789a73",
-    "tilize_compare.html": "ea09ea54b07404c11af84004a5ab311699889095cf1aba87790d71ee9fa95066",
-    "tilize_compare.md": "51adefd07b7fdded79cb9f2a64f843176ab1f36aabceae54e83e8b0fa32659bb",
-    "tilize_compare.text": "0bf3fa63fd70a594544bef0639daa1f67c9c28ad1166474517468678a4b2f564",
-    "tilize_survey_ttsim.html": "b9f3e906b1d978d990f89bbbc089b8cc7241099f8a28ef069b121057958b1606",
-    "tilize_survey_ttsim.md": "7ebc2ebb8fce8470cfd3332c93ce453ad5213dafb5df7dd7d0331b095f652758",
-    "tilize_survey_ttsim.text": "71f87849f2a1752193cb1c00430d2990d4e63308137c278100ea385cd2835d63",
+    "reshard_compare_ttsim.html": "f000a9a434b0bbbca3b9c02ba50da837172d2df3406e7ef0a02128a8d06fcf6a",
+    "reshard_compare_ttsim.md": "2a3636a8b1d51a778ca1a0f00c9637652495c6c4eb5d630284960eeef85f14fd",
+    "reshard_compare_ttsim.text": "910168e329d8b31009581997e3509c77317ede2753944d2f64b11b23018b1f45",
+    "shard_cores.html": "867140c2f2d6bf00804aed271ad6f75ff744b3f7d5abb29bcabfc23cef214f52",
+    "shard_cores.md": "5640ab41f4dc9b8f1c6ae0eaa2b873bdc3221d0c16085454b74a32b529a7999f",
+    "shard_cores.text": "3b6d7652fb37f5fbca0b4ebae02356ee11df4cb07767136a82931b164f0647cc",
+    "tilize_compare.html": "0cb1b5efb0ed446899977ffbb562beedf9c4e0cbea3eadd62d8c2e903b08a266",
+    "tilize_compare.md": "3cbcbe48ac9ee3a1293cd4e525c95f690a2fe89166af638346df991cc477d721",
+    "tilize_compare.text": "01196bd0cae6db0442514be5e7c82bd84ca3a97e16f0c2d86fb45f756c8cd37a",
+    "tilize_survey_ttsim.html": "973343053f9dcbf8186ef754b70d1640bce0e778e4f69c0df905ab78a6facd7e",
+    "tilize_survey_ttsim.md": "7991ed334580a7ec0f12d1055637e5ea5dc1e5d13689f8febe2ad2e8c79fae5c",
+    "tilize_survey_ttsim.text": "e505df0056f3daecf07470a3a986aae87168b71ebedefe17619c6cfc0d53bf91",
 }
 
 

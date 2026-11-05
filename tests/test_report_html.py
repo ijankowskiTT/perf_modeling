@@ -82,9 +82,9 @@ def test_how_it_runs_grid_and_pipeline_from_structure():
                   "destination", "90% busy", "bottleneck"):
         assert f">{label}</text>" in wide, label
     # the bottleneck role is outlined in the config's color: reader for the baseline, writer for cores16_2d
-    assert re.search(r'<g class="node role"><title>reader[^<]*bottleneck</title><rect[^>]*stroke="var\(--s1\)"', wide)
-    assert re.search(r'<g class="node role"><title>writer[^<]*bottleneck</title><rect[^>]*stroke="var\(--s2\)"',
-                     _wide(cards["cores16_2d"]))
+    hot = r'<g class="node role"><title>{}[^<]*bottleneck</title><rect class="bx"[^>]*style="stroke:var\(--{}\);'
+    assert re.search(hot.format("reader", "s1"), wide)
+    assert re.search(hot.format("writer", "s2"), _wide(cards["cores16_2d"]))
     assert "hypothetical" in cards["wb4"] and "hypothetical" not in cards["cores16_2d"]
     assert page.count('<svg class="pipe"') == 6  # wide and narrow layout per config
 
@@ -140,7 +140,9 @@ def test_without_structure_falls_back_to_the_row():
     page = to_html(req, res)
     cards = _cards(page)
     assert cards["baseline"].count('class="on"') == 25 and "25 of 32 cores" in cards["baseline"]
-    assert 'fill-opacity="0.70"' in cards["baseline"]  # the half-loaded tail core is lighter
+    # the half-loaded tail core is lighter; consecutive cores with one load share a tooltip
+    assert "--o:0.70" in cards["baseline"] and 'title="core 24: 2 blocks x 2 tiles"' in cards["baseline"]
+    assert 'title="cores 0-23: 4 blocks x 2 tiles"' in cards["baseline"]
     assert "of 32 cores" not in cards["cores16_2d"]  # no structure and no work_split: no grid, no invented count
     wide = _wide(cards["cores16_2d"])
     assert ">reader x1</text>" in wide and "barriers" not in wide and ">destination</text>" in wide

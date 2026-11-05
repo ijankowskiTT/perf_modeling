@@ -66,6 +66,13 @@ def load(kind, ref):
 SCENARIOS = ("nominal", "low", "high")
 
 
+def time_unit(profile):
+    """What a response's time_ns values are on this cost profile: "cycles" when the clock is the simulators'
+    1 cycle = 1 ns convention (craq-sim, ttsim-perf), else "ns" at the profile's clock (silicon-hypothesis)."""
+    clock = profile.get("clock") or {}
+    return "cycles" if clock.get("class") == "convention" or clock.get("domain") == "simulator cycle" else "ns"
+
+
 def _pick(p, scenario):
     if not isinstance(p, dict):
         return float(p)

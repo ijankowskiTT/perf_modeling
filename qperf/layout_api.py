@@ -21,7 +21,7 @@ from .api import NOISE, RequestError, _compact, _compare_rows, _ranking, _recomm
 from .ops import registry
 from .ops.layout import (DESIGN_FACTORIES, DESIGN_KNOBS, GRID, SHARD_OPS, STRATEGY, TILE, estimate, family_of, plan,
                          prefix_of, resolve_design, structure)
-from .profiles import SCENARIOS, _pick, load, sha256
+from .profiles import SCENARIOS, _pick, load, sha256, time_unit
 
 BASE_OPS = ("tilize", "untilize", "tilize_with_val_padding", "untilize_with_unpadding", "interleaved_to_sharded",
             "sharded_to_interleaved")
@@ -335,7 +335,7 @@ def analyze_layout(req, t_start):
               "applied_defaults": [] if "use_multicore" in base_knobs or own else ["use_multicore=true (default)"],
               "assumptions": [getattr(registry.module_for(op), "ASSUMPTION", None) or
                               f"{op}: one reader, one compute, one writer thread per core (the factory's kernels)"],
-              "warnings": [], "result_kind": "finite_buffer_estimate"}
+              "warnings": [], "result_kind": "finite_buffer_estimate", "time_unit": time_unit(costs)}
     if costs.get("platform_scope"):
         result["platform_scope"] = costs["platform_scope"]
     try:

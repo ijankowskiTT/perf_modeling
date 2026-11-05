@@ -43,7 +43,9 @@ def test_default_survey_runs_and_validates(op, costs):
     sv = r["survey"]
     assert sv["heights"] == DEFAULT_HEIGHTS and sv["widths"] == DEFAULT_WIDTHS
     assert list(sv["approaches"]) == [a for a, _ in DEFAULT_APPROACHES]
-    assert len(sv["summary"]) == len(DEFAULT_APPROACHES) + bool(sv["stats"]["outside_calibrated_range"])
+    # one line per approach, the baseline's cores first, the extrapolation note last
+    assert len(sv["summary"]) == 1 + len(DEFAULT_APPROACHES) + bool(sv["stats"]["outside_calibrated_range"])
+    assert sv["summary"][0].startswith("baseline: today uses 1 core at H=32")
     assert r["runtime_ms"] < 15000
     assert sum("hypothetical layout designs" in w for w in r["warnings"]) == 1
     assert r["platform_scope"] and r["recommendations"]
@@ -180,11 +182,12 @@ def test_reports_render_a_heatmap_per_approach_and_the_best_map():
     q, r = req(), run()
     html = to_html(q, r)
     n = len(r["survey"]["approaches"])
-    assert len(re.findall(r'<svg class="heatmap"', html)) == n
+    assert len(re.findall(r'<div class="heatmap hmap"', html)) == n
     assert all(f'data-approach="{aid}"' in html for aid in r["survey"]["approaches"])
-    assert html.count('class="bestmap"') == 1 and "Best approach per shape" in html
+    assert html.count('class="bestmap hmap"') == 1 and "Best approach per shape" in html
     assert "--win" in html and "--loss" in html and "prefers-color-scheme:dark" in html
-    assert html.count('class="cell') >= n * 54
+    assert html.count("<i") >= n * 54 and "Cores used today" in html
+    assert len(html.encode()) < 80_000  # 9 grids of 54 cells (~190 KB as per-cell SVG)
     assert "Best general approach" in html and r["recommendations"][0]["id"] in html
     assert r["platform_scope"].split(" ")[0] in html and "<summary>Request</summary>" in html
     md = to_markdown(q, r)
@@ -239,7 +242,8 @@ def test_sharding_survey_defaults_skips_and_untimed_dram_side(op):
     assert any("not meaningful" in w and "DRAM" in w for w in r["warnings"])
     assert any("compared cells involve a side ttsim-perf does not time" in w for w in r["warnings"])
     assert r["recommendations"][0]["id"] is None and r["recommendations"][0]["label"] == "inconclusive"
-    assert "untimed on" in sv["summary"][0]
+    assert sv["summary"][0] == "baseline: today uses 8 of 32 cores at every evaluated shape"
+    assert "untimed on" in sv["summary"][1]
     assert r["accuracy"].startswith(f"{op} Default on ttsim-perf")
 
 
@@ -290,9 +294,101 @@ def test_silicon_hypothesis_survey_counts_dram_capped_shapes():
 def test_choice_reports_mark_untimed_cells():
     q, r = req("interleaved_to_sharded", "ttsim-perf"), choice("interleaved_to_sharded")
     html = to_html(q, r)
-    assert html.count(' untimed"') >= r["survey"]["stats"]["evaluated"] and "†" in html
+    assert html.count('<i class="u"') >= r["survey"]["stats"]["evaluated"] and "†" in html
     assert "untimed: the profile does not time a side" in html and "<span class=tag>untimed</span>" in html
     md = to_markdown(q, r)
     assert "(untimed on" in md and "† untimed" in md and "height x16" in md
     page = to_html(req("reshard", "ttsim-perf"), choice("reshard"))
-    assert "height x8 L1 -&gt; height x16 L1" in page and ' untimed"' not in page
+    assert "height x8 L1 -&gt; height x16 L1" in page and '<i class="u"' not in page
+
+
+# ------------------------------------------------------------------------------------- cores, units, scenarios
+
+def test_survey_reports_the_cores_each_plan_uses():
+    q, r = req(costs="ttsim-perf"), run("tilize", "ttsim-perf")
+    sv = r["survey"]
+    base, split = cells(sv, sv["baseline_cores"]), cells(sv, sv["baseline_core_split"])
+    # tilize Default: one core per tile row, up to the 32-core grid
+    assert all(n == min(32, h // 32) and split[(h, w)] == "rows" for (h, w), n in base.items())
+    g = sv["approaches"]["grid2d_dfb2_batch8"]
+    assert cells(sv, g["cores"])[(64, 2048)] == 32 and cells(sv, g["core_split"])[(64, 2048)] == "2d 2x16"
+    assert cells(sv, sv["approaches"]["batch8"]["cores"]) == base  # the factory's split, batched writes
+    for a in sv["approaches"].values():  # a cores grid wherever the approach has a speedup
+        assert {k for k, v in cells(sv, a["cores"]).items() if v} == {k for k, v in cells(sv, a["grid"]).items() if v}
+    line = "baseline: today uses 1 core at H=32, 2 at H=64, 4 at H=128, 8 at H=256, 16 at H=512, all 32 from H=1024"
+    assert sv["summary"][0] == line and line in _text(r)
+    html = to_html(q, r)
+    assert "32 of 32 cores, 2d 2x16" in html  # the approach's cores in its cell tooltip
+    cores = html.split("<h2>Cores used today</h2>", 1)[1].split("</div></div>", 1)[0]
+    assert 'class="coremap hmap"' in cores and 'title="H=64: 2 of 32 cores, rows at every W"' in cores
+    md = to_markdown(q, r)
+    assert "## Cores used today" in md and "| cores | 1 | 2 | 4 | 8 | 16 | 32 | 32 | 32 | 32 |" in md
+    # layout choices: the cores the shard layout runs on
+    s = choice("reshard")["survey"]
+    assert {v for row in s["baseline_cores"] for v in row if v} == {8} and "baseline_core_split" not in s
+    assert {v for row in s["approaches"]["h16_to_h16"]["cores"] for v in row if v} == {16}
+
+
+def test_times_are_labelled_cycles_or_ns_by_profile():
+    shape = {"op": "tilize", "dtype": "bf16", "shape": [1, 1, 1024, 1024], "placements": {"a": "dram"}}
+    for costs, unit, label in (("ttsim-perf", "cycles", "cyc"), ("craq-sim", "cycles", "cyc"),
+                               ("silicon-hypothesis", "ns", "ns")):
+        q = {"schema_version": "1", "action": "compare", "profiles": {"costs": costs}, "workload": shape,
+             "candidates": [{"id": "c", "overrides": {"split": "cols", "cores": 32}}]}
+        r = analyze(q)
+        assert r["time_unit"] == unit and validate_response(r) == []
+        t = r["baseline"]["time_ns"]["nominal"]
+        assert f"{t:,.0f} {label}" in to_markdown(q, r) and f"{t:,.0f} {label}" in to_html(q, r)
+        assert f"time {t:.0f} {label}" in _text(r) and (" cyc" in to_markdown(q, r)) == (label == "cyc")
+    assert run("tilize", "ttsim-perf")["time_unit"] == "cycles"
+    assert analyze({"schema_version": "1", "action": "estimate", "profiles": {"costs": "silicon-hypothesis"},
+                    "workload": {"op": "add", "dtype": "bf16", "num_tiles": 4096,
+                                 "placements": {"a": "dram", "b": "dram", "out": "dram"}}})["time_unit"] == "ns"
+
+
+def test_compare_verdict_that_depends_on_the_cost_scenario():
+    q = {"schema_version": "1", "action": "compare", "profiles": {"costs": "silicon-hypothesis"},
+         "workload": {"op": "tilize", "dtype": "bf16", "shape": [1, 1, 1024, 1024], "placements": {"a": "dram"}},
+         "candidates": [{"id": "grid2d_dfb2_batch8", "overrides": {"split": "2d", "dfb_blocks": 2, "write_batch": 8}}]}
+    r = analyze(q)
+    assert validate_response(r) == []
+    c = r["candidates"][0]["comparison"]
+    assert c["speedup_vs_baseline"]["nominal"] == 1.0 and c["speedup_vs_baseline"]["low"] > 1 + NOISE
+    assert c["verdict_depends_on_scenario"] is True
+    assert c["scenario_note"] == "1.00x at the assumed DRAM bandwidth, 1.17x with the fast scenario (low costs)"
+    assert "verdict depends on the cost scenario: 1.00x at the assumed DRAM bandwidth" in _text(r)
+    assert "inconclusive (depends on scenario)" in to_markdown(q, r)
+    assert "the verdict depends on the cost scenario: 1.00x" in to_html(q, r)
+    # the same pair on ttsim-perf (no DRAM bound): every scenario agrees, no flag
+    t = analyze(dict(q, profiles={"costs": "ttsim-perf"}))["candidates"][0]["comparison"]
+    assert "verdict_depends_on_scenario" not in t and "scenario_note" not in t
+
+
+def test_survey_counts_and_marks_scenario_dependent_cells():
+    q, r = req(costs="silicon-hypothesis"), run("tilize", "silicon-hypothesis")
+    sv = r["survey"]
+    assert sv["scenarios_checked"] is True and validate_response(r) == []
+    for aid, a in sv["approaches"].items():
+        dep, sc, g = cells(sv, a["depends_on_scenario"]), cells(sv, a["scenario_speedups"]), cells(sv, a["grid"])
+        assert a["scenario_dependent_cells"] == sum(bool(v) for v in dep.values())
+        for k, s in g.items():
+            if s is not None:  # the nominal, low and high speedups on different sides of the NOISE band
+                bands = {(x > 1 + NOISE) - (x < 1 - NOISE) for x in (s, *sc[k])}
+                assert dep[k] == (len(bands) > 1), (aid, k)
+        if a["scenario_dependent_cells"]:
+            assert f"verdict depends on the cost scenario (low / high) at {a['scenario_dependent_cells']}/" in next(
+                x for x in sv["summary"] if x.startswith(aid + ":"))
+    # the same cell as the compare of baseline vs grid2d_dfb2_batch8 at 1024x1024 above
+    g = sv["approaches"]["grid2d_dfb2_batch8"]
+    assert cells(sv, g["grid"])[(1024, 1024)] == 1.0 and cells(sv, g["scenario_speedups"])[(1024, 1024)] == [1.167, 1.0]
+    assert cells(sv, g["depends_on_scenario"])[(1024, 1024)] is True
+    n = sum(a["scenario_dependent_cells"] for a in sv["approaches"].values())
+    html = to_html(q, r)
+    heat = "".join(re.findall(r'<div class="heatmap hmap".*?</div>', html))
+    assert n > 0 and sum("d" in c.split() for c in re.findall(r'<i class="([^"]*)"', heat)) == n
+    assert f"Dot: {n} cells whose verdict depends on the cost scenario" in html and "; fast " in heat
+    assert "(scenario-dependent on" in to_markdown(q, r)
+    # ttsim-perf and craq-sim do not time the scenarios (no DRAM bound to move); the default survey stays fast
+    t = run("tilize", "ttsim-perf")
+    assert t["survey"]["scenarios_checked"] is False and t["runtime_ms"] < 1500
+    assert not any("scenario_speedups" in a or "depends_on_scenario" in a for a in t["survey"]["approaches"].values())

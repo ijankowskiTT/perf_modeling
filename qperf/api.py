@@ -15,7 +15,7 @@ from .bounds import cluster_bounds, global_dram_bound
 from .cache import LRU
 from .constraints import check
 from .pipeline import Deadlock, evaluate
-from .profiles import SCENARIOS, ProfileError, load, param_provenance, resolve_costs, sha256
+from .profiles import SCENARIOS, ProfileError, load, param_provenance, resolve_costs, sha256, time_unit
 from .rule import is_sfpu, resolve_native_config, split_work_to_cores
 from .traffic import cluster_traffic
 from .validate import validate_request
@@ -350,7 +350,31 @@ def _compare_rows(base, cand):
         verdict = "no_meaningful_gain"
     else:
         verdict = "inconclusive"
-    return {"speedup_vs_baseline": {k: round(v, 3) for k, v in sp.items()}, "verdict": verdict}
+    out = {"speedup_vs_baseline": {k: round(v, 3) for k, v in sp.items()}, "verdict": verdict}
+    note = scenario_note(sp, any((r.get("bottleneck") or {}).get("resource") == "dram_global" for r in (base, cand)))
+    if note:
+        out["verdict_depends_on_scenario"] = True
+        out["scenario_note"] = note
+    return out
+
+
+def band(s):
+    """faster / neutral / slower of one speedup against the NOISE band."""
+    return "faster" if s > 1 + NOISE else "slower" if s < 1 - NOISE else "neutral"
+
+
+def scenario_note(sp, dram_bound=False):
+    """When the low / nominal / high cost scenarios put a speedup on different sides of the NOISE band: a short note
+    ('1.00x at the assumed DRAM bandwidth, 1.17x with the fast scenario (low costs)'); else None. dram_bound: the
+    nominal time of either side is set by the assumed DRAM bandwidth."""
+    bands = {sc: band(s) for sc, s in sp.items() if s is not None}
+    if len(set(bands.values())) < 2 or "nominal" not in bands:
+        return None
+    parts = [f"{sp['nominal']:.2f}x " + ("at the assumed DRAM bandwidth" if dram_bound else "at nominal costs")]
+    for sc, name in (("low", "the fast scenario (low costs)"), ("high", "the slow scenario (high costs)")):
+        if sc in bands and bands[sc] != bands["nominal"]:
+            parts.append(f"{sp[sc]:.2f}x with {name}")
+    return ", ".join(parts)
 
 
 def _compact(r, detail):
@@ -420,7 +444,7 @@ def _analyze(req, t_start):
                       "profiles": {"architecture": arch_id, "kernel": kernel_id, "costs": costs_id}}
     result = {"schema_version": SCHEMA_VERSION, "engine_version": ENGINE_VERSION, "status": "ok",
               "profiles": resolved_input["profiles"], "applied_defaults": applied,
-              "assumptions": _assumptions(costs, what_if), "warnings": []}
+              "assumptions": _assumptions(costs, what_if), "warnings": [], "time_unit": time_unit(costs)}
     if costs.get("platform_scope"):
         result["platform_scope"] = costs["platform_scope"]
     result["accuracy"] = accuracy.binary(costs, wl["op"], wl["dtype"], wl["placements_list"],

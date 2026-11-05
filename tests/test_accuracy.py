@@ -140,7 +140,8 @@ def test_survey_marks_extrapolated_cells_once():
     assert len(note) == 1 and note[0].startswith(f"{n} of 54 evaluated shapes")
     assert sum("outside the calibrated range" in w for w in r["warnings"]) == 1
     html = to_html(survey_req(), r)
-    cells = re.findall(r'<g class="cell (faster|neutral|slower) extrapolated"', html)
+    heat = "".join(re.findall(r'<div class="heatmap hmap".*?</div>', html))
+    cells = [c for c in re.findall(r'<i class="([^"]*)"', heat) if "x" in c.split()]
     assert len(cells) == n * len(sv["approaches"]) and "xhatch" in html
     assert " *" in to_markdown(survey_req(), r).split("## Best approach per shape")[1]
     assert f"{n} extrapolated" in _text(r)
