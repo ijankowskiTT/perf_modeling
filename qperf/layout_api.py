@@ -342,7 +342,9 @@ def analyze_layout(req, t_start):
         if action == "survey":
             from .survey import run_survey
 
-            result.update(run_survey(req, base_knobs, costs, what_if, analysis, t_start))
+            sres = run_survey(req, base_knobs, costs, what_if, analysis, t_start)
+            result["applied_defaults"] += sres.pop("applied_defaults", [])
+            result.update(sres)
             wl = {"workload": {k: v for k, v in req["workload"].items() if k != "shape"}, "baseline": base_knobs,
                   "survey": {k: result["survey"][k] for k in ("heights", "widths")},
                   "approaches": {k: a["overrides"] for k, a in result["survey"]["approaches"].items()}}

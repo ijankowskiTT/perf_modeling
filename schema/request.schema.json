@@ -319,7 +319,7 @@
     "survey": {
       "type": "object",
       "additionalProperties": false,
-      "description": "action survey (tilize / untilize): the shape grid; every approach (candidates, or the built-in default policies) is timed at every [H, W] against the baseline. H = rows = prod(shape[:-1]); workload.shape is not needed",
+      "description": "action survey: the shape grid; every approach (candidates, or the built-in defaults) is timed at every [H, W] against the baseline. tilize / untilize: kernel changes (hypothetical design knobs); interleaved_to_sharded / sharded_to_interleaved / reshard: layout choices (shard options; baseline workload.shard, default height x8, or workload.reshard, default height x8 L1 -> height x8 L1). H = rows = prod(shape[:-1]); workload.shape is not needed",
       "properties": {
         "heights": {
           "type": "array",

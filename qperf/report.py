@@ -8,6 +8,7 @@ import json
 import math
 
 from .accuracy import range_txt as accuracy_range_txt
+from .survey import describe
 
 ROLE_PARTS = [("useful_busy_frac", "busy"), ("starved_frac", "starved"), ("backpressure_frac", "backpressure"),
               ("transfer_wait_frac", "waiting on NoC")]
@@ -836,10 +837,16 @@ def to_html(req, res):
             f'content="width=device-width,initial-scale=1"><title>{title}</title><style>{CSS}</style></head><body><main>'
             f'<h1>qperf: {E(str(req.get("action")))}</h1><p class="sub">{E(_workload(req))} · '
             f'{E(prof.get("name", ""))}@{E(prof.get("revision", ""))}</p>')
+    return head + body_html(req, res) + "</main></body></html>"
+
+
+def body_html(req, res, uid=""):
+    """One result's report body (everything below the page title): to_html's page content, and one request's section
+    of a bundle page (qperf/bundle.py). uid: suffix that keeps SVG pattern ids unique on a page of several results."""
     if res["status"] not in ("ok", "partial"):
-        return head + f'<div class="card"><b>{E(res["status"])}</b>: {E(res.get("message", ""))}</div></main></body></html>'
+        return f'<div class="card"><b>{E(res["status"])}</b>: {E(res.get("message", ""))}</div>'
     if res.get("survey"):
-        return head + _survey_html(req, res) + "</main></body></html>"
+        return _survey_html(req, res, uid)
     b = res["baseline"]
     best = _best(res)
     slots = _slots(res)
@@ -850,7 +857,7 @@ def to_html(req, res):
     elif best or res.get("search"):
         tiles.insert(1, ("Best alternative", "none faster",
                          f"best other: {best[1]} {best[0]:.2f}x" if best else "the baseline is the best config"))
-    parts = [head, '<div class="tiles">']
+    parts = ['<div class="tiles">']
     parts += [f'<div class="card tile"><div class="l">{E(l)}</div><div class="v">{E(v)}</div><div class="d">{E(d)}</div></div>'
               for l, v, d in tiles]
     parts.append('</div><div class="card"><h2 style="margin-top:0">Key points</h2><ul class="kp">')
@@ -879,7 +886,7 @@ def to_html(req, res):
     parts.append('<h2>All numbers</h2><div class="card wrap"><table><tr>' + "".join(f"<th>{E(c)}</th>" for c in head_cells)
                  + f"</tr>{body}</table></div>")
     parts.append(f'{_scope_notes(res)}<details><summary>Request</summary><pre>'
-                 f'{E(json.dumps(req, indent=1))}</pre></details></main></body></html>')
+                 f'{E(json.dumps(req, indent=1))}</pre></details>')
     return "".join(parts)
 
 
@@ -929,6 +936,11 @@ def _range_txt(sp):
     return "-" if sp.get("min") is None else f"{sp['min']:.2f}..{sp['max']:.2f}x"
 
 
+def _untimed(sv, i, j):
+    """True when an approach's comparison at [i][j] involves a side the profile does not time (layout choices)."""
+    return any((a.get("untimed") or [[None]])[i][j] if a.get("untimed") else False for a in sv["approaches"].values())
+
+
 def _outside(sv, i, j):
     g = sv.get("outside_calibrated_range")
     return bool(g and g[i][j])
@@ -958,9 +970,10 @@ def _survey_md(req, res):
           "|---|---|---|---|---|---|---|" + ("---|---|---|" if cmp else "")]
     for aid in _survey_order(sv):
         a = sv["approaches"][aid]
-        ov = ", ".join(f"{k}={v}" for k, v in a["overrides"].items()) or "-"
+        ov = describe(a["overrides"]) or "-"
         g = a["speedup"]["geomean"]
-        L.append(f"| {aid}{' (hypothetical)' if a['hypothetical'] else ''} | {ov} | "
+        L.append(f"| {aid}{' (hypothetical)' if a['hypothetical'] else ''}"
+                 f"{' (untimed on ' + str(a['untimed_cells']) + ')' if a.get('untimed_cells') else ''} | {ov} | "
                  f"{'-' if g is None else f'{g:.2f}x'} | "
                  f"{_sx(a['best']['shape']) + ' ' + format(a['best']['speedup'], '.2f') + 'x' if a['best'] else '-'} | "
                  f"{_sx(a['worst']['shape']) + ' ' + format(a['worst']['speedup'], '.2f') + 'x' if a['worst'] else '-'} | "
@@ -986,10 +999,12 @@ def _survey_md(req, res):
           "|---|" + "---|" * len(ws)]
     for i, h in enumerate(hs):
         L.append(f"| {h} | " + " | ".join((sv["best_per_shape"][i][j] or "skipped") + (" *" if _outside(sv, i, j) else "")
-                                          for j in range(len(ws))) + " |")
+                                          + (" †" if _untimed(sv, i, j) else "") for j in range(len(ws))) + " |")
     if any(_outside(sv, i, j) for i in range(len(hs)) for j in range(len(ws))):
         rng = sv["calibrated_range"]
         L += ["", f"\\* extrapolated: outside the calibrated range on {rng['profile']} ({accuracy_range_txt(rng)})"]
+    if any(_untimed(sv, i, j) for i in range(len(hs)) for j in range(len(ws))):
+        L += ["", "† untimed: the profile does not time a side of this comparison; not meaningful"]
     if sv["skipped"]:
         L += ["", "## Skipped shapes", ""] + [f"- {_sx(s['shape'])}: {s['reason']}" for s in sv["skipped"]]
     L += ["", "## Request", "", "```json", json.dumps(req, indent=1), "```", ""]
@@ -1040,8 +1055,12 @@ def _heat_fill(s, noise):
     return f"color-mix(in srgb, var({'--win' if s > 1 else '--loss'}) {15 + 55 * t:.0f}%, var(--mid))"
 
 
+UTIP = " (untimed: the profile does not time a side of this comparison; not meaningful)"
+
+
 def _heatmap(sv, aid, idx, noise):
     a = sv["approaches"][aid]
+    ug = a.get("untimed")
     hs, ws, cw = sv["heights"], sv["widths"], HM_CELL
     skipped = {tuple(s["shape"]): s["reason"] for s in sv["skipped"]}
     W, H, out = _hm_frame(hs, ws, cw, idx)
@@ -1059,8 +1078,17 @@ def _heatmap(sv, aid, idx, noise):
             else:
                 verdict = "faster" if s > 1 + noise else "slower" if s < 1 - noise else "neutral"
                 xo = _outside(sv, i, j)
+                un = bool(ug and ug[i][j])
                 tip = (f"{aid} at {h}x{w}: {s:.3f}x, {verdict} (baseline {bt:,.0f} ns -> {bt / s:,.0f} ns)"
-                       + (XTIP if xo else ""))
+                       + (XTIP if xo else "") + (UTIP if un else ""))
+                if un:
+                    out.append(f'<g class="cell {verdict}{" extrapolated" if xo else ""} untimed" data-shape="{h}x{w}" '
+                               f'data-speedup="{s}"><title>{E(tip)}</title>'
+                               f'<rect x="{x + .5}" y="{y + .5}" width="{cw - 1}" height="{HM_H - 1}" rx="4" '
+                               f'fill="var(--surface)" stroke="var(--ink2)" stroke-dasharray="2 2"/>'
+                               f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">{s:.2f}'
+                               f'{"*" if xo else ""}†</text></g>')
+                    continue
                 out.append(f'<g class="cell {verdict}{" extrapolated" if xo else ""}" data-shape="{h}x{w}" '
                            f'data-speedup="{s}"><title>{E(tip)}</title>'
                            f'<rect x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" style="fill:{_heat_fill(s, noise)}"/>'
@@ -1071,11 +1099,14 @@ def _heatmap(sv, aid, idx, noise):
             f'aria-label="Speedup of {E(aid)} vs the baseline per shape">' + "".join(out) + "</svg>")
 
 
-def _heat_legend(noise, extrapolated=False):
+def _heat_legend(noise, extrapolated=False, untimed=False):
     stops = [(0.25, "0.25x"), (0.5, "0.5x"), (0.8, "0.8x"), (1.0, f"1x ±{noise:.0%}"), (1.25, "1.25x"), (2.0, "2x"),
              (4.0, "4x+")]
     items = "".join(f'<span><i style="background:{_heat_fill(v, noise)}"></i>{E(t)}</span>' for v, t in stops)
     xh = ('<span><i class="xhatch"></i>* extrapolated: outside the calibrated range</span>' if extrapolated else "")
+    if untimed:
+        xh += ('<span><i style="border:1px dashed var(--ink2)"></i>† untimed: the profile does not time a side; '
+               'not meaningful</span>')
     return (f'<div class="legend">{items}<span><i class="hatch"></i>skipped</span>{xh}'
             f'<span><i style="border:1px dashed var(--axis)"></i>n/a: knobs invalid at the shape</span></div>')
 
@@ -1106,21 +1137,29 @@ def _best_map(sv, idx):
                   (f" (baseline {sv['baseline_ns'][i][j]:,.0f} ns)" if sv["baseline_ns"][i][j] is not None else "")
             xo = _outside(sv, i, j)
             tip += XTIP if xo else ""
-            out.append(f'<g class="cell best{" extrapolated" if xo else ""}" data-best="{E(b)}"><title>{E(tip)}</title>'
-                       f'<rect x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" style="fill:{fill}"/>'
+            un = _untimed(sv, i, j)
+            tip += UTIP if un else ""
+            out.append(f'<g class="cell best{" extrapolated" if xo else ""}{" untimed" if un else ""}" data-best="{E(b)}">'
+                       f'<title>{E(tip)}</title>'
+                       f'<rect x="{x}" y="{y}" width="{cw}" height="{HM_H}" rx="4" style="fill:{fill}"'
+                       + (' stroke="var(--ink2)" stroke-dasharray="2 2"' if un else "") + '/>'
                        + (_x_overlay(x, y, cw, idx) if xo else "") +
-                       f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">{E(_fit(b, cw - 8, 6.2))}</text></g>')
+                       f'<text x="{x + cw / 2}" y="{y + HM_H / 2 + 4}" text-anchor="middle">'
+                       f'{E(_fit(b, cw - 8 - (8 if un else 0), 6.2))}{"†" if un else ""}</text></g>')
     legend = "".join(f'<span><i style="background:{_col(slot[k])}"></i>{E(k)} ({freq[k]})</span>' for k in order)
     n_base = sum(b == "baseline" for row in sv["best_per_shape"] for b in row)
     legend += f'<span><i style="background:var(--mid)"></i>baseline: nothing faster ({n_base})</span>'
     n_x = (sv.get("stats") or {}).get("outside_calibrated_range")
     if n_x:
         legend += f'<span><i class="xhatch"></i>extrapolated: outside the calibrated range ({n_x})</span>'
+    if any(_untimed(sv, i, j) for i in range(len(hs)) for j in range(len(ws))):
+        legend += ('<span><i style="border:1px dashed var(--ink2)"></i>† untimed: the profile does not time a '
+                   'side; not meaningful</span>')
     return (f'<svg class="bestmap" viewBox="0 0 {W} {H}" style="width:{W}px;height:{H}px;max-width:none" role="img" '
             f'aria-label="Fastest approach per shape">' + "".join(out) + f'</svg><div class="legend">{legend}</div>')
 
 
-def _survey_html(req, res):
+def _survey_html(req, res, uid=""):
     from .api import NOISE
 
     sv = res["survey"]
@@ -1162,10 +1201,12 @@ def _survey_html(req, res):
         a = sv["approaches"][aid]
         g = a["speedup"]["geomean"]
         tag = ' <span class="tag">hypothetical</span>' if a["hypothetical"] else ""
+        if a.get("untimed_cells"):
+            tag += f' <span class="tag">untimed on {a["untimed_cells"]}</span>'
         extra = "".join(f"<td>{E(t)}</td>" for t in (_range_txt(a["speedup"]), _geo_txt(_cmp_speedup(cmp, aid)),
                                                        _range_txt(_cmp_speedup(cmp, aid)))) if cmp else ""
         body.append(f'<tr class="surv"><td><b>{E(aid)}</b>{tag}</td>'
-                    f'<td>{E(", ".join(f"{k}={v}" for k, v in a["overrides"].items()) or "-")}</td>'
+                    f'<td>{E(describe(a["overrides"]) or "-")}</td>'
                     f'<td>{"-" if g is None else f"{g:.2f}x"}</td>'
                     f'<td>{E(_sx(a["best"]["shape"]) + " · " + format(a["best"]["speedup"], ".2f") + "x") if a["best"] else "-"}</td>'
                     f'<td>{E(_sx(a["worst"]["shape"]) + " · " + format(a["worst"]["speedup"], ".2f") + "x") if a["worst"] else "-"}</td>'
@@ -1176,24 +1217,27 @@ def _survey_html(req, res):
                   f'<b>Accuracy:</b> {E(cmp.get("accuracy", ""))}</p><ul class="kp">'
                   + "".join(f"<li>{E(x)}</li>" for x in cmp["summary"]) + "</ul>" if cmp else "") + "</div>")
     n_x = st.get("outside_calibrated_range")
+    n_u = sum(a.get("untimed_cells", 0) for a in sv["approaches"].values())
     out.append(f'<h2>Speedup vs baseline per shape</h2><p class="note">Rows: tensor rows H; columns: width W. Blue: '
                f'faster than the baseline, red: slower, gray: within ±{NOISE:.0%}. Hover a cell for the times.'
-               + (f' Hatched with *: {n_x} shapes outside the calibrated range (extrapolated).' if n_x else "") +
-               f'</p><div class="card">{_heat_legend(NOISE, bool(n_x))}</div><div class="hm-grid">')
+               + (f' Hatched with *: {n_x} shapes outside the calibrated range (extrapolated).' if n_x else "")
+               + (' Dashed with †: untimed, not meaningful on this profile.' if n_u else "") +
+               f'</p><div class="card">{_heat_legend(NOISE, bool(n_x), bool(n_u))}</div><div class="hm-grid">')
     for k, aid in enumerate(order):
         a = sv["approaches"][aid]
         g = a["speedup"]["geomean"]
         where = "; ".join(x for x in (a.get("wins_where") and f"wins {a['wins_where']}",
                                       a.get("loses_where") and f"loses {a['loses_where']}") if x)
         out.append(f'<div class="card hm" data-approach="{E(aid)}"><h3>{E(aid)}'
-                   f'{" <span class=tag>hypothetical</span>" if a["hypothetical"] else ""}</h3>'
-                   f'<p class="note">{E(", ".join(f"{kk}={v}" for kk, v in a["overrides"].items()) or "no overrides")} · '
+                   f'{" <span class=tag>hypothetical</span>" if a["hypothetical"] else ""}'
+                   f'{" <span class=tag>untimed</span>" if a.get("untimed_cells") else ""}</h3>'
+                   f'<p class="note">{E(describe(a["overrides"]) or "no overrides")} · '
                    f'{"-" if g is None else f"{g:.2f}x geomean"} · {E(_counts_txt(a))} faster / neutral / slower'
-                   f'{" · " + E(where) if where else ""}</p><div class="hx">{_heatmap(sv, aid, k, NOISE)}</div></div>')
+                   f'{" · " + E(where) if where else ""}</p><div class="hx">{_heatmap(sv, aid, f"{uid}{k}", NOISE)}</div></div>')
     out.append("</div>")
     out.append('<h2>Best approach per shape</h2><div class="card"><p class="note" style="margin-top:0">The fastest '
                f'approach at each shape when it beats the baseline by more than {NOISE:.0%}; otherwise baseline. '
-               f'Legend counts are shapes won.</p><div class="hx">{_best_map(sv, len(order))}</div></div>')
+               f'Legend counts are shapes won.</p><div class="hx">{_best_map(sv, f"{uid}{len(order)}")}</div></div>')
     if sv["skipped"]:
         out.append('<h2>Skipped shapes</h2><div class="card"><ul class="kp">'
                    + "".join(f"<li>{E(_sx(s['shape']))}: {E(s['reason'])}</li>" for s in sv["skipped"]) + "</ul></div>")

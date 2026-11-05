@@ -1,6 +1,8 @@
 """survey: approaches benched across a grid of shapes, per approach where it wins and where it regresses; the response
-contract, plan dedupe, skipped shapes, the time budget and the reports."""
+contract, plan dedupe, skipped shapes, the time budget and the reports. Kernel changes (tilize / untilize design knobs)
+and layout choices (shard options of the sharding ops and reshard, with untimed sides marked)."""
 
+import json
 import re
 
 import pytest
@@ -9,7 +11,7 @@ from qperf import analyze
 from qperf.api import NOISE
 from qperf.cli import _text
 from qperf.report import to_html, to_markdown
-from qperf.survey import DEFAULT_APPROACHES, DEFAULT_HEIGHTS, DEFAULT_WIDTHS
+from qperf.survey import DEFAULT_APPROACHES, DEFAULT_HEIGHTS, DEFAULT_WIDTHS, RESHARD_CHOICES, SHARD_CHOICES
 from qperf.validate import validate_request, validate_response
 
 
@@ -191,3 +193,106 @@ def test_reports_render_a_heatmap_per_approach_and_the_best_map():
     assert "hatch" in to_html(req("untilize"), u) and "## Skipped shapes" in to_markdown(req("untilize"), u)
     txt = _text(r)
     assert "faster/neutral/slower/invalid" in txt and all(s in txt for s in r["survey"]["summary"])
+
+
+# ------------------------------------------------------------------------------------------------ layout choices
+
+def choice(op, costs="ttsim-perf", place="dram"):
+    key = (op, costs, place, "choice")
+    if key not in _cache:
+        r = req(op, costs, place)
+        if op == "reshard":
+            r["workload"].pop("placements")
+        _cache[key] = analyze(r)
+    return _cache[key]
+
+
+def test_survey_kinds():
+    assert run("tilize", "ttsim-perf")["survey"]["kind"] == "kernel_change"
+    assert all(a["kind"] == "kernel_change" for a in run("tilize", "ttsim-perf")["survey"]["approaches"].values())
+    for op in ("interleaved_to_sharded", "sharded_to_interleaved", "reshard"):
+        sv = choice(op)["survey"]
+        assert sv["kind"] == "layout_choice"
+        assert all(a["kind"] == "layout_choice" and a["hypothetical"] is False for a in sv["approaches"].values())
+
+
+@pytest.mark.parametrize("op", ["interleaved_to_sharded", "sharded_to_interleaved"])
+def test_sharding_survey_defaults_skips_and_untimed_dram_side(op):
+    r = choice(op)
+    assert r["status"] == "ok" and validate_response(r) == []
+    assert r["runtime_ms"] < 3000
+    sv = r["survey"]
+    assert sv["heights"] == DEFAULT_HEIGHTS and sv["widths"] == DEFAULT_WIDTHS
+    assert list(sv["approaches"]) == [a for a, _ in SHARD_CHOICES]
+    assert "survey baseline shard height x8 (default)" in r["applied_defaults"]
+    assert sv["baseline"]["factory"] == "Default" and sv["baseline"]["untimed"] == sv["stats"]["evaluated"]
+    # height x8 needs 8 tile rows: H < 256 is skipped with the reason; width x16 needs W >= 512
+    assert {tuple(s["shape"]) for s in sv["skipped"]} == {(h, w) for h in (32, 64, 128) for w in DEFAULT_WIDTHS}
+    assert "empty shards" in sv["skipped"][0]["reason"]
+    w16 = cells(sv, sv["approaches"]["width_x16"]["grid"])
+    assert w16[(1024, 256)] is None and w16[(1024, 512)] is not None
+    # ttsim-perf does not time DRAM: every compared cell is untimed and no option is recommended
+    for a in sv["approaches"].values():
+        ug = cells(sv, a["untimed"])
+        assert {k for k, v in ug.items() if v} == {k for k, v in cells(sv, a["grid"]).items() if v is not None}
+        assert a["untimed_cells"] == a["counts"]["faster"] + a["counts"]["neutral"] + a["counts"]["slower"]
+    assert any("not meaningful" in w and "DRAM" in w for w in r["warnings"])
+    assert any("compared cells involve a side ttsim-perf does not time" in w for w in r["warnings"])
+    assert r["recommendations"][0]["id"] is None and r["recommendations"][0]["label"] == "inconclusive"
+    assert "untimed on" in sv["summary"][0]
+    assert r["accuracy"].startswith(f"{op} Default on ttsim-perf")
+
+
+def test_sharding_survey_from_l1_is_timed_and_recommends():
+    r = choice("interleaved_to_sharded", place="l1")
+    sv = r["survey"]
+    assert r["status"] == "ok" and r["runtime_ms"] < 3000
+    assert all(a["untimed_cells"] == 0 for a in sv["approaches"].values())
+    assert not any("not meaningful" in w for w in r["warnings"])
+    assert r["recommendations"][0]["id"] in ("height_x32", "width_x16", "height_x16", "block_x16")
+    # width x8 runs another plan with the same per-core tiles as height x8: neutral, but not "the same plan"
+    assert "another plan, same time" in next(s for s in sv["summary"] if s.startswith("width_x8"))
+
+
+def test_reshard_survey_options_factories_and_accuracy():
+    r = choice("reshard")
+    assert r["status"] == "ok" and validate_response(r) == [] and r["runtime_ms"] < 3000
+    sv = r["survey"]
+    assert list(sv["approaches"]) == [a for a, _ in RESHARD_CHOICES]
+    assert "survey baseline reshard height x8 L1 -> height x8 L1 (default)" in r["applied_defaults"]
+    assert sv["baseline"]["factory"] == "SameWidth" and sv["baseline"]["untimed"] == 0
+    aps = sv["approaches"]
+    assert aps["w8_to_w8"]["factory"] == "Generic" and aps["b4x4_to_b4x4"]["factory"] == "Generic"
+    assert aps["h8_to_h16"]["factory"] == "SameWidth"
+    assert "Generic" in r["accuracy"] and any("known gap" in w and "w8_to_w8" in w for w in r["warnings"])
+    h4 = aps["h8_to_h4"]["counts"]
+    assert h4["slower"] == h4["faster"] + h4["neutral"] + h4["slower"]  # fewer output cores: slower everywhere
+    assert aps["h32_to_h32"]["speedup"]["geomean"] > 1.5
+    assert {x["id"] for x in r["recommendations"]} <= {"h32_to_h32", "h16_to_h16", "b4x4_to_b4x4"}
+    assert "height x32 L1 -> height x32 L1" in r["recommendations"][0]["label"]
+
+
+def test_reshard_survey_on_craq_sim_is_untimed():
+    r = choice("reshard", "craq-sim")
+    assert all(a["untimed_cells"] > 0 for a in r["survey"]["approaches"].values())
+    assert any("per request" in w for w in r["warnings"]) and r["recommendations"][0]["label"] == "inconclusive"
+
+
+def test_silicon_hypothesis_survey_counts_dram_capped_shapes():
+    t = run("tilize", "silicon-hypothesis")["survey"]
+    assert t["baseline"]["dram_capped"] > 0 and all("dram_capped" in a for a in t["approaches"].values())
+    assert "dram_capped" not in run("tilize", "ttsim-perf")["survey"]["baseline"]
+    s = choice("interleaved_to_sharded", "silicon-hypothesis")["survey"]
+    assert s["baseline"]["dram_capped"] > 0 and s["baseline"]["untimed"] == 0
+    assert s["baseline"]["limiters"].get("dram_global") == s["baseline"]["dram_capped"]
+
+
+def test_choice_reports_mark_untimed_cells():
+    q, r = req("interleaved_to_sharded", "ttsim-perf"), choice("interleaved_to_sharded")
+    html = to_html(q, r)
+    assert html.count(' untimed"') >= r["survey"]["stats"]["evaluated"] and "†" in html
+    assert "untimed: the profile does not time a side" in html and "<span class=tag>untimed</span>" in html
+    md = to_markdown(q, r)
+    assert "(untimed on" in md and "† untimed" in md and "height x16" in md
+    page = to_html(req("reshard", "ttsim-perf"), choice("reshard"))
+    assert "height x8 L1 -&gt; height x16 L1" in page and ' untimed"' not in page

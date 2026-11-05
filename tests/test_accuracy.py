@@ -250,3 +250,26 @@ def test_silicon_hypothesis_carries_ttsim_layout_terms():
     assert s["clock"]["GHz"] == 1.35 and s["params"]["dram.total_bytes_per_cycle"]["value"] == 648.1
     assert s["params"]["dram.bound_layout"]["value"] == 1
     assert s["calibration"]["derived_from"] == f"ttsim-perf@{t['revision']}"
+
+
+@pytest.mark.parametrize("op", ["interleaved_to_sharded", "sharded_to_interleaved"])
+def test_dram_bound_covers_the_interleaved_side_of_sharding_ops(op):
+    """silicon-hypothesis bounds the sharding ops by the DRAM bytes of their interleaved side (whole tiles for TILE,
+    the logical rows for ROW_MAJOR); an L1 interleaved side and the simulator profiles have no DRAM bound."""
+    from qperf.layout_api import _costs
+    from qperf.ops.layout import estimate
+
+    def est(costs, place="dram"):
+        q = layout_req(op, (8192, 2048), costs, place)
+        q["workload"]["shard"] = {"strategy": "height", "cores": 8}
+        return analyze(q)["baseline"]
+
+    b = est("silicon-hypothesis")
+    assert b["bottleneck"]["resource"] == "dram_global" and b["bounds_ns"]["dram_global"] == b["time_ns"]["nominal"]
+    assert any("32.0 MiB" in w for w in b["warnings"])  # 8192 x 2048 bf16 moved once to / from DRAM
+    for costs, place in (("silicon-hypothesis", "l1"), ("ttsim-perf", "dram"), ("craq-sim", "dram")):
+        assert "bounds_ns" not in est(costs, place)
+    c = _costs(profiles.load("costs", "silicon-hypothesis")[0], "nominal", None)
+    tile = estimate(op, 1000, 256, c, "bf16", "hs8")  # TILE: 32 tile rows = 1024 padded rows
+    rm = estimate(op, 1000, 256, c, "bf16", "hs8r")
+    assert tile["dram_bytes"] == 1024 * 256 * 2 and rm["dram_bytes"] == 1000 * 256 * 2

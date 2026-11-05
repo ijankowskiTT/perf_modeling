@@ -294,7 +294,7 @@
     "survey": {
       "type": "object",
       "additionalProperties": false,
-      "description": "action survey: every approach timed at every [H, W] of the grid against the baseline",
+      "description": "action survey: every approach timed at every [H, W] of the grid against the baseline (kernel changes for tilize / untilize, layout choices for the sharding ops and reshard)",
       "required": [
         "heights",
         "widths",
@@ -529,6 +529,51 @@
                   "null"
                 ],
                 "description": "the slower shapes as one grid rectangle, if they form one"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "kernel_change",
+                  "layout_choice"
+                ],
+                "description": "kernel_change: a (hypothetical) change of the factory's kernels (tilize / untilize design knobs); layout_choice: a shard option of a sharding op or reshard (what the op, and the next op, receives; the pinned factories, never hypothetical)"
+              },
+              "factory": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "the factory the approach runs at most shapes"
+              },
+              "factories": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "description": "layout choices running more than one factory across the grid: factory -> shapes"
+              },
+              "untimed": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "description": "layout choices: per [height][width], true = the comparison involves a side the profile does not time (ttsim-perf: DRAM; craq-sim: reshard bytes): the speedup is not meaningful; null = not evaluated or invalid"
+              },
+              "untimed_cells": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "layout choices: cells marked untimed"
+              },
+              "dram_capped": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "profiles with an assumed DRAM bandwidth (silicon-hypothesis): shapes where the DRAM bound sets the approach's time"
               }
             }
           }
@@ -776,6 +821,16 @@
                         "type": "number"
                       }
                     }
+                  },
+                  "dram_capped": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "profiles with an assumed DRAM bandwidth (silicon-hypothesis): shapes where the DRAM bound sets the approach's time"
+                  },
+                  "untimed_cells": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "layout choices: cells marked untimed"
                   }
                 }
               }
@@ -812,6 +867,47 @@
                   "type": "integer"
                 }
               }
+            }
+          }
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "kernel_change",
+            "layout_choice"
+          ],
+          "description": "the survey's approach kind (see approaches.kind)"
+        },
+        "baseline": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "the baseline across the evaluated shapes: its factory (at most shapes), factories and limiters (busiest role, or noc_l1_global / dram_global) with their shape counts; dram_capped on a profile with an assumed DRAM bandwidth, untimed for layout choices",
+          "properties": {
+            "factory": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "factories": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer"
+              }
+            },
+            "limiters": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer"
+              }
+            },
+            "dram_capped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "untimed": {
+              "type": "integer",
+              "minimum": 0
             }
           }
         }

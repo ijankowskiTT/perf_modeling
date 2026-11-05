@@ -760,14 +760,16 @@ def estimate(op, H, W, costs, dtype="bf16", mem="dram", multicore=True, trace=0,
 
 def dram_bytes(op, H, W, elem, loads):
     """Bytes the whole op reads from and writes to DRAM: per DRAM side, the tile-padded tensor for a tiled side and the
-    logical rows for a row-major side (tilize: rows in, tiles out; untilize: tiles in, rows out); the other ops move
-    the logical tensor (a lower bound of their traffic)."""
+    logical rows for a row-major side (tilize: rows in, tiles out; untilize: tiles in, rows out; TILE sharding ops: the
+    interleaved side's tiles); the other ops move the logical tensor (a lower bound of their traffic)."""
     cfg = loads[0][0]
     tiled = math.ceil(H / TILE) * math.ceil(W / TILE) * TILE * TILE * elem
     rows = H * W * elem
     fam = family_of(op)
     side = {"in": rows, "out": rows}
-    if fam == "tilize":
+    if op in SHARD_OPS and not cfg.get("rm"):  # TILE sharding: the interleaved side holds whole tiles
+        side = {"in": tiled, "out": tiled}
+    elif fam == "tilize":
         side["out"] = tiled
     elif fam == "untilize":
         side["in"] = tiled
