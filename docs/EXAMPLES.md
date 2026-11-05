@@ -96,6 +96,27 @@ Use the quasar-perf skill: has tilize or untilize changed on tt-metal main since
 - Runs `check-drift` against GitHub main: no file of the layout kernel set has changed. It names the pinned commit
   and main's commit.
 
+## Pull requests
+
+**A merged PR against alternatives**
+```
+Use the quasar-perf skill on PR https://github.com/tenstorrent/tt-metal/pull/62954: it batches binary_ng beside DRAM by
+each Neo's share (from 4 tiles, largest power of 2, capped by a DEST section). Compare that rule with other batching
+schemes (no batching, fixed dm_batch 4 / 8 / 16, batch by the full share without the DEST cap) for bf16 add and multiply
+from DRAM across tile counts. Where does each win or regress? Make a report with charts.
+```
+- `check-drift` reports the PR as `included`: it was merged before the pinned commit, so `baseline: {}` is the PR's
+  rule.
+- Each scheme sets both `dm_batch` and `tiles_per_cycle`. qperf matches the PR's measurement: add at 256 tiles per
+  cluster, 17,247 → 7,885 cycles (2.19x; the PR measured 2.10x on a newer craq-sim).
+- Findings:
+  - The PR rule never loses to no batching.
+  - DM-only batching never helps.
+  - The DEST cap is required: the factory rejects larger compute batches.
+  - Batch 2 would be 5.8% faster for multiply at 8 tiles per cluster.
+  - DM batch 16 is 4-11% faster for large adds, but that result has no DRAM time behind it.
+- Report: [batching](https://claude.ai/artifact/UoWwykpLuKVMJXBR9m3qJ8?sk=k947PDf0x5kEOHkJV1E9Ng) (Tenstorrent only).
+
 ## What-ifs and plans
 
 **Hardware what-if**

@@ -42,6 +42,21 @@ Output: [layout ops report](https://claude.ai/artifact/Sfj2kJZLYg65LfE2SsTzfC?sk
 only). One page with a summary per op and two rankings over one size grid: kernel changes (hypothetical) and layout
 choices (which change what the next op receives). It also shows the DRAM caps, with a section per op.
 
+**Example: a merged PR against other designs.** Prompt:
+
+```
+Use the quasar-perf skill on PR https://github.com/tenstorrent/tt-metal/pull/62954: it batches binary_ng beside DRAM by
+each Neo's share (from 4 tiles, largest power of 2, capped by a DEST section). Compare that rule with other batching
+schemes (no batching, fixed dm_batch 4 / 8 / 16, batch by the full share without the DEST cap) for bf16 add and multiply
+from DRAM across tile counts. Where does each win or regress? Make a report with charts.
+```
+
+Output: [batching report](https://claude.ai/artifact/UoWwykpLuKVMJXBR9m3qJ8?sk=k947PDf0x5kEOHkJV1E9Ng) (Tenstorrent only).
+It compares six schemes from 1 to 64K tiles per cluster. qperf reproduces the PR's own result (add at 256 tiles:
+2.19x, against 2.10x measured). The gain comes from compute batching, and the DEST cap is required. Where the PR rule
+leaves time behind: batch 2 for multiply at 8 tiles (5.8%), and DM batch 16 for large adds (4-11%, on craq-sim with no
+DRAM time).
+
 More checked examples, including edge cases (unsupported parts, invalid requests, extrapolation, fusion ideas,
 confidence questions): [docs/EXAMPLES.md](docs/EXAMPLES.md).
 
