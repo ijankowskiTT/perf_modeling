@@ -4,24 +4,32 @@ shape as binary_ng.
 Workload: op tilize | untilize | tilize_with_val_padding | untilize_with_unpadding, dtype, shape [..., H, W] = the
 logical (unpadded) tensor, leading dims fold into rows; the padding variants pad to / unpad from the next tile
 multiple. placements.a = the tensor's memory (dram | l1 interleaved, borrowed = height-sharded L1, tilize only).
-Knobs: use_multicore (default true), input (overrides placements.a). Actions: estimate, compare, sensitivity (param
-num_rows | num_cols).
+Knobs: use_multicore (default true), input (overrides placements.a); tilize Default / untilize MultiCore also take the
+hypothetical design knobs (cores, split, tiles_per_block, dfb_blocks, write_batch | read_batch; ops/layout.py
+resolve_design). Actions: estimate, compare, tune (over the design knobs, DEFAULT_LAYOUT_SPACE), sensitivity (param
+num_rows | num_cols; baseline and every candidate).
 """
 
 from __future__ import annotations
 
+import itertools
 import math
 import time
 
 from . import ENGINE_VERSION, SCHEMA_VERSION
-from .api import RequestError, _compact, _compare_rows, _recommend
+from .api import NOISE, RequestError, _compact, _compare_rows, _ranking, _recommend
 from .ops import registry
-from .ops.layout import GRID, SHARD_OPS, STRATEGY, TILE, estimate, family_of, plan, prefix_of
+from .ops.layout import (DESIGN_FACTORIES, DESIGN_KNOBS, GRID, SHARD_OPS, STRATEGY, TILE, estimate, family_of, plan,
+                         prefix_of, resolve_design, structure)
 from .profiles import SCENARIOS, _pick, load, sha256
 
 BASE_OPS = ("tilize", "untilize", "tilize_with_val_padding", "untilize_with_unpadding", "interleaved_to_sharded",
             "sharded_to_interleaved")
 MEM_OF = {"dram": "dram", "l1": "l1", "borrowed": "hs"}
+# tune's default space; "batch" is the factory's batched DM thread (tilize write_batch, untilize read_batch), None =
+# the factory default, "half" = half the core's chunk. Combos the shape cannot take are dropped, equal plans deduped.
+DEFAULT_LAYOUT_SPACE = {"cores": [8, 16, 32], "split": ["rows", "cols", "2d"], "tiles_per_block": [None, "half"],
+                        "dfb_blocks": [1, 2], "batch": [1, 4, 8]}
 
 
 def layout_ops():
@@ -58,6 +66,12 @@ def _workload(w, knobs):
     if not shape or len(shape) < 2:
         raise LayoutError("invalid", f"{op} needs workload.shape [..., H, W]")
     base = {"op": op, "dtype": w.get("dtype", "bf16"), "H": math.prod(shape[:-1]), "W": shape[-1]}
+    design = {k: knobs[k] for k in DESIGN_KNOBS if knobs.get(k) is not None}
+    if design:
+        if op not in ("tilize", "untilize"):
+            raise LayoutError("unsupported", f"layout design knobs ({', '.join(sorted(design))}) are modeled for tilize "
+                                             f"Default and untilize MultiCore only, not {op}")
+        base["design"] = design
     m = _own_module(op)
     if m:
         try:
@@ -90,21 +104,31 @@ def _workload(w, knobs):
 
 def _result(wl, profile, what_if):
     op, H, W = wl["op"], wl["H"], wl["W"]
+    design = wl.get("design")
     try:
-        factory = plan(op, H, W, wl["dtype"], wl["mem"], wl["use_multicore"])[0]
+        factory = plan(op, H, W, wl["dtype"], wl["mem"], wl["use_multicore"], design)[0]
+        d = resolve_design(op, factory, H, W, wl["dtype"], design) if design else None
     except ValueError as e:
         raise LayoutError("unsupported", str(e))
+    hyp = bool(d and d["hypothetical"])
     p = prefix_of(op, factory)
     if op in SHARD_OPS:
         label = f"{op} ({wl['shard']}, interleaved side {wl['placement']})"
     elif wl.get("shard"):
         label = f"{op} {factory} ({wl['shard']})"
+    elif hyp:
+        label = f"{op} {factory} hypothetical ({', '.join(d['changed'])}; input {wl['placement']})"
     else:
         label = f"{op} {factory} ({'multicore' if wl['use_multicore'] else 'single core'}, input {wl['placement']})"
     mod = registry.module_for(op)
     config = {"factory": factory} if _own_module(op) else \
         {"factory": factory, "use_multicore": wl["use_multicore"], "input": wl["placement"]}
     res = {"label": label, "config": config, "valid": True, "errors": [], "warnings": []}
+    if hyp:
+        config.update({"hypothetical": True, "cores": d["cores"], "split": d["split"],
+                       "tiles_per_block": d["tiles_per_block"], "dfb_blocks": d["dfb_blocks"], d["batch_knob"]: d["batch"]})
+        res["warnings"].append(f"hypothetical layout ({', '.join(d['changed'])}): not in the pinned kernels; timed with "
+                               f"the factory's calibrated per-request costs")
     if hasattr(mod, "notes"):  # what this profile cannot time for the op
         warn, res["untimed"] = mod.notes(profile["name"], wl["mem"])
         res["warnings"] += warn
@@ -121,11 +145,12 @@ def _result(wl, profile, what_if):
     if family_of(op) == "tilize" and math.ceil(W / TILE) > 64 and profile["name"] == "craq-sim":
         res["warnings"].append("craq-sim cannot run tilize wider than 64 tiles (mop_expander); this is an extrapolation")
     ghz = profile["clock"]["GHz"]
-    runs = {sc: estimate(op, H, W, _costs(profile, sc, what_if.get("cost_overrides"),
-                                          what_if.get("compute_service_scale", 1.0)),
-                         wl["dtype"], wl["mem"], wl["use_multicore"], trace=3) for sc in SCENARIOS}
+    costs = {sc: _costs(profile, sc, what_if.get("cost_overrides"), what_if.get("compute_service_scale", 1.0))
+             for sc in SCENARIOS}
+    runs = {sc: estimate(op, H, W, costs[sc], wl["dtype"], wl["mem"], wl["use_multicore"], trace=3, design=design)
+            for sc in SCENARIOS}
     nominal = runs["nominal"]
-    run = max(nominal["loads"], key=lambda x: x[2]["makespan"])[2]
+    busiest_cfg, _, run = max(nominal["loads"], key=lambda x: x[2]["makespan"])
     span = run["makespan"]
     roles = {}
     for name, rr in run["roles"].items():
@@ -150,9 +175,109 @@ def _result(wl, profile, what_if):
         "roles": roles,
         "work_split": [{"blocks_per_core": c["blocks"], "tiles_per_block": c["wt"], "cores": n} for c, n, _ in nominal["loads"]],
     })
+    st = structure(op, factory, H, W, nominal["plan"], busiest_cfg, costs["nominal"])
+    if st:
+        res["structure"] = st
     if factory == "SingleCore" and wl["use_multicore"] is False:
         res["warnings"].append(f"single core: one of {GRID} cores does all the work")
     return res
+
+
+def _design_id(wl, base_wl):
+    """A tune row's id: the resolved design (every knob, factory defaults included) plus input / use_multicore when
+    they differ from the baseline."""
+    op, H, W = wl["op"], wl["H"], wl["W"]
+    factory = plan(op, H, W, wl["dtype"], wl["mem"], wl["use_multicore"])[0]
+    extra = (f" input={wl['placement']}" if wl["placement"] != base_wl["placement"] else "") + \
+            (f" use_multicore={str(wl['use_multicore']).lower()}" if wl["use_multicore"] != base_wl["use_multicore"] else "")
+    if (op, factory) not in DESIGN_FACTORIES:
+        return f"{op} {factory}" + extra
+    d = resolve_design(op, factory, H, W, wl["dtype"], wl.get("design"))
+    return (f"cores={d['cores']} split={d['split']} tiles_per_block={d['tiles_per_block']} dfb_blocks={d['dfb_blocks']} "
+            f"{d['batch_knob']}={d['batch']}" + extra)
+
+
+def _simplicity(r, changed):
+    c = r["config"]
+    return (bool(c.get("hypothetical")), len(changed.get(r["id"], ())), c.get("cores", 0))
+
+
+def _tune(req, base_knobs, base_wl, base, costs, what_if, spec, analysis, detail, t_start):
+    """Exhaustive search over the hypothetical design knobs: every combination of the space (DEFAULT_LAYOUT_SPACE
+    merged with tune.space) is resolved to a plan, invalid ones (knobs the factory or shape cannot take) are counted
+    and dropped, equal plans are evaluated once, then every distinct plan gets the full model, the baseline first."""
+    op = base_wl["op"]
+    factory = base["config"]["factory"]
+    batch_knob = DESIGN_FACTORIES.get((op, factory))
+    if batch_knob is None:
+        raise LayoutError("unsupported", f"tune explores the hypothetical layout design knobs of tilize Default and "
+                                         f"untilize MultiCore; {op} {factory} has none (use compare: use_multicore, input)")
+    space = {(batch_knob if k == "batch" else k): v for k, v in DEFAULT_LAYOUT_SPACE.items()}
+    space.update(spec.get("space") or {})
+    budget_ms = analysis.get("time_budget_ms", 20000)
+    max_c = spec.get("max_candidates")
+    top_k = analysis.get("top_k", 3)
+    keys = list(space)
+    seen, plans = {}, []
+    enumerated = invalid = 0
+    for combo in itertools.product(*[space[k] if isinstance(space[k], list) else [space[k]] for k in keys]):
+        enumerated += 1
+        knobs = dict(base_knobs, **{k: v for k, v in zip(keys, combo) if v is not None})
+        try:
+            wl = _workload(req["workload"], knobs)
+            f = plan(wl["op"], wl["H"], wl["W"], wl["dtype"], wl["mem"], wl["use_multicore"], wl.get("design"))[0]
+            d = resolve_design(wl["op"], f, wl["H"], wl["W"], wl["dtype"], wl.get("design")) if wl.get("design") else None
+        except (LayoutError, ValueError):
+            invalid += 1
+            continue
+        sig = (wl["mem"], wl["use_multicore"], f, d["sig"] if d and d["hypothetical"] else "factory")
+        if sig in seen:
+            continue
+        seen[sig] = True
+        plans.append((wl, d["changed"] if d and d["hypothetical"] else []))
+    plans.sort(key=lambda p: (bool(p[1]), len(p[1])))
+    truncated = max_c is not None and len(plans) > max_c
+    cands = plans[:max_c]
+    base_id = _design_id(base_wl, base_wl)
+    evaluated, out_of_time, n_changed = [], False, {}
+    base_row = dict(base, id=base_id, comparison=_compare_rows(base, base))
+    evaluated.append(base_row)
+    for wl, changed in cands:
+        rid = _design_id(wl, base_wl)
+        if rid == base_id:
+            continue
+        if (time.perf_counter() - t_start) * 1e3 > budget_ms:
+            out_of_time = True
+            break
+        try:
+            r = _result(wl, costs, what_if)
+        except LayoutError:
+            invalid += 1
+            continue
+        r["id"] = rid
+        n_changed[rid] = changed
+        r["comparison"] = _compare_rows(base, r)
+        if base.get("untimed") or r.get("untimed"):
+            r["comparison"]["verdict"] = "inconclusive"
+        evaluated.append(r)
+    simple = lambda r: _simplicity(r, n_changed)  # noqa: E731
+    evaluated.sort(key=lambda r: (r["time_ns"]["nominal"], simple(r)))
+    best = evaluated[0]["time_ns"]["nominal"]
+    # among plans indistinguishable from the best, prefer the simpler one (the factory's, then fewer changed knobs)
+    tied = sorted([r for r in evaluated if r["time_ns"]["nominal"] <= best * (1 + NOISE)], key=simple)
+    picks = (tied + [r for r in evaluated if r not in tied])[:top_k]
+    return {
+        "baseline": _compact(base, detail),
+        "top": [_compact(r, detail) for r in picks],
+        "search": {"enumerated": enumerated, "invalid": invalid, "valid": len(plans), "considered": len(cands),
+                   "evaluated": len(evaluated), "truncated_by_max_candidates": truncated, "out_of_time": out_of_time,
+                   "exhaustive": not truncated and not out_of_time,
+                   "order": "every distinct valid plan (equal plans deduped) gets the full model, the baseline first, "
+                            "then the factory-like plans before those changing more knobs; a budget stop (out_of_time) "
+                            "leaves the rest unevaluated, not proven worse",
+                   "evaluated_ids": [r["id"] for r in evaluated]},
+        "recommendations": _recommend([_compact(r, "compact") for r in evaluated if r is not base_row], top_k),
+    }
 
 
 def analyze_layout(req, t_start):
@@ -169,8 +294,6 @@ def analyze_layout(req, t_start):
     base_knobs = dict(req.get("baseline") or {})
     try:
         wl = _workload(req["workload"], base_knobs)
-        if action == "tune":
-            raise LayoutError("unsupported", f"{wl['op']} has no TTNN_QSR knobs to tune; use compare (use_multicore, input)")
         base = _result(wl, costs, what_if)
         own = _own_module(wl["op"])
         result = {"schema_version": SCHEMA_VERSION, "engine_version": ENGINE_VERSION, "status": "ok",
@@ -196,17 +319,35 @@ def analyze_layout(req, t_start):
                 rows.append(_compact(r, detail))
             result["candidates"] = rows
             result["recommendations"] = _recommend(rows, analysis.get("top_k", 3))
+        elif action == "tune":
+            result.update(_tune(req, base_knobs, wl, base, costs, what_if, req.get("tune") or {}, analysis, detail,
+                                t_start))
+            if not result["search"]["exhaustive"]:
+                result["status"] = "partial"
         elif action == "sensitivity":
             spec = req.get("sensitivity") or {}
             param = spec.get("param")
             if param not in ("num_rows", "num_cols"):
                 raise LayoutError("invalid", f"{wl['op']} sensitivity param must be num_rows or num_cols")
-            series = {"baseline": []}
+            configs = [("baseline", base_knobs)] + [(c.get("id", str(c.get("overrides"))),
+                                                     dict(base_knobs, **c.get("overrides", {})))
+                                                    for c in req.get("candidates", [])]
+            series = {cid: [] for cid, _ in configs}
             for v in spec.get("values", []):
-                r = _result(dict(wl, **{"H" if param == "num_rows" else "W": int(v)}), costs, what_if)
-                series["baseline"].append({"value": v, "valid": True, "time_ns": r["time_ns"]["nominal"],
-                                           "bottleneck": r["bottleneck"]["resource"]})
-            result["sensitivity"] = {"param": param, "series": series, "ranking_changes": []}
+                for cid, knobs in configs:
+                    try:
+                        cw = _workload(req["workload"], knobs)
+                        r = _result(dict(cw, **{"H" if param == "num_rows" else "W": int(v)}), costs, what_if)
+                        pt = {"value": v, "valid": True, "time_ns": r["time_ns"]["nominal"],
+                              "bottleneck": r["bottleneck"]["resource"]}
+                    except LayoutError:
+                        if cid == "baseline":
+                            raise
+                        pt = {"value": v, "valid": False, "time_ns": None, "bottleneck": None}
+                    series[cid].append(pt)
+            crossings, shifts = _ranking(series, param)
+            result["sensitivity"] = {"param": param, "series": series, "ranking_changes": crossings,
+                                     "bottleneck_shifts": shifts}
     except LayoutError as e:
         return {"schema_version": SCHEMA_VERSION, "engine_version": ENGINE_VERSION, "status": e.status,
                 "message": e.message, "result_kind": None, "runtime_ms": round((time.perf_counter() - t_start) * 1e3, 2)}

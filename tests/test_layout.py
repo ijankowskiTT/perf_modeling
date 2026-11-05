@@ -47,7 +47,7 @@ def test_sensitivity_wider_is_slower():
 
 @pytest.mark.parametrize("request_, status", [
     (req("untilize", place="borrowed"), "unsupported"),
-    (req(action="tune"), "unsupported"),
+    (req("tilize_with_val_padding", (1, 1, 3000, 500), action="tune"), "unsupported"),  # no design knobs
     (req(costs="silicon-hypothesis"), "needs_input"),
 ])
 def test_unsupported_and_missing_costs_carry_no_numbers(request_, status):

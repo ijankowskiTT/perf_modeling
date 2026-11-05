@@ -286,7 +286,7 @@
       "properties": {
         "space": {
           "type": "object",
-          "description": "knob -> list of values (null = rule); may include \"barriers\"/\"work_split\" variants"
+          "description": "knob -> list of values (null = rule); may include \"barriers\"/\"work_split\" variants. tilize/untilize: the layout design knobs (cores, split, tiles_per_block incl. \"half\", dfb_blocks, write_batch | read_batch); knobs left out take the built-in default space"
         },
         "max_candidates": {
           "type": "integer",
@@ -417,6 +417,41 @@
             "borrowed"
           ],
           "description": "tilize/untilize: the tensor's memory (borrowed = height-sharded L1)"
+        },
+        "cores": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32,
+          "description": "hypothetical, tilize Default / untilize MultiCore: at most this many cores share the work (default: the factory's min(32, tile-rows))"
+        },
+        "split": {
+          "enum": [
+            "rows",
+            "cols",
+            "2d"
+          ],
+          "description": "hypothetical: rows = whole tile-rows per core (factory); cols = each tile-row cut into cores // row-cores column chunks; 2d = row-cores x column chunks <= cores with the fewest tiles per core"
+        },
+        "tiles_per_block": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "hypothetical: block width in tiles within a core's chunk (default the whole chunk; snapped to a divisor of it). tune.space also takes \"half\""
+        },
+        "dfb_blocks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "hypothetical: DFB capacity in blocks (default: tilize 1, untilize 2 with more than one block per core)"
+        },
+        "write_batch": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "hypothetical, tilize: tiles per writer barrier (default 1, the kernel's per-tile flush)"
+        },
+        "read_batch": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "hypothetical, untilize: tiles per reader barrier (default 1, the kernel's per-tile barrier)"
         },
         "shard_strategy": {
           "enum": [

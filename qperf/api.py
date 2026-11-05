@@ -358,7 +358,7 @@ def _compact(r, detail):
         return r
     keep = ("label", "config", "valid", "errors", "warnings", "result_kind", "time_ns", "lower_bound_ns",
             "per_tile_ns", "bottleneck", "near_binding", "roles", "l1", "extrapolated", "comparison", "id",
-            "steady_state_ns_per_tile_per_cluster", "bounds_ns")
+            "steady_state_ns_per_tile_per_cluster", "bounds_ns", "structure")
     out = {k: r[k] for k in keep if k in r}
     if "l1" in out:
         out["l1"] = {"ring_bytes": r["l1"]["ring_bytes"], "fits": r["l1"]["fits"]}
@@ -593,6 +593,13 @@ def _sensitivity(req, wl, base_knobs, ctx, budget_ms, t_start):
             r = _cached_eval(w2, cfg, sub)
             series[cid].append({"value": v, "time_ns": r.get("time_ns", {}).get("nominal") if r["valid"] else None,
                                 "bottleneck": r.get("bottleneck", {}).get("resource"), "valid": r["valid"]})
+    crossings, shifts = _ranking(series, param)
+    return {"sensitivity": {"param": param, "series": series, "ranking_changes": crossings,
+                            "bottleneck_shifts": shifts, "partial": partial}}
+
+
+def _ranking(series, param):
+    """Where two series swap order (beyond NOISE) and where a series' bottleneck changes."""
     crossings = []
     for a, b in itertools.combinations(series, 2):
         prev = None
@@ -609,5 +616,4 @@ def _sensitivity(req, wl, base_knobs, ctx, budget_ms, t_start):
         for p0, p1 in zip(pts, pts[1:]):
             if p0["bottleneck"] != p1["bottleneck"]:
                 shifts.append({"config": cid, "from": p0["bottleneck"], "to": p1["bottleneck"], "at_about": p1["value"]})
-    return {"sensitivity": {"param": param, "series": series, "ranking_changes": crossings,
-                            "bottleneck_shifts": shifts, "partial": partial}}
+    return crossings, shifts

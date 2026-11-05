@@ -395,9 +395,40 @@
             "l1",
             "borrowed"
           ]
+        },
+        "hypothetical": {
+          "type": "boolean",
+          "description": "a layout design not in the pinned kernels"
+        },
+        "cores": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "split": {
+          "enum": [
+            "rows",
+            "cols",
+            "2d"
+          ]
+        },
+        "tiles_per_block": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "dfb_blocks": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "write_batch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "read_batch": {
+          "type": "integer",
+          "minimum": 1
         }
       },
-      "description": "binary_ng: R, C, W, dm_batch, tiles_per_cycle, entries_per_thread (+ variants); tilize/untilize: factory, use_multicore, input"
+      "description": "binary_ng: R, C, W, dm_batch, tiles_per_cycle, entries_per_thread (+ variants); tilize/untilize: factory, use_multicore, input; a hypothetical layout design adds hypothetical, cores, split, tiles_per_block, dfb_blocks, write_batch | read_batch (resolved values)"
     },
     "result": {
       "type": "object",
@@ -609,6 +640,188 @@
           "items": {
             "type": "object"
           }
+        },
+        "structure": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "factory",
+            "grid",
+            "cores_used",
+            "split",
+            "row_cores",
+            "col_chunks",
+            "source",
+            "dest",
+            "per_core",
+            "reader",
+            "compute",
+            "writer",
+            "dfb"
+          ],
+          "properties": {
+            "factory": {
+              "type": "string"
+            },
+            "grid": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "cores_used": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "split": {
+              "enum": [
+                "rows",
+                "cols",
+                "2d"
+              ]
+            },
+            "row_cores": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "col_chunks": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "source": {
+              "enum": [
+                "dram",
+                "l1",
+                "borrowed"
+              ]
+            },
+            "dest": {
+              "enum": [
+                "dram",
+                "l1",
+                "borrowed"
+              ]
+            },
+            "per_core": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "blocks",
+                "tiles_per_block",
+                "tiles"
+              ],
+              "properties": {
+                "blocks": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "tiles_per_block": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "tiles": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "reader": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "requests",
+                "bytes_per_request",
+                "barriers"
+              ],
+              "properties": {
+                "requests": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "bytes_per_request": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "barriers": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "compute": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "steps",
+                "tiles_per_step",
+                "kind"
+              ],
+              "properties": {
+                "steps": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "tiles_per_step": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "kind": {
+                  "enum": [
+                    "tilize_block",
+                    "untilize"
+                  ]
+                }
+              }
+            },
+            "writer": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "requests",
+                "bytes_per_request",
+                "barriers"
+              ],
+              "properties": {
+                "requests": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "bytes_per_request": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "barriers": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "dfb": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "in_entries",
+                "out_entries",
+                "entry_bytes"
+              ],
+              "properties": {
+                "in_entries": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "out_entries": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "entry_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "description": "tilize/untilize: the busiest core's work and DM pattern and the core grid (for report diagrams)"
         }
       }
     },

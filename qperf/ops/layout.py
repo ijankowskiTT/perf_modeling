@@ -21,6 +21,11 @@ Cost keys (cycles; profiles/costs/*.json), one prefix per factory because each r
 utzs (untilize SingleCore). *_setup is a DM kernel's prologue before its first DFB wait, *_tail its cost after the last batch.
 fp32: the same kernels and loops (tilize_block per tile-row, untilize sub-blocks of <= 4 tiles: fp32 DEST holds half
 the tiles), unpacked straight to DEST; <p>.f32_<term> overrides <p>.<term> for fp32 (dtype_costs).
+
+Hypothetical designs (not in the pinned kernels; tilize Default and untilize MultiCore): plan(design=...) re-splits the
+work (cores, split rows | cols | 2d), narrows blocks (tiles_per_block), deepens the DFBs (dfb_blocks) and batches the
+per-tile DM thread's barriers (tilize write_batch, untilize read_batch), timed with the same loops and the factory's
+own prefix (resolve_design, design_loads). structure() describes a core's work for reports.
 """
 
 from __future__ import annotations
@@ -71,13 +76,19 @@ def _noc(c, p, kind, place, nbytes):
 
 
 def _batches(c, p, d, ring, units, count, place, nbytes, lat_cr):
-    """One DM batch per unit (a tile or a block of tiles), `count` transfers of nbytes each: the reader's reserve /
-    reads / barrier / push (d = "rd") or the writer's wait / writes / flush / pop (d = "wr")."""
+    """One DM batch per unit (a tile or a block of tiles), `count` transfers of nbytes each (None: one per tile of the
+    unit): the reader's reserve / reads / barrier / push (d = "rd") or the writer's wait / writes / flush / pop (d = "wr")."""
     rd = d == "rd"
     lat, gap, svc, timed = _noc(c, p, "read" if rd else "write", place, nbytes)
     return [DMBatch(u, "space" if rd else "data", ring, c[f"{p}.{d}_fixed"], 0.0, (c.get(f"{p}.{d}_first", 0.0), 0.0, 0),
-                    c[f"{p}.{d}_issue"], [(count, lat, gap, svc, d)], 0 if rd else 1, timed, "push" if rd else "pop",
-                    lat_cr, dma=True) for u in units]
+                    c[f"{p}.{d}_issue"], [(count or len(u), lat, gap, svc, d)], 0 if rd else 1, timed,
+                    "push" if rd else "pop", lat_cr, dma=True) for u in units]
+
+
+def _groups(blocks, k):
+    """Tiles per DM barrier: groups of k tiles that never span two blocks (the last group of a block may be smaller);
+    k = 1 is the kernels' per-tile batch."""
+    return [b[j:j + k] for b in blocks for j in range(0, len(b), k)]
 
 
 def _queues(shared):
@@ -334,9 +345,9 @@ def build(op, cfg, c):
                                   1, True, "pop", lat_cr, dma=True))
     elif op == "tilize":
         rd = _batches(c, p, "rd", rin, blocks, TILE, cfg["in_place"], cfg["row_bytes"], lat_cr)
-        wr = _batches(c, p, "wr", rout, tiles, 1, cfg["out_place"], tile_bytes, lat_cr)
+        wr = _batches(c, p, "wr", rout, _groups(blocks, cfg.get("batch", 1)), None, cfg["out_place"], tile_bytes, lat_cr)
     else:
-        rd = _batches(c, p, "rd", rin, tiles, 1, cfg["in_place"], tile_bytes, lat_cr)
+        rd = _batches(c, p, "rd", rin, _groups(blocks, cfg.get("batch", 1)), None, cfg["in_place"], tile_bytes, lat_cr)
         wr = _batches(c, p, "wr", rout, blocks, TILE, cfg["out_place"], cfg["row_bytes"], lat_cr)
 
     # kernel prologue before the first DFB wait (args, address generators) and epilogue after the last batch
@@ -393,9 +404,23 @@ FAMILY = {"tilize": "tilize", "tilize_with_val_padding": "tilize", "untilize": "
 L1_HALF = 3670016 // 2  # bytes SingleCore factories may give their two DFBs (half of the usable L1)
 
 
-def plan(op, H, W, dtype="bf16", mem="dram", multicore=True):
+def plan(op, H, W, dtype="bf16", mem="dram", multicore=True, design=None):
     """Factory selection and work split (subset of the device ops' select logic: Default / MultiCore, SingleCore,
-    tilize Sharded). Returns the factory name and one per-core cfg per distinct core load: [(cfg, cores)]."""
+    tilize Sharded). Returns the factory name and one per-core cfg per distinct core load: [(cfg, cores)].
+
+    design: hypothetical layout knobs (DESIGN_KNOBS) for tilize Default / untilize MultiCore; a design that resolves to
+    the factory's own plan returns that plan unchanged (see resolve_design / design_loads)."""
+    factory, loads = _factory_plan(op, H, W, dtype, mem, multicore)
+    design = {k: v for k, v in (design or {}).items() if v is not None}
+    if not design:
+        return factory, loads
+    d = resolve_design(op, factory, H, W, dtype, design)
+    if not d["hypothetical"]:
+        return factory, loads
+    return factory, design_loads(H, W, ELEM[dtype], loads[0][0]["in_place"], d)
+
+
+def _factory_plan(op, H, W, dtype, mem, multicore):
     m = _ext(op)
     if m:
         return m.plan(op, H, W, dtype, mem, multicore)
@@ -511,6 +536,177 @@ def padded_plan(op, H, W, elem, place):
     return ("Default" if op == "tilize_with_val_padding" else "Interleaved"), loads
 
 
+# ------------------------------------------------------------------------------------------- hypothetical design
+# Knobs the pinned factories do not expose (tilize Default, untilize MultiCore only). Each variant runs the factory's
+# own kernel loops and fitted cost prefix (tz / utz): costs are per request, per byte, per barrier, per block and per
+# tile, so a different split, block width, DFB depth or barrier batch is timed with the same calibrated terms.
+DESIGN_KNOBS = ("cores", "split", "tiles_per_block", "dfb_blocks", "write_batch", "read_batch")
+DESIGN_FACTORIES = {("tilize", "Default"): "write_batch", ("untilize", "MultiCore"): "read_batch"}
+SPLITS = ("rows", "cols", "2d")
+
+
+def _largest_divisor_le(n, k):
+    return max(d for d in range(1, min(n, k) + 1) if n % d == 0)
+
+
+def _split(split, cores, ht, wt):
+    """(row_cores, tile-rows per core, col_chunks, tiles per chunk) of the busiest core. rows: split_blocks over
+    tile-rows; cols: the same row split, each tile-row cut into k = cores // row_cores column chunks (at most one per
+    tile column, widths ceil(wt / k) so every chunk has work); 2d: row_cores x col_chunks <= cores with the fewest
+    tiles on the busiest core (ties: fewer column chunks = longer stick reads, then fewer row cores)."""
+    if split == "2d":
+        best = None
+        for r in range(1, min(cores, ht) + 1):
+            per_r = math.ceil(ht / r)
+            r_eff = math.ceil(ht / per_r)
+            for k in range(1, min(wt, cores // r_eff) + 1):
+                chunk = math.ceil(wt / k)
+                key = (per_r * chunk, math.ceil(wt / chunk), r_eff)
+                if best is None or key < best[0]:
+                    best = (key, (r_eff, per_r, math.ceil(wt / chunk), chunk))
+        return best[1]
+    per_r, r, _ = split_blocks(cores, ht)
+    k = min(wt, max(1, cores // r)) if split == "cols" else 1
+    chunk = math.ceil(wt / k)
+    return r, per_r, math.ceil(wt / chunk), chunk
+
+
+def resolve_design(op, factory, H, W, dtype, design):
+    """The plan a set of design knobs resolves to, against the factory's own (every knob at its default: cores = GRID,
+    split rows, a block = the core's whole chunk, the factory's DFB depth, per-tile barriers). Raises ValueError for a
+    factory without the knobs or a value the shape cannot take. tiles_per_block snaps to the largest divisor of the
+    chunk width <= the request ("half": half the chunk); dfb_blocks and the batch clamp to what the core's work can use,
+    so knobs that change nothing resolve to the factory plan (hypothetical False)."""
+    design = {k: v for k, v in (design or {}).items() if v is not None}
+    batch_knob = DESIGN_FACTORIES.get((op, factory))
+    if batch_knob is None:
+        raise ValueError(f"layout design knobs ({', '.join(sorted(design))}) are modeled for tilize Default and untilize "
+                         f"MultiCore only, not {op} {factory}")
+    other = "read_batch" if batch_knob == "write_batch" else "write_batch"
+    if other in design:
+        raise ValueError(f"{other} is not a knob of {op} {factory}: its batched DM thread takes {batch_knob}")
+    elem = ELEM[dtype]
+    ht, wt = math.ceil(H / TILE), math.ceil(W / TILE)
+    cores, split = design.get("cores", GRID), design.get("split", "rows")
+    if not isinstance(cores, int) or not 1 <= cores <= GRID:
+        raise ValueError(f"cores must be 1..{GRID}")
+    if split not in SPLITS:
+        raise ValueError(f"split must be one of {', '.join(SPLITS)}")
+    r, per_r, k, chunk = _split(split, cores, ht, wt)
+    tpb = design.get("tiles_per_block") or chunk
+    if tpb == "half":
+        tpb = max(1, chunk // 2)
+    if not isinstance(tpb, int) or tpb < 1:
+        raise ValueError('tiles_per_block must be a positive integer or "half"')
+    tpb = _largest_divisor_le(chunk, tpb)
+    blocks = per_r * (chunk // tpb)
+    rule_dfb = min(1 if op == "tilize" else 2, blocks)  # the factory's DFB depth for this many blocks
+    dfb = design.get("dfb_blocks", rule_dfb)
+    if dfb not in (1, 2, 3):
+        raise ValueError("dfb_blocks must be 1, 2 or 3")
+    dfb = min(dfb, blocks)
+    batch = design.get(batch_knob, 1)
+    if not isinstance(batch, int) or batch < 1:
+        raise ValueError(f"{batch_knob} must be a positive integer")
+    batch = min(batch, tpb)
+    per_f, n_f, _ = split_blocks(GRID, ht)
+    sig = (r, per_r, k, chunk, tpb, dfb, batch)
+    hyp = sig != (n_f, per_f, 1, wt, wt, min(1 if op == "tilize" else 2, per_f), 1)
+    if hyp and 2 * dfb * tpb * TILE * TILE * elem > L1_HALF:
+        raise ValueError(f"DFBs of {dfb} x {tpb} tiles ({2 * dfb * tpb * TILE * TILE * elem} B for in + out) exceed the "
+                         f"{L1_HALF} B budget; use fewer tiles_per_block or dfb_blocks")
+    changed = []
+    if r * k != n_f:
+        changed.append(f"cores={r * k}")
+    if k > 1:
+        changed.append(f"split={split} ({r}x{k})")
+    if tpb != chunk:
+        changed.append(f"tiles_per_block={tpb}")
+    if dfb != rule_dfb:
+        changed.append(f"dfb_blocks={dfb}")
+    if batch > 1:
+        changed.append(f"{batch_knob}={batch}")
+    if hyp and not changed:
+        changed.append(f"cores={r * k} ({per_r} tile-rows each)")
+    return {"split": "rows" if k == 1 else split, "cores": r * k, "row_cores": r, "rows_per_core": per_r,
+            "col_chunks": k, "chunk": chunk, "tiles_per_block": tpb, "blocks": blocks, "dfb_blocks": dfb,
+            "batch_knob": batch_knob, "batch": batch, "sig": sig, "hypothetical": hyp, "changed": changed}
+
+
+def design_loads(H, W, elem, place, d):
+    """Per-core loads of a resolved design. Only the busiest core (full tile-rows x a full chunk) is run; the others
+    (cliff tile-rows, the narrower last chunk: less work on the same loops) carry their tile counts for the cross-core
+    L1 bound and the core count (skip=True)."""
+    ht, wt = math.ceil(H / TILE), math.ceil(W / TILE)
+    tpb = d["tiles_per_block"]
+    base = dict(elem=elem, in_place=place, out_place=place)
+    whole_row = d["col_chunks"] == 1 and tpb == wt  # a stick read covers the logical row, as the factory's
+    busiest = dict(base, blocks=d["blocks"], wt=tpb, row_bytes=(W if whole_row else tpb * TILE) * elem, cap=d["dfb_blocks"] * tpb,
+                   batch=d["batch"], split=d["split"], row_cores=d["row_cores"], col_chunks=d["col_chunks"])
+
+    def groups(full, n, total):
+        last = total - (n - 1) * full
+        return [(full, n)] if last == full else [(full, n - 1), (last, 1)]
+
+    loads = []
+    for nr, cr in groups(d["rows_per_core"], d["row_cores"], ht):
+        for nc, cc in groups(d["chunk"], d["col_chunks"], wt):
+            if not cr * cc:
+                continue
+            if nr == d["rows_per_core"] and nc == d["chunk"]:
+                loads.insert(0, (busiest, cr * cc))
+            else:
+                loads.append((dict(base, blocks=nr, wt=nc, row_bytes=nc * TILE * elem, tiles=nr * nc, skip=True), cr * cc))
+    return loads
+
+
+def structure(op, factory, H, W, loads, cfg, c):
+    """Compact description of one core (cfg, the busiest of loads) and the grid, for reports. None for the ops it does
+    not describe (sharding moves, registered modules). Counts follow build()'s loops."""
+    if _ext(op) or op in SHARD_OPS:
+        return None
+    fam = FAMILY[op]
+    nb, wt, elem = cfg["blocks"], cfg["wt"], cfg["elem"]
+    tile_bytes = TILE * TILE * elem
+    n = nb * wt
+    rows = cfg.get("rows") or [TILE] * nb
+    cores = sum(cnt for _, cnt in loads)
+    if "split" in cfg:
+        split, rc, kc = cfg["split"], cfg["row_cores"], cfg["col_chunks"]
+    elif factory == "Block":  # S x S-tile squares
+        side = loads[0][0]["wt"]
+        split, rc, kc = "2d", math.ceil(math.ceil(H / TILE) / side), math.ceil(math.ceil(W / TILE) / side)
+    else:
+        split, rc, kc = "rows", cores, 1
+    tile_req = {"requests": n, "bytes_per_request": tile_bytes, "barriers": nb * math.ceil(wt / cfg.get("batch", 1))}
+    borrowed = cfg["in_place"] == "borrowed"
+    if borrowed:  # the shard backs both DFBs: no NoC traffic
+        reader = {"requests": 0, "bytes_per_request": 0, "barriers": 0}
+        writer = dict(reader)
+    elif fam == "tilize":
+        per_row = op == "tilize_with_val_padding" and factory == "SingleCore"  # a barrier after every row read
+        reader = {"requests": sum(rows), "bytes_per_request": cfg["row_bytes"], "barriers": sum(rows) if per_row else nb}
+        writer = tile_req
+    else:
+        reader = tile_req
+        writer = {"requests": sum(rows), "bytes_per_request": cfg["row_bytes"], "barriers": sum(1 for r in rows if r)}
+    if fam == "tilize":
+        compute = {"steps": nb, "tiles_per_step": wt, "kind": "tilize_block"}
+    else:
+        sw = sub_block_width(wt, elem)
+        compute = {"steps": nb * (wt // sw), "tiles_per_step": sw, "kind": "untilize"}
+    cap = cfg.get("cap") or wt
+    if op == "untilize" and nb > 1 and not cfg.get("cap"):  # as build()
+        p = PREFIX[(op, factory)]
+        cap = (2 if factory == "MultiCore" else int(dtype_costs(c, p, elem).get(f"{p}.dfb_blocks", 1))) * wt
+    entries = n if borrowed else cap
+    return {"factory": factory, "grid": [GRID_X, GRID_Y], "cores_used": cores, "split": split, "row_cores": rc,
+            "col_chunks": kc, "source": cfg["in_place"], "dest": cfg["out_place"],
+            "per_core": {"blocks": nb, "tiles_per_block": wt, "tiles": n},
+            "reader": reader, "compute": compute, "writer": writer,
+            "dfb": {"in_entries": entries, "out_entries": entries, "entry_bytes": tile_bytes}}
+
+
 def prefix_of(op, factory):
     """Cost prefix of (op, factory), from this module or a registered one."""
     m = _ext(op)
@@ -522,17 +718,19 @@ def family_of(op):
     return (m.FAMILY if m else FAMILY).get(op)
 
 
-def estimate(op, H, W, costs, dtype="bf16", mem="dram", multicore=True, trace=0):
-    """Busiest core's span (cycles) of one tilize/untilize, with the factory and per-load results."""
-    factory, loads = plan(op, H, W, dtype, mem, multicore)
+def estimate(op, H, W, costs, dtype="bf16", mem="dram", multicore=True, trace=0, design=None):
+    """Busiest core's span (cycles) of one tilize/untilize, with the factory, per-load results and the whole plan
+    (every load, including those not run)."""
+    factory, loads = plan(op, H, W, dtype, mem, multicore, design)
     for cfg, _ in loads:
         cfg["factory"] = factory
     active = sum(n for cfg, n in loads if "l1" in (cfg.get("in_place"), cfg.get("out_place")))
     if active:
         costs = dict(costs, _active_l1_cores=active)
-    results = [(cfg, cores, run(build(op, cfg, costs), trace)) for cfg, cores in loads if cfg["blocks"]]
+    results = [(cfg, cores, run(build(op, cfg, costs), trace)) for cfg, cores in loads
+               if cfg["blocks"] and not cfg.get("skip")]
     span = max(r["makespan"] for _, _, r in results)
-    out = {"factory": factory, "span": span, "loads": results}
+    out = {"factory": factory, "span": span, "loads": results, "plan": loads}
     # Global bound: all cores' NoC traffic to / from L1 shares the network (<p>.l1_gbw bytes/cycle, fitted where L1
     # runs exist; ttsim-perf times it): with many cores moving L1 data at once the op cannot finish sooner.
     p = prefix_of(op, factory)
