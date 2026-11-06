@@ -5,12 +5,28 @@
 #           hhh = height-sharded over all 32 clusters, tpc tiles each: everything borrowed (compute only)
 #           any other mix of d/l per operand (a, b, out), e.g. lld or ddl: the lll shape, each operand in its own
 #           memory, to separate L1-NoC read and write costs
+# op: a binary op of ttnn.experimental.quasar with a torch reference in REF; <op>_fast runs it with
+# fast_and_approximate_mode=True (bf16 multiply then runs the FPU kernel). QPERF_BCAST=row|col|scalar shapes b as a
+# subtile broadcast, to see which factory runs it.
 # Knobs come from the environment (TTNN_QSR_*); the record keeps them and the factory's own config log lines,
 # so the routing is read from the program, not inferred.
 import collections, csv, json, os, pathlib, statistics, sys
 import torch, ttnn
 
 op, dtype, tpc, layout = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+fast = op.endswith("_fast")
+fn_name = op[:-5] if fast else op
+bcast = os.environ.get("QPERF_BCAST", "")
+REF = {"add": torch.add, "multiply": torch.mul, "subtract": torch.sub, "rsub": lambda a, b: b - a,
+       "divide": torch.div, "maximum": torch.maximum, "minimum": torch.minimum, "logaddexp": torch.logaddexp,
+       "logaddexp2": torch.logaddexp2, "squared_difference": lambda a, b: (a - b) ** 2, "hypot": torch.hypot,
+       "ldexp": lambda a, b: a * torch.pow(2.0, b), "bias_gelu": lambda a, b: torch.nn.functional.gelu(a + b),
+       "gt": lambda a, b: (a > b).float(), "lt": lambda a, b: (a < b).float(), "eq": lambda a, b: (a == b).float(),
+       "ne": lambda a, b: (a != b).float(), "ge": lambda a, b: (a >= b).float(), "le": lambda a, b: (a <= b).float(),
+       "logical_and": lambda a, b: ((a != 0) & (b != 0)).float(),
+       "logical_or": lambda a, b: ((a != 0) | (b != 0)).float(),
+       "logical_xor": lambda a, b: ((a != 0) ^ (b != 0)).float(), "atan2": torch.atan2, "xlogy": torch.xlogy,
+       "pow": torch.pow, "remainder": torch.remainder}
 prof = pathlib.Path(os.environ["TT_METAL_PROFILER_DIR"]) / ".logs" / "profile_log_device.csv"
 if prof.exists():
     prof.unlink()
@@ -35,12 +51,15 @@ try:
     mems = [mem or {"d": ttnn.DRAM_MEMORY_CONFIG, "l": ttnn.L1_MEMORY_CONFIG}[x] for x in layout]
     cfg = dict(dtype=dt, layout=ttnn.TILE_LAYOUT, device=device)
     a = ttnn.from_torch(torch.rand(*shape) * 2 + 0.5, memory_config=mems[0], **cfg)
-    b = ttnn.from_torch(torch.rand(*shape) * 2 + 0.5, memory_config=mems[1], **cfg)
-    out = getattr(ttnn.experimental.quasar, op)(a, b, memory_config=mems[2])
+    bshape = {"": shape, "row": shape[:-2] + (1, shape[-1]), "col": shape[:-1] + (1,),
+              "scalar": shape[:-2] + (1, 1)}[bcast]
+    b = ttnn.from_torch(torch.rand(*bshape) * 2 + 0.5, memory_config=mems[1], **cfg)
+    kw = {"fast_and_approximate_mode": True} if fast else {}
+    out = getattr(ttnn.experimental.quasar, fn_name)(a, b, memory_config=mems[2], **kw)
     got = ttnn.to_torch(out).float()
-    ref = {"add": torch.add, "multiply": torch.mul, "subtract": torch.sub}[op](
-        ttnn.to_torch(a).float(), ttnn.to_torch(b).float())
+    ref = REF[fn_name](ttnn.to_torch(a).float(), ttnn.to_torch(b).float())  # b of height / width 1 broadcasts
     max_err = (got - ref).abs().max().item()
+    rel_err = ((got - ref).abs() / ref.abs().clamp(min=1e-3)).max().item()
     ttnn.ReadDeviceProfiler(device)
 finally:
     ttnn.close_device(device)
@@ -81,4 +100,6 @@ knobs = {k: v for k, v in os.environ.items() if k.startswith("TTNN_QSR_")}
 print("JSON " + json.dumps({
     "layout": layout, "op": op, "dtype": dtype, "tpc": tpc, "clusters": len(spans), "tree": tree, "knobs": knobs,
     "span_med": statistics.median(spans), "span_max": max(spans), "span_min": min(spans),
-    "op_span": max(lasts) - min(firsts), "max_abs_err": max_err, "roles": role_times, "zones": zones}))
+    "op_span": max(lasts) - min(firsts), "max_abs_err": max_err, "max_rel_err": rel_err,
+    **({"bcast": bcast} if bcast else {}), **({"fast_and_approximate_mode": True} if fast else {}),
+    "roles": role_times, "zones": zones}))
