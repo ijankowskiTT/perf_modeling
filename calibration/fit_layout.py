@@ -19,7 +19,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from qperf.ops import registry  # noqa: E402
-from qperf.ops.layout import estimate, family_of, plan, prefix_of  # noqa: E402
+from qperf.ops.layout import TILIZE_TWO_STAGE, estimate, family_of, plan, prefix_of  # noqa: E402
 
 FIT_KEYS = ["rd_cpb", "wr_cpb", "rd_setup", "wr_setup", "rd_fixed", "rd_issue", "rd_first", "rd_tail", "um_fixed",
             "um_per_tile", "pk_fixed", "pk_per_tile", "cu_first", "wr_fixed", "wr_issue", "wr_first", "wr_tail",
@@ -36,7 +36,8 @@ def keys_for(op, fac):
         if op == "interleaved_to_sharded":
             return common + ["rd_fixed", "rd_issue", "rd_first", "rd_cpb"]
         return common + ["wr_issue", "wr_first", "wr_cpb"]
-    cu = ["cu_fixed", "cu_per_tile"] if family_of(op) == "tilize" else ["um_fixed", "um_per_tile", "pk_fixed", "pk_per_tile"]
+    two_stage = family_of(op) != "tilize" or prefix_of(op, fac) in TILIZE_TWO_STAGE  # unpack+math | pack via DEST
+    cu = ["um_fixed", "um_per_tile", "pk_fixed", "pk_per_tile"] if two_stage else ["cu_fixed", "cu_per_tile"]
     if fac == "Sharded":  # no NoC traffic: publish all, compute, pop all
         return ["rd_setup", "wr_setup", "rd_fixed", "rd_tail"] + cu + ["cu_first", "cu_tail", "wr_fixed", "wr_tail", "drain"]
     # padding fill: DMA zero-fill (multicore) or a CPU store loop (SingleCore)

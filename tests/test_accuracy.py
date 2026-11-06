@@ -79,10 +79,10 @@ def test_platform_scope_carries_no_op_error():
 
 
 @pytest.mark.parametrize("req_,want,not_want", [
-    (layout_req(), "tilize Default on ttsim-perf: 1.2% mean error over 56 bf16", "8.5%"),
+    (layout_req(), "tilize Default on ttsim-perf: 1.1% mean error over 56 bf16", "8.5%"),
     (layout_req("untilize", costs="craq-sim"), "untilize MultiCore on craq-sim: 0.4% mean error", "2.1%"),
     (layout_req("untilize", (256, 8192)), "untilize Block on ttsim-perf: 0.7%", "8.5%"),
-    (dict(layout_req(), workload=dict(layout_req()["workload"], dtype="fp32")), "1.4% mean error over 56 fp32", "1.2%"),
+    (dict(layout_req(), workload=dict(layout_req()["workload"], dtype="fp32")), "1.5% mean error over 56 fp32", "1.1%"),
     (binary_req("add", "craq-sim"), "binary_ng add bf16 on craq-sim: 2.1%", "1.4%"),
     (binary_req("multiply", "craq-sim"), "binary_ng multiply bf16 on craq-sim: 1.4%", "2.1%"),
     (binary_req("add", "ttsim-perf", "l1"), "8.5% mean error with an L1-interleaved operand, as here", None),
@@ -103,15 +103,34 @@ def test_hypothetical_rows_say_so():
                                                                                          {"use_multicore": False}}]))
     assert validate_response(r) == []
     g, sc = r["candidates"]
-    # dfb_blocks has no simulator runs (split 2d resolves to rows at 2048x512); write_batch has: partly validated
-    assert g["accuracy"] == ("hypothetical setup, partly validated: write_batch validated: the factory's own kernels "
-                             "with only write_batch changed (4, 8) ran 24 times on ttsim-perf over 12 shapes "
-                             "(H 32-4096, W 256-2048): 0.8% mean error, 1.0% on the speedup over write_batch=1; "
-                             "dfb_blocks: no simulator measurement; built from costs with 1.2% "
-                             "error on the factory (tilize Default, ttsim-perf)")
+    # split 2d resolves to rows at 2048x512: dfb_blocks and write_batch are left, each validated and also run together
+    assert g["accuracy"] == ("hypothetical setup: dfb_blocks validated: the factory's own kernels with only dfb_blocks "
+                             "changed (2) ran 18 times on ttsim-perf over 18 shapes (H 32-8192, W 256-2048): 0.7% mean "
+                             "error, 0.5% on the speedup over dfb_blocks=1; write_batch validated: the factory's own "
+                             "kernels with only write_batch changed (4, 8) ran 24 times on ttsim-perf over 12 shapes "
+                             "(H 32-4096, W 256-2048): 0.7% mean error, 1.0% on the speedup over write_batch=1; dfb_blocks "
+                             "and write_batch validated together: the factory's own kernels with only dfb_blocks and "
+                             "write_batch changed (dfb_blocks=2, write_batch=8) ran 18 times on ttsim-perf over 18 shapes "
+                             "(H 32-8192, W 256-2048): 0.5% mean error, 0.8% on the speedup over the pinned kernels; built "
+                             "from costs with 1.1% error on the factory (tilize Default, ttsim-perf)")
     assert sc["accuracy"].startswith("tilize SingleCore on ttsim-perf: 1.1% mean error")
     assert r["baseline"]["accuracy"] == r["accuracy"]
     assert f"accuracy: {g['accuracy']}" in _text(r)
+
+
+@pytest.mark.parametrize("over,want,not_want", [
+    # the cores split cols sets itself belong to the split: validated, not partly
+    ({"split": "cols"}, "hypothetical setup: split validated: the factory's own kernels with only split changed (cols) ran "
+                        "14 times on ttsim-perf over 14 shapes (H 32-4096, W 512-2048)", "cores"),
+    ({"split": "cols", "cores": 16}, "partly validated: split validated", None),  # a core count of its own: no runs
+    ({"split": "2d"}, "hypothetical setup: no simulator measurement", "split validated"),  # only split cols ran
+    ({"dfb_blocks": 2, "tiles_per_block": "half"}, "partly validated: dfb_blocks validated", "together"),
+])
+def test_split_and_combinations_are_validated_per_value(over, want, not_want):
+    r = analyze(layout_req(shape=(256, 2048), action="compare", candidates=[{"id": "x", "overrides": over}]))
+    assert validate_response(r) == []
+    acc = r["candidates"][0]["accuracy"]
+    assert want in acc and (not_want is None or not_want not in acc), acc
 
 
 # -------------------------------------------------------------------------------------------------- extrapolation
@@ -247,7 +266,8 @@ def test_dram_channels_bound_large_layout_ops_on_silicon_hypothesis(no_dram):
     for r in (sim, hyp, off):
         assert r["status"] == "ok" and validate_response(r) == []
     sp = lambda r: r["candidates"][0]["comparison"]["speedup_vs_baseline"]["nominal"]  # noqa: E731
-    assert sp(sim) > 2 and sp(hyp) < sp(sim) and sp(hyp) < sp(off)
+    # ttsim-perf ran dfb_blocks 2 + write_batch 8 at 8192x2048 (tilize-dfb-ttsim-perf.jsonl): 1.96x; split 2d is rows here
+    assert sp(sim) > 1.9 and sp(hyp) < sp(sim) and sp(hyp) < sp(off)
     for row in (hyp["baseline"], hyp["candidates"][0]):
         assert row["bottleneck"]["resource"] == "dram_global" and row["dram"]["bound"]
         # the channels' full rate is a lower bound the queued run cannot beat (and does not equal: fill, drain)

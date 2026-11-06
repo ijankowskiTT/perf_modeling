@@ -210,3 +210,39 @@ def test_batched_writer_runs_within_acceptance(profile):
     v = json.load(open(os.path.join(ROOT, "profiles", "accuracy.json")))["hypothetical_validation"]
     v = v["tilize Default write_batch"][profile]
     assert v["runs"] == len(errs) == 24 and abs(v["mean"] - sum(errs) / len(errs)) <= 0.001
+
+
+@pytest.mark.parametrize("profile", ["craq-sim", "ttsim-perf"])
+@pytest.mark.parametrize("name,designs,n_shapes", [
+    ("tilize-dfb", ({"dfb_blocks": 2}, {"dfb_blocks": 2, "write_batch": 8}), 18),
+    ("tilize-cols", ({"split": "cols"},), 14),
+])
+def test_dfb_and_cols_runs_within_acceptance(profile, name, designs, n_shapes):
+    """tilize Default kernel variants of calibration/variants/tilize_dfb_cols.patch: dfb_blocks 2 (alone and with
+    write_batch 8) over 18 shapes, split cols over 14 (2 tall shapes where cols resolves to rows), each file with the
+    pinned kernels at the same shapes. Mean error <= 2% per design, the speedup over the pinned kernels within 2% on
+    average, gains predicted where measured (> 3%), and the accuracy table states the same numbers."""
+    prof = load("costs", profile)[0]
+    c = {k: _pick(v, "nominal") for k, v in prof["params"].items()}
+    meas, pred = {}, {}
+    for line in open(os.path.join(ROOT, "calibration", "data", f"{name}-{profile}.jsonl")):
+        r = json.loads(line)
+        assert r["max_abs_err"] == 0
+        d = None if r["kernel_variant"] == "pinned" else json.dumps(r["design"], sort_keys=True)
+        meas[(d, r["H"], r["W"])] = r["span_max"]
+        pred[(d, r["H"], r["W"])] = estimate(r["op"], r["H"], r["W"], c, r["dtype"], r["mem"], r["multicore"],
+                                             design=None if d is None else r["design"])["span"]
+    shapes = sorted({k[1:] for k in meas})
+    keys = [json.dumps(d, sort_keys=True) for d in designs]
+    assert len(shapes) == n_shapes and set(meas) == {(d,) + s for d in [None] + keys for s in shapes}
+    v = json.load(open(os.path.join(ROOT, "profiles", "accuracy.json")))["hypothetical_validation"]
+    for d, k in zip(designs, keys):
+        e = [abs(pred[(k,) + s] / meas[(k,) + s] - 1) for s in shapes]
+        assert sum(e) / len(e) <= 0.02, (profile, k, sum(e) / len(e))
+        ms = {s: meas[(None,) + s] / meas[(k,) + s] for s in shapes}
+        ps = {s: pred[(None,) + s] / pred[(k,) + s] for s in shapes}
+        sp = [abs(ps[s] / ms[s] - 1) for s in shapes]
+        assert sum(sp) / len(sp) <= 0.02, (profile, k, sum(sp) / len(sp))
+        assert all(ps[s] > 1.01 for s in shapes if ms[s] > 1.03), (profile, k)
+        stored = v["tilize Default " + "+".join(sorted(d))][profile]
+        assert stored["runs"] == n_shapes and abs(stored["mean"] - sum(e) / len(e)) <= 0.001

@@ -560,16 +560,21 @@ def run_survey(req, base_knobs, profile, what_if, analysis, t_start, compare=Tru
     if any(hyp_any.values()) and not accuracy.source_of(profile)[1]:
         acc += "; approaches marked hypothetical: " + accuracy.hypothetical_note(profile, op, base_fac, dtype).removeprefix(
             "hypothetical setup: ")
-        # approaches whose only knob has simulator runs of a kernel variant (e.g. tilize write_batch): say so
-        by_knob = {}
+        # approaches whose knobs all have simulator runs of a kernel variant (e.g. tilize write_batch, dfb_blocks,
+        # split cols; a split's own core count belongs to the split): say so
+        by_knobs = {}
         for aid, ov in approaches:
-            knobs = set(ov) & set(DESIGN_KNOBS)
-            if hyp_any[aid] and len(knobs) == 1 and knobs == set(ov):
-                by_knob.setdefault(next(iter(knobs)), []).append(aid)
-        for knob, aids in sorted(by_knob.items()):
-            v = accuracy.validation(profile, op, base_fac, knob)
-            if v:
-                acc += f" (except {', '.join(aids)}: {accuracy.validation_txt(profile, knob, v)})"
+            if not hyp_any[aid] or not set(ov) <= set(DESIGN_KNOBS):
+                continue
+            knobs = accuracy.validated_knobs(ov, [f"{k}={v}" for k, v in ov.items()])
+            if knobs and all(accuracy.validation(profile, op, base_fac, k, v) for k, v in knobs.items()):
+                by_knobs.setdefault(tuple(sorted(knobs)), []).append(aid)
+        for knobs, aids in sorted(by_knobs.items()):
+            txt = [accuracy.validation_txt(profile, k, accuracy.validation(profile, op, base_fac, k)) for k in knobs]
+            both = accuracy.validation(profile, op, base_fac, "+".join(knobs)) if len(knobs) > 1 else None
+            if both:
+                txt.append(accuracy.validation_txt(profile, "+".join(knobs), both))
+            acc += f" (except {', '.join(aids)}: {'; '.join(txt)})"
     elif any(hyp_any.values()):  # a derived profile
         acc += "; the approaches marked hypothetical are not in the kernels either: no simulator measurement"
     others = sorted({f for a in facs.values() for f in a} - {base_fac})

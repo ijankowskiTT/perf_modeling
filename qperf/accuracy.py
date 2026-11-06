@@ -6,7 +6,8 @@ calibration/make_accuracy.py from calibration/data (mean error per profile, fact
 width and elements among the factory's runs; tests/test_accuracy.py keeps it current). A profile derived from another
 (silicon-hypothesis: calibration.derived_from ttsim-perf@...) borrows the source's numbers and says it is a hypothesis.
 A hypothetical design knob run on the simulators as a kernel variant (accuracy.json hypothetical_validation, e.g. tilize
-Default write_batch) is stated as validated for rows whose only non-default knob it is, partly validated with others.
+Default write_batch, dfb_blocks, split cols) is stated as validated; a row whose knobs are all validated is validated
+(with the runs of that combination where they exist), partly validated when some knob has no runs.
 """
 
 from __future__ import annotations
@@ -45,19 +46,44 @@ def table():
     return _table
 
 
-def validation(profile, op, factory, knob):
+CATEGORICAL = ("split",)  # knobs validated per value (split cols says nothing about split 2d)
+KNOB_DEFAULT = {"split": "rows"}  # the pinned kernels' value (numeric knobs: 1)
+
+
+def validation(profile, op, factory, knob, value=None):
     """The simulator validation of one hypothetical design knob of a factory on the profile's calibration source
-    ({"mean", "max", "runs", "speedup_mean", "values", "data"}), or None."""
+    ({"mean", "max", "runs", "speedup_mean", "values", "data"}), or None. knob "a+b": runs that changed both together.
+    A categorical knob (split) is validated only for the values that ran."""
     _load()
-    return _validation.get(f"{op} {factory} {knob}", {}).get(source_of(profile)[0])
+    v = _validation.get(f"{op} {factory} {knob}", {}).get(source_of(profile)[0])
+    if v and value is not None and knob in CATEGORICAL and value not in v["values"]:
+        return None
+    return v
+
+
+def validated_knobs(design, changed):
+    """{knob: value} of the design knobs a hypothetical setup changes (resolve_design's `changed`), as the accuracy
+    statement checks them: the core count a split itself sets (cores left at the default) belongs to the split."""
+    from .ops.layout import GRID
+
+    design = {k: v for k, v in (design or {}).items() if v is not None}
+    names = {ch.split("=")[0] for ch in changed}
+    if "split" in names and design.get("cores", GRID) == GRID:
+        names.discard("cores")
+    return {k: design.get(k) for k in sorted(names)}
 
 
 def validation_txt(profile, knob, v):
-    """'write_batch validated on 24 ttsim-perf simulator runs (write_batch 4, 8): 0.8% mean error, 1.0% on the speedup
-    over the pinned kernel'."""
-    sp = "" if v.get("speedup_mean") is None else f", {_pct(v['speedup_mean'])} on the speedup over {knob}=1"
-    return (f"{knob} validated: the factory's own kernels with only {knob} changed ({', '.join(map(str, v['values']))}) "
-            f"ran {v['runs']} times on {source_of(profile)[0]}{_shape_range(v)}: {_pct(v['mean'])} mean error{sp}")
+    """'write_batch validated: the factory's own kernels with only write_batch changed (4, 8) ran 24 times on
+    ttsim-perf over 12 shapes (H 32-4096, W 256-2048): 0.8% mean error, 1.0% on the speedup over write_batch=1'.
+    knob "a+b": the runs that changed both knobs together, against the pinned kernels."""
+    both = knob.split("+")
+    base = "the pinned kernels" if len(both) > 1 else f"{knob}={KNOB_DEFAULT.get(knob, 1)}"
+    sp = "" if v.get("speedup_mean") is None else f", {_pct(v['speedup_mean'])} on the speedup over {base}"
+    what = f"{knob} validated" if len(both) == 1 else f"{' and '.join(both)} validated together"
+    return (f"{what}: the factory's own kernels with only {' and '.join(both)} changed "
+            f"({('; ' if len(both) > 1 else ', ').join(map(str, v['values']))}) ran {v['runs']} times on {source_of(profile)[0]}{_shape_range(v)}: "
+            f"{_pct(v['mean'])} mean error{sp}")
 
 
 def _shape_range(v):
@@ -131,16 +157,21 @@ def _factory_error(profile, op, factory, dtype):
 
 
 def hypothetical_note(profile, op, factory, dtype, knobs=None):
-    """The accuracy of a hypothetical design of the factory. knobs: the design knobs it changes; those with simulator
-    runs of a kernel variant (validation) are stated as validated, the others have no simulator measurement."""
+    """The accuracy of a hypothetical design of the factory. knobs: the design knobs it changes ({knob: value}, see
+    validated_knobs, or names); those with simulator runs of a kernel variant (validation) are stated as validated,
+    the others have no simulator measurement. All validated: also the runs of that combination, where they exist."""
     src = source_of(profile)[0]
     err, dt, _ = _factory_error(profile, op, factory, dtype)
     base = (f"built from costs with {_pct(err) if err is not None else 'unknown'} error on the factory ({op} {factory}, "
             f"{src}{'' if dt in (None, dtype) else f', {dt} runs'})")
-    knobs = sorted(set(knobs or ()))
-    checked = {k: validation(profile, op, factory, k) for k in knobs}
+    knobs = dict(knobs) if isinstance(knobs, dict) else dict.fromkeys(knobs or ())
+    checked = {k: validation(profile, op, factory, k, knobs[k]) for k in sorted(knobs)}
     done = [validation_txt(profile, k, v) for k, v in checked.items() if v]
     rest = [k for k, v in checked.items() if not v]
+    combo = "+".join(sorted(knobs))
+    together = validation(profile, op, factory, combo) if len(knobs) > 1 and not rest else None
+    if together:
+        done.append(validation_txt(profile, combo, together))
     if done and not rest:
         return f"hypothetical setup: {'; '.join(done)}; {base}"
     if done:

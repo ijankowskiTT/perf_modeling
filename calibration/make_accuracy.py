@@ -4,8 +4,9 @@ simulator runs in calibration/data (per dtype) and the calibrated shape range (l
 qperf/accuracy.py reads it to state an op-specific accuracy on every answer and to flag shapes beyond the calibrated
 range as extrapolated. hypothetical_validation: a hypothetical design knob run on the simulators as a kernel variant
 (calibration/data/<VALIDATION>-<profile>.jsonl, records with a `design` and a non-pinned kernel_variant): the model's
-mean error on those runs and on their speedup over the pinned kernel at the same shape; answers whose only
-non-default knob is that one say it is validated. tests/test_accuracy.py recomputes the table and fails when it is stale. Rerun after a refit or
+mean error on those runs and on their speedup over the pinned kernel at the same shape; answers whose non-default
+knobs all have such runs say they are validated. Runs that change several knobs at once are kept under the joined key
+(e.g. "dfb_blocks+write_batch"). tests/test_accuracy.py recomputes the table and fails when it is stale. Rerun after a refit or
 new calibration runs:
     python calibration/make_accuracy.py
 """
@@ -23,7 +24,7 @@ from qperf.profiles import load  # noqa: E402
 
 PROFILES = ("craq-sim", "ttsim-perf")
 FAMILIES = ("layout", "fp32layout", "rowmajor", "move", "reshard")  # calibration/data/<family>-<profile>.jsonl
-VALIDATION = ("tilize-wbatch",)  # calibration/data/<name>-<profile>.jsonl: kernel-variant runs of a design knob
+VALIDATION = ("tilize-wbatch", "tilize-dfb", "tilize-cols")  # calibration/data/<name>-<profile>.jsonl: kernel-variant runs of a design knob
 OUT = os.path.join(ROOT, "profiles", "accuracy.json")
 
 
@@ -58,8 +59,9 @@ def compute():
 
 def validation():
     """{"<op> <factory> <knob>": {profile: {"mean", "max", "runs", "speedup_mean", "values", "data"}}}: mean
-    |model / simulator - 1| over the kernel-variant runs of one design knob, and over each run's speedup against the
-    pinned kernel's run of the same shape (same file), at nominal costs."""
+    |model / simulator - 1| over the kernel-variant runs of one design knob (or of several knobs changed together,
+    knob = "a+b", values "a=x, b=y"), and over each run's speedup against the pinned kernel's run of the same shape
+    (same file), at nominal costs."""
     out = {}
     for prof in PROFILES:
         p, _ = load("costs", prof)
@@ -72,9 +74,10 @@ def validation():
             groups = {}
             for r in rs:
                 d = {k: v for k, v in (r.get("design") or {}).items() if v is not None}
-                if r.get("kernel_variant", "pinned") == "pinned" or len(d) != 1:
+                if r.get("kernel_variant", "pinned") == "pinned" or not d:
                     continue
-                (knob, value), = d.items()
+                knob = "+".join(sorted(d))
+                value = next(iter(d.values())) if len(d) == 1 else ", ".join(f"{k}={d[k]}" for k in sorted(d))
                 e = estimate(r["op"], r["H"], r["W"], c, r["dtype"], r["mem"], r["multicore"], design=d)
                 g = groups.setdefault(f"{r['op']} {e['factory']} {knob}", {"err": [], "sp": [], "values": set()})
                 g["err"].append(abs(e["span"] / r["span_max"] - 1))
