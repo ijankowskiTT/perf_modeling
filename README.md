@@ -104,7 +104,7 @@ Mean error per factory against the simulators, bf16 and fp32:
 
 | Op | Factories / paths | craq-sim | ttsim-perf |
 |---|---|---|---|
-| binary_ng `add`, `multiply` | native; any threads, batch, tiles_per_cycle, ring depth | ~1-2% | DRAM ~1.4%, L1 ~8% |
+| binary_ng `add`, `subtract`, `multiply`, `divide` | native; any threads, batch, tiles_per_cycle, ring depth | ~1-2.6% | DRAM ~1.4%, L1 ~8% (divide 2.5%) |
 | `tilize` | Default, SingleCore, Sharded | <=1.6% | <=1.4% |
 | `untilize` | MultiCore, SingleCore, Block | <=2.2% | <=1.4% |
 | `tilize_with_val_padding` | Default, SingleCore | <=2.4% | <=2.8% |
@@ -116,7 +116,7 @@ Mean error per factory against the simulators, bf16 and fp32:
 Details are in [docs/CALIBRATION.md](docs/CALIBRATION.md).
 
 Not covered (answered as `unsupported`, never with a number):
-- other ops;
+- other ops, including binary ops the native factory doesn't run (rsub, maximum, comparisons, ...) and broadcast;
 - move with a separate output, and sharded move;
 - reshard CopyLocal and Generic from DRAM;
 - dtype conversion in sharding ops.

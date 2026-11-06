@@ -15,12 +15,21 @@ Neither simulator times DRAM. Plain ttsim has no profile: its cycle counts are i
 
 Mean error over all runs. Held-out runs (every 4th) fall within the same bounds.
 
-**binary_ng** (`add`, `multiply`):
+**binary_ng** (`add`, `subtract`, `multiply`, `divide`):
 
 | Case | craq-sim | ttsim-perf |
 |---|---|---|
-| bf16 | add 2.1%, multiply 1.4% | DRAM 1.4%, L1 8.5% (up to 41% at dm_batch=1) |
-| fp32 | 1.5% | DRAM / borrowed <= 0.8%, L1 9% |
+| add bf16, and subtract / FPU multiply bf16 (same kernels and cycles as add) | 2.1-2.6% | DRAM 1.4%, L1 8.5% (one thread per role on L1: up to 2x off) |
+| multiply bf16 (SFPU) | 1.4% | DRAM 1.4%, L1 8.5% |
+| add / subtract / multiply fp32 | 1.5% | DRAM / borrowed <= 0.8%, L1 9-11% |
+| divide bf16 / fp32 | 0.7% / 0.9% | 2.3% / 2.5% |
+
+`calibration/data/binops-<profile>.jsonl`: 652 runs, fitted by `calibration/fit_binops.py`. Only divide has its own
+math cost (about 5x multiply, so always compute-bound). Ops the native factory doesn't run are answered `unsupported`
+with the reason:
+- `rsub` bf16, maximum, minimum, logaddexp, pow, logical ops and others run on another factory;
+- comparisons, atan2, xlogy and remainder don't build on Quasar;
+- broadcast runs only on the other factory.
 
 The model picks the measured-best config in every group but one: on ttsim-perf, all three operands in L1 at 32
 tiles is 23% off the best.

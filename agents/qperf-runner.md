@@ -30,7 +30,9 @@ PR; model "before the PR" by overriding the knobs it changed.
 ```
 - **action**: estimate | compare | tune (`"tune":{"space":{"dm_batch":[1,4,8]}}`, `analysis.top_k`) | sensitivity
   (`"sensitivity":{"param":...,"values":[...]}`).
-- **binary_ng** (`add`, `multiply`):
+- **binary_ng** (`add`, `subtract`, `multiply`, `divide`; others are `unsupported` with a reason):
+  - bf16 multiply runs on the SFPU; `"kernel_variant":"fpu"` in workload = the FPU kernel (fast_and_approximate_mode).
+    divide is about 5x multiply and compute-bound; fp32 divide is never DRAM-batched.
   - knobs: reader_threads, compute_threads, writer_threads, dm_batch, tiles_per_cycle, entries_per_thread.
   - placements: dram | l1 | borrowed per operand. `"tiles_scope":"cluster"` makes num_tiles per cluster.
   - sensitivity param: num_tiles | compute_service_scale | a cost key.
