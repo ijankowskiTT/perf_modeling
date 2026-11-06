@@ -35,13 +35,21 @@
   ],
   "fpu_ops_bf16": [
    "add",
-   "subtract",
-   "rsub"
+   "subtract"
   ],
-  "note": "is_binary_sfpu_op (binary_ng_device_operation.cpp:26): MUL/DIV are SFPU unless fast_and_approximate_mode; ADD/SUB are SFPU only for fp32/int. fp32_dest_acc_en follows fp32 inputs."
+  "note": "matches_quasar_native_slice (binary_ng_device_operation.cpp) admits ADD, SUB, MUL, DIV in bf16 or fp32, no broadcast; is_binary_sfpu_op (binary_ng_device_operation.cpp:26): MUL/DIV are SFPU unless fast_and_approximate_mode; ADD/SUB are SFPU only for fp32/int. fp32 runs only the SFPU kernel (fp32_dest_acc_en follows fp32 inputs); the gate refuses bf16 SFPU add/subtract and FPU divide. Other binary ops (rsub, maximum, minimum, logaddexp, ...) and every subtile broadcast run on the Metal 2.0 (DFB) factory, or fail to build on Quasar (qperf/rule.py NOT_NATIVE).",
+  "native_ops": [
+   "add",
+   "subtract",
+   "multiply",
+   "divide"
+  ],
+  "fpu_ops_bf16_fast_and_approximate": [
+   "multiply"
+  ]
  },
  "unsupported": [
-  "broadcast (row/col/scalar) programs",
+  "broadcast (row/col/scalar/mixed) programs: the native gate refuses them; the Metal 2.0 (DFB) factory runs them with its own bcast readers and compute (kernels_dfb), checked on craq-sim",
   "activations / fused RELU",
   "tail rings of a borrowed shard not divisible by C (cost reported as a warning only)",
   "TTNN_QSR_IMPLICIT_SYNC (rejected by the factory)",

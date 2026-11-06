@@ -5,7 +5,9 @@ qperf/accuracy.py reads it to state an op-specific accuracy on every answer and 
 range as extrapolated. hypothetical_validation: a hypothetical design knob run on the simulators as a kernel variant
 (calibration/data/<VALIDATION>-<profile>.jsonl, records with a `design` and a non-pinned kernel_variant): the model's
 mean error on those runs and on their speedup over the pinned kernel at the same shape; answers whose only
-non-default knob is that one say it is validated. tests/test_accuracy.py recomputes the table and fails when it is stale. Rerun after a refit or
+non-default knob is that one say it is validated. binary_ng: per compute variant of the ops beyond add / multiply
+(calibration/data/binops-<profile>.jsonl), the mean error over all runs, the fit and holdout (src B) runs and per
+placement. tests/test_accuracy.py recomputes the table and fails when it is stale. Rerun after a refit or
 new calibration runs:
     python calibration/make_accuracy.py
 """
@@ -17,6 +19,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from qperf.layout_api import _costs  # noqa: E402
 from qperf.ops.layout import estimate  # noqa: E402
 from qperf.profiles import load  # noqa: E402
@@ -24,6 +27,9 @@ from qperf.profiles import load  # noqa: E402
 PROFILES = ("craq-sim", "ttsim-perf")
 FAMILIES = ("layout", "fp32layout", "rowmajor", "move", "reshard")  # calibration/data/<family>-<profile>.jsonl
 VALIDATION = ("tilize-wbatch",)  # calibration/data/<name>-<profile>.jsonl: kernel-variant runs of a design knob
+BINOPS = "binops"  # calibration/data/binops-<profile>.jsonl: binary_ng subtract, divide, FPU multiply
+SIM = {"craq-sim": "craq-b702fd90", "ttsim-perf": "perf"}  # the dataset's sim tag per profile
+PLACEMENT = {"ddd": "dram", "lll": "l1", "hhh": "borrowed"}
 OUT = os.path.join(ROOT, "profiles", "accuracy.json")
 
 
@@ -91,13 +97,48 @@ def validation():
     return out
 
 
+def binary_ng():
+    """{profile: {variant: {"runs", "mean", "max", "fit", "holdout", "by_placement": {placement: {"mean", "runs"}},
+    "dram_borrowed": {"mean", "runs"}, "same_as"?}}}: mean |model / simulator - 1| at nominal costs over the binops
+    runs of each compute variant (the variant a run resolves to, e.g. fpu:multiply:bf16 for fast_and_approximate_mode)."""
+    from fit_binops import variant_of
+    from qperf.calibration import load_records, predict
+
+    def stat(errs):
+        return {"mean": round(statistics.mean(errs), 4), "runs": len(errs)}
+
+    out = {}
+    for prof in PROFILES:
+        p, _ = load("costs", prof)
+        recs = load_records(os.path.join(ROOT, "calibration", "data", f"{BINOPS}-{prof}.jsonl"), SIM[prof])
+        groups = {}
+        for row, rec in zip(predict(recs, prof), recs):
+            groups.setdefault(variant_of(rec), []).append((abs(row["rel_err"]), rec))
+        table = {}
+        for var, g in sorted(groups.items()):
+            errs = [e for e, _ in g]
+            e = dict(stat(errs), max=round(max(errs), 4), fit=round(statistics.mean(e for e, r in g if r["src"] != "B"), 4),
+                     holdout=round(statistics.mean(e for e, r in g if r["src"] == "B"), 4),
+                     by_placement={PLACEMENT[lay]: stat([e for e, r in g if r["layout"] == lay])
+                                   for lay in PLACEMENT if any(r["layout"] == lay for _, r in g)},
+                     dram_borrowed=stat([e for e, r in g if r["layout"] != "lll"]),
+                     data=f"calibration/data/{BINOPS}-{prof}.jsonl")
+            same = p["compute_variants"].get(var, {}).get("_same_as")
+            if same:
+                e["same_as"] = same
+            table[var] = e
+        out[prof] = table
+    return out
+
+
 def main():
     table = {"generated_by": "calibration/make_accuracy.py",
              "basis": "mean |model / simulator - 1| at nominal costs over calibration/data/{layout,fp32layout,rowmajor,"
                       "move,reshard}-<profile>.jsonl (all runs, holdouts included); range = the largest rows (H), "
                       "width (W) and H x W among the factory's runs",
              "profiles": compute(),
-             "hypothetical_validation": validation()}
+             "hypothetical_validation": validation(),
+             "binary_ng": binary_ng()}
     with open(OUT, "w") as f:
         json.dump(table, f, indent=1, sort_keys=True)
         f.write("\n")

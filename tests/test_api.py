@@ -47,17 +47,27 @@ def test_unknown_profile_and_revision_mismatch():
 
 
 def test_uncalibrated_variant_is_needs_input_not_a_guess():
-    r = req()
-    r["workload"]["op"] = "subtract"  # FPU, no compute costs in the profile
-    out = analyze(r)
-    assert out["status"] == "needs_input"
+    from qperf import profiles as P
+
+    prof = copy.deepcopy(P.load("costs", "ttsim-perf")[0])
+    prof["name"] = "ttsim-perf__no_divide"
+    del prof["compute_variants"]["sfpu:divide:bf16"]
+    P.register("costs", prof)
+    try:
+        r = req(profiles={"costs": prof["name"]})
+        r["workload"]["op"] = "divide"  # SFPU, no compute costs in this profile
+        out = analyze(r)
+    finally:
+        P.unregister("costs", prof["name"])
+    assert out["status"] == "needs_input" and "sfpu:divide:bf16" in out["message"]
     assert "time_ns" not in json.dumps(out)
 
 
 def test_unknown_routing_is_unsupported():
     r = req()
     r["workload"]["op"] = "logaddexp"
-    assert analyze(r)["status"] == "unsupported"
+    out = analyze(r)
+    assert out["status"] == "unsupported" and "Metal 2.0" in out["message"]
 
 
 def test_schema_rejects_unknown_fields():

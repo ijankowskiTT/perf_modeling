@@ -242,18 +242,18 @@ def test_compare_and_tune_rows_join_the_right_table():
 # (cores per shape, cycles vs ns labels, scenario-dependent verdicts, lighter HTML). A deliberate change of the
 # single-request reports or a refit regenerates them: python tests/test_bundle.py
 SINGLE = {
-    "reshard_compare_ttsim.html": "f000a9a434b0bbbca3b9c02ba50da837172d2df3406e7ef0a02128a8d06fcf6a",
-    "reshard_compare_ttsim.md": "2a3636a8b1d51a778ca1a0f00c9637652495c6c4eb5d630284960eeef85f14fd",
-    "reshard_compare_ttsim.text": "910168e329d8b31009581997e3509c77317ede2753944d2f64b11b23018b1f45",
-    "shard_cores.html": "867140c2f2d6bf00804aed271ad6f75ff744b3f7d5abb29bcabfc23cef214f52",
-    "shard_cores.md": "5640ab41f4dc9b8f1c6ae0eaa2b873bdc3221d0c16085454b74a32b529a7999f",
-    "shard_cores.text": "3b6d7652fb37f5fbca0b4ebae02356ee11df4cb07767136a82931b164f0647cc",
-    "tilize_compare.html": "c195639278e6abfda321c143a99a1ef541f6bbdd5dafcaf5cf2e5997857e01b1",
-    "tilize_compare.md": "aad1ab4f0692377dca7e5ae079bc69b77b158167da4064a7807772dc74e97eb4",
-    "tilize_compare.text": "2cda32b4d2f8fee00fa135fbffe160859b67c1534703a22601bf2130d6cb9f76",
-    "tilize_survey_ttsim.html": "b3f231565323436ee48dea3cf15f1f7fd56f3231c16e6a9f30adfe012ddca0ed",
-    "tilize_survey_ttsim.md": "d87e55ad98657993d16598288180f5732456fcbccaeae1693f34b926f80aaf7b",
-    "tilize_survey_ttsim.text": "7954b331568a323d98f8382795564e97efc4e14dc74fc0c2a402bc08b30b984b",
+    "reshard_compare_ttsim.html": "ca67c04a0d7f42dd44bcfd2e22c6659c6e948b32039b1600cdff8116cee7a0af",
+    "reshard_compare_ttsim.md": "75093d4dd4ff6aa60deb710c9667bf05888fab6ff1c1ff4a0feba1441d19be98",
+    "reshard_compare_ttsim.text": "ae400d5beb23940a3a8f906829e425265f496b33b78b117285468135728a9536",
+    "shard_cores.html": "569a6ceeb89b339f185e3c3d73fac67546e425687b66606667390841a2906dc5",
+    "shard_cores.md": "0f5ff8f3157db0cc28991cbb7e823809b2927de45ee59d0108eea96ce12cf4e2",
+    "shard_cores.text": "2bc11ffb1666b7e63d3d54bbf1916fa89bdeac00ac68abedf922eb36e475e2c5",
+    "tilize_compare.html": "f8ed060e3720d42d3f175fd69537d247a1d27a88aa3a180dce1750718c2bb4a6",
+    "tilize_compare.md": "6b24e8cbf40c673b0e10f92a96e4cb252bf09fc1bf2c9d74fdf3275042359b39",
+    "tilize_compare.text": "8c3c79a2ea8a3a797b3bbefb269d989e33c65b37f5489f4cccf9b1ff41198c31",
+    "tilize_survey_ttsim.html": "1b6ea846131feddf82095313d319cf910ef78b5e35321b4dc411cd0d8a713aa0",
+    "tilize_survey_ttsim.md": "c3072a78e77cb93adfcef5edd26c510e843c6044952d6b0d143cd43de5e77bf6",
+    "tilize_survey_ttsim.text": "ff22632cc07affa165814d7e4cb9c7c945e6699640eb713b280afd01547b6666",
 }
 
 

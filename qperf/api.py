@@ -18,7 +18,7 @@ from .cache import LRU
 from .constraints import check
 from .pipeline import Deadlock, evaluate
 from .profiles import SCENARIOS, ProfileError, load, param_provenance, resolve_costs, sha256, time_unit
-from .rule import is_sfpu, resolve_native_config, split_work_to_cores
+from .rule import dram_batch_pays, native_routing, resolve_native_config, split_work_to_cores
 from .traffic import cluster_traffic
 from .validate import validate_request
 
@@ -81,11 +81,9 @@ def resolve_workload(w, arch):
         if v not in ("dram", "l1", "borrowed"):
             raise RequestError("invalid", f"placement {v}: use dram | l1 | borrowed")
     op = w.get("op", "add")
-    variant = w.get("kernel_variant")
-    sf = is_sfpu(op, dtype) if variant is None else (variant == "sfpu")
-    if sf is None:
-        raise RequestError("unsupported", f"routing of op '{op}' ({dtype}) is not recorded in the kernel profile; "
-                                          f"set workload.kernel_variant to fpu|sfpu from the program log")
+    sf, why = native_routing(op, dtype, w.get("kernel_variant"))
+    if why:
+        raise RequestError("unsupported", why)
     out.update(dtype=dtype, num_tiles_total=total, clusters=clusters, placements_list=plc, op=op, sfpu=sf,
                variant=f"{'sfpu' if sf else 'fpu'}:{op}:{dtype}")
     return out, applied
@@ -114,7 +112,7 @@ def resolve_config(wl, knobs):
         share = math.ceil(per_cluster / C)
     moves = {"inputs": moves_in, "output": moves_out, "dram": any_dram, "sfpu": wl["sfpu"],
              "dst32": wl["dtype"] == "fp32", "tiles_per_compute_thread": share,
-             "batch_pays": not (wl["op"] == "divide" and wl["dtype"] == "fp32"),
+             "batch_pays": dram_batch_pays(wl["op"], wl["dtype"]),
              "dram_batch": knobs.get("dram_batch", True)}
     cfg = resolve_native_config(moves, knobs)
     applied = [f"{SHORT[k]}={cfg[_ck(k)]} (rule)" for k in KNOBS if not knobs.get(k)]
@@ -485,7 +483,7 @@ def _analyze(req, t_start):
     if costs.get("platform_scope"):
         result["platform_scope"] = costs["platform_scope"]
     result["accuracy"] = accuracy.binary(costs, wl["op"], wl["dtype"], wl["placements_list"],
-                                         bool(what_if.get("cost_overrides")))
+                                         bool(what_if.get("cost_overrides")), wl["variant"])
     if hyp:
         result["hypothetical"] = hyp
         result["assumptions"].append(f"HYPOTHETICAL program change, not the pinned factory: {hyp}")

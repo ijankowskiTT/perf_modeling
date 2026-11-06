@@ -53,7 +53,7 @@
       "properties": {
         "op": {
           "type": "string",
-          "description": "add | multiply (binary_ng) | tilize | untilize | tilize_with_val_padding | untilize_with_unpadding | interleaved_to_sharded | sharded_to_interleaved | move | reshard"
+          "description": "add | subtract | multiply | divide (binary_ng, bf16 / fp32; other binary ops such as rsub, maximum, minimum run on the Metal 2.0 factory or fail on Quasar: unsupported) | tilize | untilize | tilize_with_val_padding | untilize_with_unpadding | interleaved_to_sharded | sharded_to_interleaved | move | reshard"
         },
         "kernel_variant": {
           "type": "string",
@@ -61,7 +61,7 @@
             "fpu",
             "sfpu"
           ],
-          "description": "only when the op's routing is not in the kernel profile; take it from the program log"
+          "description": "binary_ng compute kernel; implied by op and dtype (fp32: sfpu; bf16 add, subtract: fpu; bf16 multiply, divide: sfpu). Set fpu only for bf16 multiply with fast_and_approximate_mode=True"
         },
         "dtype": {
           "type": "string",

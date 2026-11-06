@@ -70,6 +70,20 @@ def test_accuracy_table_is_current():
             s = stored[key][prof]
             assert (s["runs"], s["values"], s["data"]) == (v["runs"], v["values"], v["data"]), (key, prof)
             assert abs(s["mean"] - v["mean"]) <= 0.001 and abs(s["speedup_mean"] - v["speedup_mean"]) <= 0.001
+    from make_accuracy import binary_ng
+
+    stored = json.load(open(os.path.join(ROOT, "profiles", "accuracy.json")))["binary_ng"]
+    fresh = binary_ng()
+    assert set(stored) == set(fresh)
+    for prof, t in fresh.items():
+        assert set(stored[prof]) == set(t), prof
+        for var, e in t.items():
+            s = stored[prof][var]
+            assert (s["runs"], s.get("same_as"), s["data"]) == (e["runs"], e.get("same_as"), e["data"]), (prof, var)
+            for k in ("mean", "max", "fit", "holdout"):
+                assert abs(s[k] - e[k]) <= 0.001, (prof, var, k)
+            for pl, x in e["by_placement"].items():
+                assert s["by_placement"][pl]["runs"] == x["runs"] and abs(s["by_placement"][pl]["mean"] - x["mean"]) <= 0.001
 
 
 def test_platform_scope_carries_no_op_error():
