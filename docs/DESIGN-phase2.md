@@ -34,7 +34,7 @@ Cost the steps all ops share once per profile, instead of once per factory:
 
 An op then differs only in its LLK compute op (add, matmul tile, tilize block, ...) and its schedule (B).
 
-**Feasibility test (M1):** refit all existing calibration data (~4,500 runs, every op) with shared primitive terms.
+**Feasibility test (M1):** refit all existing calibration data (~4,750 runs, every op) with shared primitive terms.
 Accept if each factory stays within +0.5 pt of its current error.
 
 ### B. Kernel templates, composed from the program spec
