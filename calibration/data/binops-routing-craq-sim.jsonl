@@ -1,0 +1,40 @@
+{"sim":"craq-b702fd90","layout":"ddd","op":"atan2","dtype":"bf16","tpc":32,"knobspec":"-","factory":"none","error":"trisc compile error: atan2_binary_tile undeclared"}
+{"sim":"craq-b702fd90","layout":"ddd","op":"bias_gelu","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":86066.0,"max_abs_err":0.01573038101196289,"max_rel_err":0.007393}
+{"sim":"craq-b702fd90","layout":"ddd","op":"divide","dtype":"bf16","tpc":32,"knobspec":"-","factory":"native","span_med":14331.0,"max_abs_err":0.015512466430664062,"max_rel_err":0.003876}
+{"sim":"craq-b702fd90","layout":"ddd","op":"divide","dtype":"bf16","tpc":32,"knobspec":"-","fast_and_approximate_mode":true,"factory":"metal_v2","span_med":24192.5,"max_abs_err":0.040178775787353516,"max_rel_err":0.009302}
+{"sim":"craq-b702fd90","layout":"ddd","op":"eq","dtype":"bf16","tpc":32,"knobspec":"-","factory":"none","error":"trisc compile error: eq_binary_tile undeclared"}
+{"sim":"craq-b702fd90","layout":"ddd","op":"ge","dtype":"bf16","tpc":32,"knobspec":"-","factory":"none","error":"trisc compile error: ge_binary_tile undeclared"}
+{"sim":"craq-b702fd90","layout":"ddd","op":"gt","dtype":"bf16","tpc":32,"knobspec":"-","factory":"none","error":"trisc compile error: gt_binary_tile undeclared"}
+{"sim":"craq-b702fd90","layout":"ddd","op":"hypot","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":32887.0,"max_abs_err":0.027040958404541016,"max_rel_err":0.011944}
+{"sim":"craq-b702fd90","layout":"ddd","op":"ldexp","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":49786.0,"max_abs_err":0.0830392837524414,"max_rel_err":0.008044}
+{"sim":"craq-b702fd90","layout":"ddd","op":"le","dtype":"bf16","tpc":32,"knobspec":"-","factory":"none","error":"trisc compile error: le_binary_tile undeclared"}
+{"sim":"craq-b702fd90","layout":"ddd","op":"logaddexp","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":63864.0,"max_abs_err":0.01606130599975586,"max_rel_err":0.009667}
+{"sim":"craq-b702fd90","layout":"ddd","op":"logaddexp2","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":121326.0,"max_abs_err":0.017452478408813477,"max_rel_err":0.008353}
+{"sim":"craq-b702fd90","layout":"ddd","op":"logical_and","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":40896.0,"max_abs_err":0.0,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"logical_or","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":40896.0,"max_abs_err":0.0,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"logical_xor","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":40896.0,"max_abs_err":0.0,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"lt","dtype":"bf16","tpc":32,"knobspec":"-","factory":"none","error":"trisc compile error: lt_binary_tile undeclared"}
+{"sim":"craq-b702fd90","layout":"ddd","op":"maximum","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":18514.0,"max_abs_err":0.0,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"minimum","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":18514.0,"max_abs_err":0.0,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"multiply","dtype":"bf16","tpc":32,"knobspec":"-","fast_and_approximate_mode":true,"factory":"native","span_med":3347.0,"max_abs_err":0.015625,"max_rel_err":0.003861}
+{"sim":"craq-b702fd90","layout":"ddd","op":"ne","dtype":"bf16","tpc":32,"knobspec":"-","factory":"none","error":"trisc compile error: ne_binary_tile undeclared"}
+{"sim":"craq-b702fd90","layout":"ddd","op":"pow","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":115328.0,"max_abs_err":0.04681587219238281,"max_rel_err":0.007893}
+{"sim":"craq-b702fd90","layout":"ddd","op":"remainder","dtype":"bf16","tpc":32,"knobspec":"-","factory":"none","error":"trisc compile error: remainder_binary_tile undeclared"}
+{"sim":"craq-b702fd90","layout":"ddd","op":"rsub","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":24163.5,"max_abs_err":0.00390625,"max_rel_err":0.003891}
+{"sim":"craq-b702fd90","layout":"ddd","op":"squared_difference","dtype":"bf16","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":14548.5,"max_abs_err":0.0282135009765625,"max_rel_err":0.01242}
+{"sim":"craq-b702fd90","layout":"ddd","op":"subtract","dtype":"bf16","tpc":32,"knobspec":"-","factory":"native","span_med":3347.0,"max_abs_err":0.00390625,"max_rel_err":0.003891}
+{"sim":"craq-b702fd90","layout":"ddd","op":"xlogy","dtype":"bf16","tpc":32,"knobspec":"-","factory":"none","error":"trisc compile error: xlogy_binary_tile undeclared"}
+{"sim":"craq-b702fd90","layout":"ddd","op":"divide","dtype":"fp32","tpc":32,"knobspec":"-","factory":"native","span_med":11239.0,"max_abs_err":4.76837158203125e-07,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"logaddexp","dtype":"fp32","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":170224.0,"max_abs_err":2.384185791015625e-07,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"maximum","dtype":"fp32","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":15543.0,"max_abs_err":0.0,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"minimum","dtype":"fp32","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":15543.0,"max_abs_err":0.0,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"multiply","dtype":"fp32","tpc":32,"knobspec":"-","fast_and_approximate_mode":true,"factory":"native","span_med":5178.0,"max_abs_err":0.0,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"rsub","dtype":"fp32","tpc":32,"knobspec":"-","factory":"none","error":"trisc compile error: rsub_binary_tile undeclared"}
+{"sim":"craq-b702fd90","layout":"ddd","op":"squared_difference","dtype":"fp32","tpc":32,"knobspec":"-","factory":"metal_v2","span_med":15553.0,"max_abs_err":0.0,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"subtract","dtype":"fp32","tpc":32,"knobspec":"-","factory":"native","span_med":5178.0,"max_abs_err":0.0,"max_rel_err":0.0}
+{"sim":"craq-b702fd90","layout":"ddd","op":"add","dtype":"bf16","tpc":32,"knobspec":"-","bcast":"col","factory":"metal_v2","span_med":7234.0,"max_abs_err":0.015625,"max_rel_err":0.003891}
+{"sim":"craq-b702fd90","layout":"ddd","op":"multiply","dtype":"bf16","tpc":32,"knobspec":"-","bcast":"col","factory":"metal_v2","span_med":15492.0,"max_abs_err":0.031005859375,"max_rel_err":0.007692}
+{"sim":"craq-b702fd90","layout":"ddd","op":"add","dtype":"bf16","tpc":32,"knobspec":"-","bcast":"row","factory":"metal_v2","span_med":21671.0,"max_abs_err":0.015625,"max_rel_err":0.003891}
+{"sim":"craq-b702fd90","layout":"ddd","op":"multiply","dtype":"bf16","tpc":32,"knobspec":"-","bcast":"row","factory":"metal_v2","span_med":25730.0,"max_abs_err":0.031005859375,"max_rel_err":0.007692}
+{"sim":"craq-b702fd90","layout":"ddd","op":"add","dtype":"bf16","tpc":32,"knobspec":"-","bcast":"scalar","factory":"metal_v2","span_med":8086.0,"max_abs_err":0.0078125,"max_rel_err":0.003891}
+{"sim":"craq-b702fd90","layout":"ddd","op":"multiply","dtype":"bf16","tpc":32,"knobspec":"-","bcast":"scalar","factory":"metal_v2","span_med":16054.0,"max_abs_err":0.0155029296875,"max_rel_err":0.007181}

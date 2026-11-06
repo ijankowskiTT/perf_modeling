@@ -87,6 +87,18 @@ def _pick(p, scenario):
     return float(p["value"])
 
 
+def variant_terms(profile, variant):
+    """A compute variant's terms, or None. A variant {"_same_as": other} has no terms of its own: its kernel runs
+    cycle for cycle as other's (e.g. subtract as add), so it resolves to other's terms and follows their refits."""
+    variants = profile.get("compute_variants", {})
+    v = variants.get(variant)
+    for _ in range(len(variants)):
+        if v is None or "_same_as" not in v:
+            return v
+        v = variants.get(v["_same_as"])
+    return None
+
+
 def resolve_costs(profile, variant, overrides=None, scenario="nominal", compute_scale=1.0):
     """Flatten a cost profile into {key: cycles} for one compute variant and scenario.
 
@@ -95,7 +107,8 @@ def resolve_costs(profile, variant, overrides=None, scenario="nominal", compute_
     """
     out = {k: _pick(p, scenario) for k, p in profile["params"].items()}
     variants = profile.get("compute_variants", {})
-    if variant not in variants:
+    terms = variant_terms(profile, variant)
+    if terms is None:
         if not (overrides and all(k in overrides for k in ("cu.fixed", "cu.per_tile", "cm.fixed", "cm.per_tile",
                                                                "cp.fixed", "cp.per_tile"))):
             raise ProfileError("needs_input",
@@ -103,7 +116,7 @@ def resolve_costs(profile, variant, overrides=None, scenario="nominal", compute_
                                f"{sorted(variants)}. Supply cu/cm/cp .fixed/.per_tile in what_if.cost_overrides "
                                f"or calibrate this variant.")
     else:
-        out.update({k: _pick(p, scenario) for k, p in variants[variant].items() if not k.startswith("_")})
+        out.update({k: _pick(p, scenario) for k, p in terms.items() if not k.startswith("_")})
     for k, v in (overrides or {}).items():
         out[k] = _pick(v, scenario)
     if overrides:
@@ -120,7 +133,7 @@ def resolve_costs(profile, variant, overrides=None, scenario="nominal", compute_
 def param_provenance(profile, variant, keys):
     rows = {}
     allp = dict(profile["params"])
-    allp.update({k: v for k, v in profile.get("compute_variants", {}).get(variant, {}).items() if not k.startswith("_")})
+    allp.update({k: v for k, v in (variant_terms(profile, variant) or {}).items() if not k.startswith("_")})
     for k in keys:
         p = allp.get(k)
         if isinstance(p, dict):

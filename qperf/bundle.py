@@ -22,6 +22,7 @@ import json
 import math
 
 from .api import analyze
+from .rule import NATIVE_OPS
 from .survey import (DEFAULT_HEIGHTS, DEFAULT_RESHARD, DEFAULT_SHARD, DEFAULT_WIDTHS, SHARD_OPS, describe, kind_of,
                      shape_label)
 
@@ -185,7 +186,7 @@ def dram_sided(q, overrides=None):
         r = {**(w.get("reshard") or DEFAULT_RESHARD), **(ov.get("reshard") or {})}
         return any((r.get(k) or {}).get("memory", "l1") == "dram" for k in ("from", "to"))
     pl = w.get("placements") or {}
-    if op in ("add", "multiply"):
+    if op in NATIVE_OPS:  # binary_ng
         return "dram" in pl.values()
     return (ov.get("input") or (q.get("baseline") or {}).get("input") or pl.get("a", "dram")) == "dram"
 

@@ -1,7 +1,7 @@
 {
  "kind": "costs",
  "name": "craq-sim",
- "revision": "2026-11-03.fit6+fp32",
+ "revision": "2026-11-03.fit6+fp32+binops",
  "platform": "craq-sim (tt-blaze), branch quasar @b702fd90, release_qsr build",
  "platform_scope": "craq-sim (tt-blaze craq-sim, branch quasar @b702fd90, 2026-10-24): DM RISC-V at 1 instr/cycle, Tensix instruction timing incl. busy-status waits; each DM thread's DMA moves ~56 B/cycle, but no NoC/DRAM latency or contention, so l1/dram placements predict the same. Times are simulator cycles reported as ns (1 cycle = 1 ns by convention), not silicon.",
  "calibration": {
@@ -10,7 +10,8 @@
   "dataset": "calibration/data/craq-sim.jsonl (sim craq-b702fd90)",
   "holdout": "src B",
   "method": "qperf.calibration.fit: coordinate descent, mean squared log(pred/meas)",
-  "fitted_at": "2026-11-03"
+  "fitted_at": "2026-11-03",
+  "compute_variants_binops": "calibration/data/binops-craq-sim.jsonl (sim craq-b702fd90): subtract, divide, FPU multiply (fast_and_approximate_mode), bf16 and fp32; calibration/fit_binops.py (2026-11-06): divide fits its math terms; subtract and FPU multiply run as add (_same_as); add / multiply terms unchanged"
  },
  "clock": {
   "GHz": 1.0,
@@ -4318,6 +4319,162 @@
     "high": 100.788,
     "class": "measurement-fit",
     "source": "fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   }
+  },
+  "fpu:subtract:bf16": {
+   "_same_as": "fpu:add:bf16",
+   "_source": "eltwise_binary_no_bcast_dfb.cpp (FPU): subtract bf16; runs cycle for cycle as fpu:add:bf16: 31 of 66 runs in binops-craq-sim.jsonl (craq-b702fd90) repeat a configuration of the add calibration data, every one with the same span, so the variant uses fpu:add:bf16's terms"
+  },
+  "fpu:multiply:bf16": {
+   "_same_as": "fpu:add:bf16",
+   "_source": "eltwise_binary_no_bcast_dfb.cpp (FPU): multiply with fast_and_approximate_mode bf16; runs cycle for cycle as fpu:add:bf16: 31 of 66 runs in binops-craq-sim.jsonl (craq-b702fd90) repeat a configuration of the add calibration data, every one with the same span, so the variant uses fpu:add:bf16's terms"
+  },
+  "sfpu:divide:bf16": {
+   "_source": "eltwise_binary_sfpu_no_bcast_dfb.cpp (SFPU): divide bf16; the kernels of sfpu:multiply:bf16 with only the op changed, so its unpack / pack terms are copied and cm.fixed, cm.per_tile fitted",
+   "start.compute": {
+    "value": 860,
+    "class": "measurement",
+    "source": "copied from sfpu:multiply:bf16: TRISC0 KERNEL start, multiply runs (A)"
+   },
+   "cu.fixed": {
+    "value": 558.015,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:bf16: fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 530.114,
+    "high": 585.916,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.per_tile": {
+    "value": 21.939,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:bf16: fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 20.842,
+    "high": 23.036,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.fixed_n1": {
+    "value": 500.997,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:bf16: fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 475.947,
+    "high": 526.047,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cu.first_chunk_extra": {
+    "value": 89.888,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:bf16: fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 85.394,
+    "high": 94.382,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cm.fixed": {
+    "value": 131.97,
+    "low": 128.011,
+    "high": 135.929,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-06 on binops-craq-sim.jsonl (craq-b702fd90, 51 sfpu:divide:bf16 runs; B-holdout 0.7% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.per_tile": {
+    "value": 1422.842,
+    "low": 1380.157,
+    "high": 1465.527,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-06 on binops-craq-sim.jsonl (craq-b702fd90, 51 sfpu:divide:bf16 runs; B-holdout 0.7% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.fixed": {
+    "value": 223.551,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:bf16: fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 212.373,
+    "high": 234.729,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   },
+   "cp.per_tile": {
+    "value": 38.804,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:bf16: fitted 2026-11-03 on data/craq-sim.jsonl (craq-sim quasar@b702fd90, 23 multiply runs; B-holdout check 1.4% mean)",
+    "low": 36.864,
+    "high": 40.744,
+    "range_note": "+-5% scenario range (holdout p90 error)"
+   }
+  },
+  "sfpu:subtract:fp32": {
+   "_same_as": "sfpu:add:fp32",
+   "_source": "eltwise_binary_sfpu_no_bcast_dfb.cpp (SFPU): subtract fp32; runs cycle for cycle as sfpu:add:fp32: 20 of 64 runs in binops-craq-sim.jsonl (craq-b702fd90) repeat a configuration of the add calibration data, every one with the same span, so the variant uses sfpu:add:fp32's terms"
+  },
+  "sfpu:divide:fp32": {
+   "_source": "eltwise_binary_sfpu_no_bcast_dfb.cpp (SFPU): divide fp32; the kernels of sfpu:multiply:fp32 with only the op changed, so its unpack / pack terms are copied and cm.fixed, cm.per_tile fitted",
+   "start.compute": {
+    "value": 891.0,
+    "class": "measurement",
+    "source": "copied from sfpu:multiply:fp32: TRISC0 KERNEL start, median of the fp32 multiply runs (craq-b702fd90)"
+   },
+   "cu.fixed": {
+    "value": 419.614,
+    "low": 407.026,
+    "high": 432.202,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:fp32: fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cu.per_tile": {
+    "value": 12.207,
+    "low": 11.841,
+    "high": 12.573,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:fp32: fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cu.first_chunk_extra": {
+    "value": 49.638,
+    "low": 48.149,
+    "high": 51.127,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:fp32: fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.fixed": {
+    "value": 15.064,
+    "low": 14.612,
+    "high": 15.516,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-06 on binops-craq-sim.jsonl (craq-b702fd90, 47 sfpu:divide:fp32 runs; B-holdout 0.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cm.per_tile": {
+    "value": 1141.624,
+    "low": 1107.375,
+    "high": 1175.873,
+    "class": "measurement-fit",
+    "source": "fitted 2026-11-06 on binops-craq-sim.jsonl (craq-b702fd90, 47 sfpu:divide:fp32 runs; B-holdout 0.9% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.fixed": {
+    "value": 109.063,
+    "low": 105.791,
+    "high": 112.335,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:fp32: fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "cp.per_tile": {
+    "value": 90.853,
+    "low": 88.127,
+    "high": 93.579,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:fp32: fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
+    "range_note": "+-3% scenario range (holdout p90 error)"
+   },
+   "noc.write_latency": {
+    "value": 97.852,
+    "low": 94.916,
+    "high": 100.788,
+    "class": "measurement-fit",
+    "source": "copied from sfpu:multiply:fp32: fitted 2026-11-04 on fp32binary-craq-sim.jsonl (craq-b702fd90, 27 multiply fp32 runs; B-holdout 1.4% mean)",
     "range_note": "+-3% scenario range (holdout p90 error)"
    }
   }

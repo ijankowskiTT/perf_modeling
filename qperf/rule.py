@@ -10,10 +10,25 @@ from __future__ import annotations
 
 import math
 
-# Ops whose bf16 path the factory sends to the SFPU kernel (is_binary_sfpu_op, binary_ng_device_operation.cpp:26).
-# Only the ops the model has a compute profile for are listed; others are reported as unsupported.
+# The ops the native factory runs: matches_quasar_native_slice (binary_ng_device_operation.cpp) admits ADD, SUB, MUL
+# and DIV only, in bf16 or fp32. Kernel routing (is_binary_sfpu_op, binary_ng_device_operation.cpp:26): fp32 runs the
+# SFPU kernel for all four; in bf16, add and subtract run the FPU kernel, multiply and divide the SFPU kernel, and
+# multiply runs the FPU kernel in fast_and_approximate_mode. The gate refuses bf16 SFPU add / subtract and FPU divide.
+NATIVE_OPS = ("add", "subtract", "multiply", "divide")
 _SFPU_ALWAYS = {"multiply", "divide"}  # MUL/DIV are SFPU unless fast_and_approximate_mode
-_FPU_BF16 = {"add", "subtract", "rsub"}  # SFPU only for fp32/int dtypes
+_FPU_BF16 = {"add", "subtract"}  # SFPU only for fp32/int dtypes
+_FPU_FAST = {"multiply"}  # FPU kernel in bf16 with fast_and_approximate_mode
+# Other binary ops of ttnn.experimental.quasar, each run once on craq-sim (tt-metal 0fff850f3c6, bf16, DRAM): the
+# native gate refuses them, so they run on the Metal 2.0 (DFB) factory's kernels (kernels_dfb, one thread per role,
+# none of the native knobs), which qperf does not model, or they fail to build on Quasar.
+_DFB = "runs on the Metal 2.0 (DFB) factory (kernels_dfb), not the Quasar-native factory qperf models"
+_NO_LLK = "fails on Quasar: the SFPU tile op is not ported (trisc compile error: {}_binary_tile undeclared)"
+NOT_NATIVE = {
+    **{op: _DFB for op in ("rsub", "maximum", "minimum", "logaddexp", "logaddexp2", "squared_difference", "hypot",
+                           "ldexp", "bias_gelu", "logical_and", "logical_or", "logical_xor", "pow")},
+    **{op: _NO_LLK.format(op) for op in ("gt", "lt", "eq", "ne", "ge", "le", "atan2", "xlogy", "remainder")},
+}
+NOT_NATIVE_FP32 = {"rsub": _NO_LLK.format("rsub")}  # rsub fp32 routes the SFPU kernel, which has no rsub tile op
 
 
 def is_sfpu(op, dtype):
@@ -22,6 +37,32 @@ def is_sfpu(op, dtype):
     if op in _FPU_BF16:
         return dtype != "bf16"
     return None  # unknown routing: the caller must say
+
+
+def native_routing(op, dtype, kernel_variant=None):
+    """(sfpu: bool, None) for an op / dtype / kernel the native factory runs, else (None, reason)."""
+    if op not in NATIVE_OPS:
+        why = (NOT_NATIVE_FP32.get(op) if dtype == "fp32" else None) or NOT_NATIVE.get(op)
+        return None, (f"binary op '{op}' {why}" if why else
+                      f"'{op}' is not an op qperf models (binary_ng native: {', '.join(NATIVE_OPS)})")
+    sf = is_sfpu(op, dtype)
+    if kernel_variant is None or kernel_variant == ("sfpu" if sf else "fpu"):
+        return sf, None
+    if kernel_variant == "fpu" and dtype == "bf16" and op in _FPU_FAST:
+        return False, None
+    if dtype == "fp32":
+        return None, (f"fp32 {op} runs only the SFPU kernel (fast_and_approximate_mode included); there is no fp32 "
+                      f"FPU path")
+    if kernel_variant == "fpu" and op == "divide":
+        return None, (f"bf16 divide on the FPU kernel (fast_and_approximate_mode: a reciprocal pass, then an FPU "
+                      f"multiply) {_DFB}: the native gate refuses it")
+    return None, f"bf16 {op} runs only the FPU kernel; the native gate refuses bf16 {op} on the SFPU kernel"
+
+
+def dram_batch_pays(op, dtype):
+    """batch_pays (binary_ng_quasar_native_factory.cpp, PR #62954): the rule's DRAM batching (dm_batch and
+    tiles_per_cycle from each compute thread's share) is off for fp32 divide, which keeps batch 1 beside DRAM."""
+    return not (op == "divide" and dtype == "fp32")
 
 
 def dst_tiles_per_section(dtype_dst32):

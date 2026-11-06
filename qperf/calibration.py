@@ -40,14 +40,17 @@ def knobs_of(spec):
 
 def request_for(rec, costs_ref):
     pa, pb, po = LAYOUT_PLACEMENTS[rec["layout"]]
-    return {"schema_version": "1", "action": "estimate", "profiles": {"costs": costs_ref},
-            "workload": {"op": rec["op"], "dtype": rec["dtype"], "num_tiles": rec["tpc"], "tiles_scope": "cluster",
-                         "clusters": rec.get("clusters", 32), "placements": {"a": pa, "b": pb, "out": po}},
+    wl = {"op": rec["op"], "dtype": rec["dtype"], "num_tiles": rec["tpc"], "tiles_scope": "cluster",
+          "clusters": rec.get("clusters", 32), "placements": {"a": pa, "b": pb, "out": po}}
+    if rec.get("kernel_variant"):  # e.g. fpu: bf16 multiply run with fast_and_approximate_mode
+        wl["kernel_variant"] = rec["kernel_variant"]
+    return {"schema_version": "1", "action": "estimate", "profiles": {"costs": costs_ref}, "workload": wl,
             "baseline": knobs_of(rec.get("knobspec")), "analysis": {"detail": "compact"}}
 
 
 def tag(rec):
-    return f"{rec['layout']}:{rec['op']}:{rec['tpc']}:{rec.get('knobspec')}"
+    op = rec["op"] + (f"/{rec['kernel_variant']}" if rec.get("kernel_variant") else "")
+    return f"{rec['layout']}:{op}:{rec['tpc']}:{rec.get('knobspec')}"
 
 
 def predict(records, costs_ref, what_if=None):

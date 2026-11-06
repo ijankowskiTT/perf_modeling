@@ -70,7 +70,8 @@ def test_skill_and_agent_point_at_existing_things():
 @pytest.mark.parametrize("mutate,status", [
     (lambda r: r["profiles"].update(costs="nope"), "unsupported"),
     (lambda r: r["workload"].update(op="atan2"), "unsupported"),
-    (lambda r: r["workload"].update(op="subtract"), "needs_input"),
+    (lambda r: r["workload"].update(op="maximum"), "unsupported"),
+    (lambda r: r["workload"].pop("num_tiles"), "needs_input"),
     (lambda r: r["baseline"].update(compute_threads=3), "invalid"),
 ])
 def test_failures_carry_no_numbers(mutate, status):

@@ -1,5 +1,277 @@
 {
  "basis": "mean |model / simulator - 1| at nominal costs over calibration/data/{layout,fp32layout,rowmajor,move,reshard}-<profile>.jsonl (all runs, holdouts included); range = the largest rows (H), width (W) and H x W among the factory's runs",
+ "binary_ng": {
+  "craq-sim": {
+   "fpu:multiply:bf16": {
+    "by_placement": {
+     "borrowed": {
+      "mean": 0.0293,
+      "runs": 18
+     },
+     "dram": {
+      "mean": 0.0185,
+      "runs": 28
+     },
+     "l1": {
+      "mean": 0.0327,
+      "runs": 20
+     }
+    },
+    "data": "calibration/data/binops-craq-sim.jsonl",
+    "dram_borrowed": {
+     "mean": 0.0227,
+     "runs": 46
+    },
+    "fit": 0.0232,
+    "holdout": 0.0332,
+    "max": 0.1267,
+    "mean": 0.0258,
+    "runs": 66,
+    "same_as": "fpu:add:bf16"
+   },
+   "fpu:subtract:bf16": {
+    "by_placement": {
+     "borrowed": {
+      "mean": 0.0293,
+      "runs": 18
+     },
+     "dram": {
+      "mean": 0.0185,
+      "runs": 28
+     },
+     "l1": {
+      "mean": 0.0327,
+      "runs": 20
+     }
+    },
+    "data": "calibration/data/binops-craq-sim.jsonl",
+    "dram_borrowed": {
+     "mean": 0.0227,
+     "runs": 46
+    },
+    "fit": 0.0268,
+    "holdout": 0.0226,
+    "max": 0.1267,
+    "mean": 0.0258,
+    "runs": 66,
+    "same_as": "fpu:add:bf16"
+   },
+   "sfpu:divide:bf16": {
+    "by_placement": {
+     "borrowed": {
+      "mean": 0.0079,
+      "runs": 18
+     },
+     "dram": {
+      "mean": 0.0052,
+      "runs": 30
+     },
+     "l1": {
+      "mean": 0.0103,
+      "runs": 20
+     }
+    },
+    "data": "calibration/data/binops-craq-sim.jsonl",
+    "dram_borrowed": {
+     "mean": 0.0062,
+     "runs": 48
+    },
+    "fit": 0.0075,
+    "holdout": 0.0072,
+    "max": 0.038,
+    "mean": 0.0074,
+    "runs": 68
+   },
+   "sfpu:divide:fp32": {
+    "by_placement": {
+     "borrowed": {
+      "mean": 0.0078,
+      "runs": 18
+     },
+     "dram": {
+      "mean": 0.0088,
+      "runs": 28
+     },
+     "l1": {
+      "mean": 0.0113,
+      "runs": 16
+     }
+    },
+    "data": "calibration/data/binops-craq-sim.jsonl",
+    "dram_borrowed": {
+     "mean": 0.0084,
+     "runs": 46
+    },
+    "fit": 0.0093,
+    "holdout": 0.0086,
+    "max": 0.0347,
+    "mean": 0.0091,
+    "runs": 62
+   },
+   "sfpu:subtract:fp32": {
+    "by_placement": {
+     "borrowed": {
+      "mean": 0.0126,
+      "runs": 18
+     },
+     "dram": {
+      "mean": 0.0135,
+      "runs": 30
+     },
+     "l1": {
+      "mean": 0.02,
+      "runs": 16
+     }
+    },
+    "data": "calibration/data/binops-craq-sim.jsonl",
+    "dram_borrowed": {
+     "mean": 0.0131,
+     "runs": 48
+    },
+    "fit": 0.015,
+    "holdout": 0.0145,
+    "max": 0.0647,
+    "mean": 0.0148,
+    "runs": 64,
+    "same_as": "sfpu:add:fp32"
+   }
+  },
+  "ttsim-perf": {
+   "fpu:multiply:bf16": {
+    "by_placement": {
+     "borrowed": {
+      "mean": 0.0157,
+      "runs": 18
+     },
+     "dram": {
+      "mean": 0.0137,
+      "runs": 28
+     },
+     "l1": {
+      "mean": 0.2108,
+      "runs": 20
+     }
+    },
+    "data": "calibration/data/binops-ttsim-perf.jsonl",
+    "dram_borrowed": {
+     "mean": 0.0145,
+     "runs": 46
+    },
+    "fit": 0.0704,
+    "holdout": 0.0843,
+    "max": 1.0099,
+    "mean": 0.074,
+    "runs": 66,
+    "same_as": "fpu:add:bf16"
+   },
+   "fpu:subtract:bf16": {
+    "by_placement": {
+     "borrowed": {
+      "mean": 0.0157,
+      "runs": 18
+     },
+     "dram": {
+      "mean": 0.0137,
+      "runs": 28
+     },
+     "l1": {
+      "mean": 0.2108,
+      "runs": 20
+     }
+    },
+    "data": "calibration/data/binops-ttsim-perf.jsonl",
+    "dram_borrowed": {
+     "mean": 0.0145,
+     "runs": 46
+    },
+    "fit": 0.0727,
+    "holdout": 0.0781,
+    "max": 1.0099,
+    "mean": 0.074,
+    "runs": 66,
+    "same_as": "fpu:add:bf16"
+   },
+   "sfpu:divide:bf16": {
+    "by_placement": {
+     "borrowed": {
+      "mean": 0.0262,
+      "runs": 18
+     },
+     "dram": {
+      "mean": 0.0238,
+      "runs": 30
+     },
+     "l1": {
+      "mean": 0.0201,
+      "runs": 20
+     }
+    },
+    "data": "calibration/data/binops-ttsim-perf.jsonl",
+    "dram_borrowed": {
+     "mean": 0.0247,
+     "runs": 48
+    },
+    "fit": 0.0229,
+    "holdout": 0.0246,
+    "max": 0.0739,
+    "mean": 0.0233,
+    "runs": 68
+   },
+   "sfpu:divide:fp32": {
+    "by_placement": {
+     "borrowed": {
+      "mean": 0.0196,
+      "runs": 18
+     },
+     "dram": {
+      "mean": 0.0169,
+      "runs": 28
+     },
+     "l1": {
+      "mean": 0.0438,
+      "runs": 16
+     }
+    },
+    "data": "calibration/data/binops-ttsim-perf.jsonl",
+    "dram_borrowed": {
+     "mean": 0.0179,
+     "runs": 46
+    },
+    "fit": 0.0242,
+    "holdout": 0.0258,
+    "max": 0.1013,
+    "mean": 0.0246,
+    "runs": 62
+   },
+   "sfpu:subtract:fp32": {
+    "by_placement": {
+     "borrowed": {
+      "mean": 0.0069,
+      "runs": 18
+     },
+     "dram": {
+      "mean": 0.0081,
+      "runs": 30
+     },
+     "l1": {
+      "mean": 0.1093,
+      "runs": 16
+     }
+    },
+    "data": "calibration/data/binops-ttsim-perf.jsonl",
+    "dram_borrowed": {
+     "mean": 0.0076,
+     "runs": 48
+    },
+    "fit": 0.031,
+    "holdout": 0.0392,
+    "max": 0.277,
+    "mean": 0.0331,
+    "runs": 64,
+    "same_as": "sfpu:add:fp32"
+   }
+  }
+ },
  "generated_by": "calibration/make_accuracy.py",
  "hypothetical_validation": {
   "tilize Default dfb_blocks": {
@@ -445,7 +717,7 @@
      "runs": 60
     }
    },
-   "revision": "2026-11-03.fit6+fp32"
+   "revision": "2026-11-03.fit6+fp32+binops"
   },
   "ttsim-perf": {
    "factories": {
@@ -798,7 +1070,7 @@
      "runs": 60
     }
    },
-   "revision": "2026-11-03.fit8+fp32"
+   "revision": "2026-11-03.fit8+fp32+binops"
   }
  }
 }
