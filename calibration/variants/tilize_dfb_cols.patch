@@ -1,0 +1,281 @@
+qperf validation variants of tilize Default (calibration/data/tilize-dfb-*.jsonl, tilize-cols-*.jsonl), one build for all:
+how applied: git -C <tt-metal worktree at 0fff850f3c6> apply calibration/variants/tilize_dfb_cols.patch, rebuild
+(cmake --build build --target install), then run calibration/sweep.sh with the variant's env set:
+  TTNN_QSR_TILIZE_DFB_BLOCKS=2      design dfb_blocks=2 (in / out DFBs hold 2 x Wt entries)
+  TTNN_QSR_TILIZE_COL_CHUNKS=32     design split=cols (reader_unary_stick_layout_split_rows_cols_multicore.cpp)
+  TTNN_QSR_TILIZE_WRITE_BATCH=8     design write_batch=8 (writer_unary_interleaved_start_id_batched.cpp)
+Unset, the factory runs its pinned kernels and timing is unchanged (4 calibration cases reproduce exactly).
+
+diff --git a/ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/tilize_multi_core_default_program_factory.cpp b/ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/tilize_multi_core_default_program_factory.cpp
+index 57e214a15c5..487323f823c 100644
+--- a/ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/tilize_multi_core_default_program_factory.cpp
++++ b/ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/tilize_multi_core_default_program_factory.cpp
+@@ -4,6 +4,9 @@
+ 
+ #include "tilize_multi_core_default_program_factory.hpp"
+ 
++#include <algorithm>
++#include <cstdlib>
++
+ #include "ttnn/operations/core/work_split/work_split_tilize.hpp"
+ 
+ #include <tt-metalium/constants.hpp>
+@@ -62,6 +65,40 @@ ttnn::device_operation::ProgramArtifacts TilizeMultiCoreDefaultProgramFactory::c
+     auto [ncores, all_cores, core_range, core_range_cliff, nblocks_per_core, nblocks_per_core_cliff] =
+         ttnn::split_blocks_for_tilize(available_grid, nblocks);
+ 
++    // qperf design-knob validation (perf_modeling calibration/variants/tilize_dfb_cols.patch). Unset = the factory.
++    //   TTNN_QSR_TILIZE_DFB_BLOCKS=n   in / out DFBs hold n blocks (n x tiles per block entries)
++    //   TTNN_QSR_TILIZE_WRITE_BATCH=k  writer waits for / writes / flushes k tiles per group (batched writer kernel)
++    //   TTNN_QSR_TILIZE_COL_CHUNKS=k   each tile-row is cut into up to k column chunks over cores (min(k, Wt, cores /
++    //                                  row cores) chunks of ceil(Wt / chunks) tiles; needs one tile-row per core)
++    auto qsr_env = [](const char* name) -> uint32_t {
++        const char* v = std::getenv(name);
++        return v ? static_cast<uint32_t>(std::strtoul(v, nullptr, 10)) : 0u;
++    };
++    const uint32_t qsr_dfb_blocks = std::max(1u, qsr_env("TTNN_QSR_TILIZE_DFB_BLOCKS"));
++    const uint32_t qsr_write_batch = std::max(1u, qsr_env("TTNN_QSR_TILIZE_WRITE_BATCH"));
++    uint32_t qsr_chunks = 1;
++    uint32_t qsr_chunk = ntiles_per_block;  // tiles per core per tile-row
++    if (qsr_env("TTNN_QSR_TILIZE_COL_CHUNKS") > 1 && !a.is_sharded()) {
++        uint32_t k = std::min({qsr_env("TTNN_QSR_TILIZE_COL_CHUNKS"), ntiles_per_block,
++                               static_cast<uint32_t>(available_grid.num_cores()) / ncores});
++        k = std::max(1u, k);
++        qsr_chunk = tt::div_up(ntiles_per_block, k);
++        qsr_chunks = tt::div_up(ntiles_per_block, qsr_chunk);
++        if (qsr_chunks > 1) {
++            TT_FATAL(nblocks_per_core == 1 && core_range_cliff.empty(), "COL_CHUNKS: needs one tile-row per core");
++            TT_FATAL(ntiles_per_block % qsr_chunk == 0, "COL_CHUNKS: chunks must divide the row");
++            const auto grid_cores = corerange_to_cores(available_grid);
++            std::set<CoreRange> used;
++            for (uint32_t i = 0; i < ncores * qsr_chunks; ++i) {
++                used.insert(CoreRange{grid_cores.at(i), grid_cores.at(i)});
++            }
++            core_range = CoreRangeSet(used);
++            all_cores = core_range;
++        } else {
++            qsr_chunk = ntiles_per_block;
++        }
++    }
++
+     // reader page sizing
+     uint32_t page_size = src0_buffer->page_size();
+     uint32_t num_pages_in_row = 1;
+@@ -86,13 +123,13 @@ ttnn::device_operation::ProgramArtifacts TilizeMultiCoreDefaultProgramFactory::c
+         DataflowBufferSpec{
+             .unique_id = MC_INPUT_DFB,
+             .entry_size = input_single_tile_size,
+-            .num_entries = ntiles_per_block,
++            .num_entries = qsr_dfb_blocks * qsr_chunk,
+             .data_format_metadata = input_cb_data_format,
+         },
+         DataflowBufferSpec{
+             .unique_id = MC_OUTPUT_DFB,
+             .entry_size = output_single_tile_size,
+-            .num_entries = ntiles_per_block,
++            .num_entries = qsr_dfb_blocks * qsr_chunk,
+             .data_format_metadata = output_cb_data_format,
+         },
+     };
+@@ -100,9 +137,10 @@ ttnn::device_operation::ProgramArtifacts TilizeMultiCoreDefaultProgramFactory::c
+     // -- Reader kernel (spans all_cores) --
+     KernelSpec reader{
+         .unique_id = MC_READER_KERNEL,
+-        .source =
+-            "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/"
+-            "reader_unary_stick_layout_split_rows_multicore.cpp",
++        .source = qsr_chunks > 1 ? "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/"
++                                   "reader_unary_stick_layout_split_rows_cols_multicore.cpp"
++                                 : "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/"
++                                   "reader_unary_stick_layout_split_rows_multicore.cpp",
+         .dfb_bindings = {DFBBinding{
+             .dfb_spec_name = MC_INPUT_DFB,
+             .accessor_name = "in",
+@@ -111,7 +149,8 @@ ttnn::device_operation::ProgramArtifacts TilizeMultiCoreDefaultProgramFactory::c
+         .tensor_bindings = {TensorBinding{.tensor_parameter_name = MC_INPUT_TENSOR, .accessor_name = "src"}},
+         .compile_time_args =
+             {{"num_pages_in_row", num_pages_in_row},
+-             {"size_of_valid_data_in_last_page_in_row", size_of_valid_data_in_last_page_in_row}},
++             {"size_of_valid_data_in_last_page_in_row",
++              qsr_chunks > 1 ? qsr_chunk * TILE_WIDTH * a.element_size() : size_of_valid_data_in_last_page_in_row}},
+         .runtime_arg_schema =
+             {.runtime_arg_names =
+                  {"num_rows", "num_tiles_per_block", "block_width_size", "num_full_blocks_in_row", "start_page_id"}},
+@@ -121,9 +160,10 @@ ttnn::device_operation::ProgramArtifacts TilizeMultiCoreDefaultProgramFactory::c
+     // -- Writer kernel (spans all_cores) --
+     KernelSpec writer{
+         .unique_id = MC_WRITER_KERNEL,
+-        .source =
+-            "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/"
+-            "writer_unary_interleaved_start_id.cpp",
++        .source = qsr_write_batch > 1 ? "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/"
++                                        "writer_unary_interleaved_start_id_batched.cpp"
++                                      : "ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/"
++                                        "writer_unary_interleaved_start_id.cpp",
+         .dfb_bindings = {DFBBinding{
+             .dfb_spec_name = MC_OUTPUT_DFB,
+             .accessor_name = "out",
+@@ -158,13 +198,19 @@ ttnn::device_operation::ProgramArtifacts TilizeMultiCoreDefaultProgramFactory::c
+                      .endpoint_type = DFBEndpointType::PRODUCER,
+                  }},
+             .compile_time_args =
+-                {{"per_core_block_cnt", nblocks_per_core_arg}, {"per_core_block_tile_cnt", ntiles_per_block}},
++                {{"per_core_block_cnt", nblocks_per_core_arg}, {"per_core_block_tile_cnt", qsr_chunk}},
+             .hw_config = compute_hw};
+     };
+ 
+     bool has_cliff = !core_range_cliff.empty();
+     bool has_full = !core_range.ranges().empty();
+ 
++    if (qsr_chunks > 1) {
++        reader.runtime_arg_schema.runtime_arg_names.push_back("col_offset_bytes");
++    }
++    if (qsr_write_batch > 1) {
++        writer.compile_time_args = {{"batch", qsr_write_batch}};
++    }
+     spec.kernels = {reader, writer};
+     spec.work_units = {};
+     if (has_full) {
+@@ -190,6 +236,33 @@ ttnn::device_operation::ProgramArtifacts TilizeMultiCoreDefaultProgramFactory::c
+     KernelRunArgs writer_run{.kernel = MC_WRITER_KERNEL};
+ 
+     uint32_t ncores_full = ncores - has_cliff;
++    if (qsr_chunks > 1) {  // core (row r, chunk j) = cores[r * chunks + j]: tile-row r, tiles j x chunk ...
++        const auto& ccores = corerange_to_cores(available_grid);
++        for (uint32_t r = 0; r < ncores; ++r) {
++            for (uint32_t j = 0; j < qsr_chunks; ++j) {
++                const CoreCoord& core = ccores[r * qsr_chunks + j];
++                AddRuntimeArgsForNode(
++                    reader_run.runtime_arg_values,
++                    core,
++                    {
++                        {"num_rows", TILE_HEIGHT},
++                        {"num_tiles_per_block", qsr_chunk},
++                        {"block_width_size", qsr_chunk * TILE_WIDTH * a.element_size()},
++                        {"num_full_blocks_in_row", 1u},
++                        {"start_page_id", r * TILE_HEIGHT},
++                        {"col_offset_bytes", j * qsr_chunk * TILE_WIDTH * a.element_size()},
++                    });
++                AddRuntimeArgsForNode(
++                    writer_run.runtime_arg_values,
++                    core,
++                    {
++                        {"num_pages", qsr_chunk},
++                        {"start_id", r * ntiles_per_block + j * qsr_chunk},
++                    });
++            }
++        }
++        ncores_full = 0;  // the per-row loop below adds nothing
++    }
+     uint32_t tile_start_id = 0;
+     uint32_t page_start_id = 0;
+     const auto& cores = corerange_to_cores(available_grid);
+diff --git a/ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/reader_unary_stick_layout_split_rows_cols_multicore.cpp b/ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/reader_unary_stick_layout_split_rows_cols_multicore.cpp
+new file mode 100644
+index 00000000000..faf4e1f990e
+--- /dev/null
++++ b/ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/reader_unary_stick_layout_split_rows_cols_multicore.cpp
+@@ -0,0 +1,62 @@
++// SPDX-FileCopyrightText: © 2026 Tenstorrent USA, Inc.
++//
++// SPDX-License-Identifier: Apache-2.0
++
++// qperf validation variant (TTNN_QSR_TILIZE_COL_CHUNKS): reader_unary_stick_layout_split_rows_multicore with a
++// column chunk per core: each stick read starts col_offset_bytes into the row (the chunk's first byte).
++
++#include <stdint.h>
++#include "api/tile_constants.h"
++#include "api/dataflow/dataflow_api.h"
++#include "api/dataflow/noc.h"
++#include "api/dataflow/dataflow_buffer.h"
++#include "api/tensor/noc_traits.h"
++#include "experimental/kernel_args.h"
++
++void kernel_main() {
++    constexpr uint32_t tile_height = tt::constants::TILE_HEIGHT;
++
++    const auto num_rows = get_arg(args::num_rows);
++    const auto num_tiles_per_block = get_arg(args::num_tiles_per_block);
++    const auto block_width_size = get_arg(args::block_width_size);
++    const auto num_full_blocks_in_row = get_arg(args::num_full_blocks_in_row);
++    const auto start_page_id = get_arg(args::start_page_id);
++    const auto col_offset_bytes = get_arg(args::col_offset_bytes);
++
++    constexpr auto num_pages_in_row = get_arg(args::num_pages_in_row);
++    constexpr auto size_of_valid_data_in_last_page_in_row = get_arg(args::size_of_valid_data_in_last_page_in_row);
++
++    const auto s = TensorAccessor(tensor::src);
++
++    Noc noc;
++    DataflowBuffer cb_in0(dfb::in);
++
++    auto read_tiles = [&](const uint32_t& num_tiles, uint32_t page_id) {
++        cb_in0.reserve_back(num_tiles);
++        uint32_t dst_offset = 0;
++        for (uint32_t k = 0; k < tile_height; k++) {
++            for (uint32_t l = 0; l < num_pages_in_row; l++) {
++                uint32_t width_size =
++                    (l == num_pages_in_row - 1) ? size_of_valid_data_in_last_page_in_row : block_width_size;
++                noc.async_read(
++                    s,
++                    cb_in0,
++                    width_size,
++                    {.page_id = page_id, .offset_bytes = col_offset_bytes},
++                    {.offset_bytes = dst_offset});
++                page_id++;
++                dst_offset += width_size;
++            }
++        }
++        noc.async_read_barrier();
++        cb_in0.push_back(num_tiles);
++    };
++
++    uint32_t page_id = start_page_id;
++    for (uint32_t i = 0; i < num_rows / tile_height; i++) {
++        for (uint32_t j = 0; j < num_full_blocks_in_row; j++) {
++            read_tiles(num_tiles_per_block, page_id);
++        }
++        page_id += tile_height * num_pages_in_row;
++    }
++}
+diff --git a/ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/writer_unary_interleaved_start_id_batched.cpp b/ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/writer_unary_interleaved_start_id_batched.cpp
+new file mode 100644
+index 00000000000..4b12e11c0e2
+--- /dev/null
++++ b/ttnn/cpp/ttnn/operations/experimental/quasar/tilize/device/kernels/dataflow/writer_unary_interleaved_start_id_batched.cpp
+@@ -0,0 +1,35 @@
++// SPDX-FileCopyrightText: © 2023 Tenstorrent USA, Inc.
++//
++// SPDX-License-Identifier: Apache-2.0
++
++// qperf validation variant (TTNN_QSR_TILIZE_WRITE_BATCH): writer_unary_interleaved_start_id with `batch` tiles per
++// flush (calibration/variants/tilize_writer_batched.cpp with the batch as a compile-time arg).
++
++#include "api/dataflow/dataflow_api.h"
++#include "api/dataflow/noc.h"
++#include "api/dataflow/dataflow_buffer.h"
++#include "api/tensor/noc_traits.h"
++#include "experimental/kernel_args.h"
++
++void kernel_main() {
++    const auto num_pages = get_arg(args::num_pages);
++    const auto start_id = get_arg(args::start_id);
++
++    DataflowBuffer cb(dfb::out);
++    const uint32_t page_bytes = cb.get_entry_size();
++    Noc noc;
++
++    const auto s = TensorAccessor(tensor::dst);
++
++    constexpr uint32_t BATCH = get_arg(args::batch);
++    for (uint32_t i = start_id; i < start_id + num_pages; i += BATCH) {
++        const uint32_t n = (start_id + num_pages - i) < BATCH ? (start_id + num_pages - i) : BATCH;
++        cb.wait_front(n);
++        for (uint32_t k = 0; k < n; ++k) {
++            noc.async_write(cb, s, page_bytes, {.offset_bytes = k * page_bytes}, {.page_id = i + k});
++        }
++        noc.async_writes_flushed();
++        cb.pop_front(n);
++    }
++    noc.async_write_barrier();
++}
