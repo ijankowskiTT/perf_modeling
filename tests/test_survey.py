@@ -348,14 +348,14 @@ def test_times_are_labelled_cycles_or_ns_by_profile():
 
 def test_compare_verdict_that_depends_on_the_cost_scenario():
     q = {"schema_version": "1", "action": "compare", "profiles": {"costs": "silicon-hypothesis"},
-         "workload": {"op": "tilize", "dtype": "bf16", "shape": [1, 1, 1024, 1024], "placements": {"a": "dram"}},
+         "workload": {"op": "tilize", "dtype": "bf16", "shape": [1, 1, 1024, 2048], "placements": {"a": "dram"}},
          "candidates": [{"id": "grid2d_dfb2_batch8", "overrides": {"split": "2d", "dfb_blocks": 2, "write_batch": 8}}]}
     r = analyze(q)
     assert validate_response(r) == []
     c = r["candidates"][0]["comparison"]
-    assert c["speedup_vs_baseline"]["nominal"] == 1.003 and c["speedup_vs_baseline"]["low"] > 1 + NOISE
+    assert c["speedup_vs_baseline"]["nominal"] == 1.001 and c["speedup_vs_baseline"]["low"] > 1 + NOISE
     assert c["verdict_depends_on_scenario"] is True
-    assert c["scenario_note"] == "1.00x at nominal costs, 1.05x with the fast scenario (low costs)"
+    assert c["scenario_note"] == "1.00x at nominal costs, 1.03x with the fast scenario (low costs)"
     assert "verdict depends on the cost scenario: 1.00x at nominal costs" in _text(r)
     assert "inconclusive (depends on scenario)" in to_markdown(q, r)
     assert "the verdict depends on the cost scenario: 1.00x" in to_html(q, r)
@@ -378,10 +378,10 @@ def test_survey_counts_and_marks_scenario_dependent_cells():
         if a["scenario_dependent_cells"]:
             assert f"verdict depends on the cost scenario (low / high) at {a['scenario_dependent_cells']}/" in next(
                 x for x in sv["summary"] if x.startswith(aid + ":"))
-    # the same cell as the compare of baseline vs grid2d_dfb2_batch8 at 1024x1024 above
+    # the same cell as the compare of baseline vs grid2d_dfb2_batch8 at 1024x2048 above
     g = sv["approaches"]["grid2d_dfb2_batch8"]
-    assert cells(sv, g["grid"])[(1024, 1024)] == 1.003 and cells(sv, g["scenario_speedups"])[(1024, 1024)] == [1.045, 1.001]
-    assert cells(sv, g["depends_on_scenario"])[(1024, 1024)] is True
+    assert cells(sv, g["grid"])[(1024, 2048)] == 1.001 and cells(sv, g["scenario_speedups"])[(1024, 2048)] == [1.026, 1.0]
+    assert cells(sv, g["depends_on_scenario"])[(1024, 2048)] is True
     n = sum(a["scenario_dependent_cells"] for a in sv["approaches"].values())
     html = to_html(q, r)
     heat = "".join(re.findall(r'<div class="heatmap hmap".*?</div>', html))

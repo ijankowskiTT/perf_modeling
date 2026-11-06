@@ -274,13 +274,79 @@
  },
  "generated_by": "calibration/make_accuracy.py",
  "hypothetical_validation": {
+  "tilize Default dfb_blocks": {
+   "craq-sim": {
+    "data": "calibration/data/tilize-dfb-craq-sim.jsonl",
+    "max": 0.0076,
+    "mean": 0.0024,
+    "runs": 18,
+    "speedup_mean": 0.0023,
+    "values": [
+     2
+    ]
+   },
+   "ttsim-perf": {
+    "data": "calibration/data/tilize-dfb-ttsim-perf.jsonl",
+    "max": 0.014,
+    "mean": 0.0065,
+    "runs": 18,
+    "speedup_mean": 0.0049,
+    "values": [
+     2
+    ]
+   }
+  },
+  "tilize Default dfb_blocks+write_batch": {
+   "craq-sim": {
+    "data": "calibration/data/tilize-dfb-craq-sim.jsonl",
+    "max": 0.0085,
+    "mean": 0.0035,
+    "runs": 18,
+    "speedup_mean": 0.0043,
+    "values": [
+     "dfb_blocks=2, write_batch=8"
+    ]
+   },
+   "ttsim-perf": {
+    "data": "calibration/data/tilize-dfb-ttsim-perf.jsonl",
+    "max": 0.0143,
+    "mean": 0.0052,
+    "runs": 18,
+    "speedup_mean": 0.0079,
+    "values": [
+     "dfb_blocks=2, write_batch=8"
+    ]
+   }
+  },
+  "tilize Default split": {
+   "craq-sim": {
+    "data": "calibration/data/tilize-cols-craq-sim.jsonl",
+    "max": 0.0054,
+    "mean": 0.0038,
+    "runs": 14,
+    "speedup_mean": 0.0025,
+    "values": [
+     "cols"
+    ]
+   },
+   "ttsim-perf": {
+    "data": "calibration/data/tilize-cols-ttsim-perf.jsonl",
+    "max": 0.0048,
+    "mean": 0.0031,
+    "runs": 14,
+    "speedup_mean": 0.0048,
+    "values": [
+     "cols"
+    ]
+   }
+  },
   "tilize Default write_batch": {
    "craq-sim": {
     "data": "calibration/data/tilize-wbatch-craq-sim.jsonl",
-    "max": 0.0403,
-    "mean": 0.0164,
+    "max": 0.0107,
+    "mean": 0.0029,
     "runs": 24,
-    "speedup_mean": 0.004,
+    "speedup_mean": 0.0028,
     "values": [
      4,
      8
@@ -288,10 +354,10 @@
    },
    "ttsim-perf": {
     "data": "calibration/data/tilize-wbatch-ttsim-perf.jsonl",
-    "max": 0.0223,
-    "mean": 0.0084,
+    "max": 0.0311,
+    "mean": 0.0069,
     "runs": 24,
-    "speedup_mean": 0.0101,
+    "speedup_mean": 0.0103,
     "values": [
      4,
      8
@@ -477,11 +543,11 @@
     "tilize Default": {
      "error": {
       "bf16": {
-       "mean": 0.0121,
+       "mean": 0.0075,
        "runs": 52
       },
       "fp32": {
-       "mean": 0.0089,
+       "mean": 0.0065,
        "runs": 52
       }
      },
@@ -830,11 +896,11 @@
     "tilize Default": {
      "error": {
       "bf16": {
-       "mean": 0.0117,
+       "mean": 0.0114,
        "runs": 56
       },
       "fp32": {
-       "mean": 0.0143,
+       "mean": 0.0153,
        "runs": 56
       }
      },

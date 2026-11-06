@@ -248,12 +248,12 @@ SINGLE = {
     "shard_cores.html": "569a6ceeb89b339f185e3c3d73fac67546e425687b66606667390841a2906dc5",
     "shard_cores.md": "0f5ff8f3157db0cc28991cbb7e823809b2927de45ee59d0108eea96ce12cf4e2",
     "shard_cores.text": "2bc11ffb1666b7e63d3d54bbf1916fa89bdeac00ac68abedf922eb36e475e2c5",
-    "tilize_compare.html": "f8ed060e3720d42d3f175fd69537d247a1d27a88aa3a180dce1750718c2bb4a6",
-    "tilize_compare.md": "6b24e8cbf40c673b0e10f92a96e4cb252bf09fc1bf2c9d74fdf3275042359b39",
-    "tilize_compare.text": "8c3c79a2ea8a3a797b3bbefb269d989e33c65b37f5489f4cccf9b1ff41198c31",
-    "tilize_survey_ttsim.html": "1b6ea846131feddf82095313d319cf910ef78b5e35321b4dc411cd0d8a713aa0",
-    "tilize_survey_ttsim.md": "c3072a78e77cb93adfcef5edd26c510e843c6044952d6b0d143cd43de5e77bf6",
-    "tilize_survey_ttsim.text": "ff22632cc07affa165814d7e4cb9c7c945e6699640eb713b280afd01547b6666",
+    "tilize_compare.html": "8de40536020d45983dd8fce76895f6e70c2189952beaf64fac11cf04de398cf5",
+    "tilize_compare.md": "e8f965579a1577260f012515c75076217e4e009f40bf2f436b7af7ec05ff6b61",
+    "tilize_compare.text": "7e3e25d2890cb0f8168d38c6b83f16813153df03d23bb7c26b79b64934d83623",
+    "tilize_survey_ttsim.html": "70acb74acf2efda5990b3e56e0370e91d45b736e11123ac4269df7e48b12dcf9",
+    "tilize_survey_ttsim.md": "d201014ee5bdb9d146e27ed750c8a09cd4f796f834aed73a977f20e3d59d3de3",
+    "tilize_survey_ttsim.text": "e02bd50c678290183e9a1c5df6844d0eaa19f80ca92767f14b2259e14207605e",
 }
 
 

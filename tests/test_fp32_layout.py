@@ -62,7 +62,7 @@ def test_fp32_overrides_leave_bf16_alone():
     fac, _ = plan("tilize", 1024, 512, "fp32")
     p = prefix_of("tilize", fac)
     v = dtype_costs(c, p, 4)
-    assert v[f"{p}.cu_per_tile"] == c[f"{p}.f32_cu_per_tile"] and dtype_costs(c, p, 2) is c
+    assert v[f"{p}.um_per_tile"] == c[f"{p}.f32_um_per_tile"] and dtype_costs(c, p, 2) is c
 
 
 def test_fp32_dest_holds_half_the_tiles():

@@ -5,7 +5,8 @@ split_blocks_for_tilize: a block is one tile-row (32 sticks x the full width, Wt
 the last core may get fewer. Mirrored kernels (calibration tree 0fff850f3c6, unchanged on main f3ef8f22aaa):
 
 tilize Default   reader_unary_stick_layout_split_rows_multicore: per block reserve(Wt), 32 stick reads of W*elem bytes,
-                 1 barrier, push(Wt); in/out DFBs hold Wt entries (single-buffered); compute tilize_block(Wt);
+                 1 barrier, push(Wt); in/out DFBs hold Wt entries (single-buffered); compute tilize_block(Wt)
+                 (unpack+math and pack as two stages through DEST);
                  writer_unary_interleaved_start_id: per tile wait(1), 1 write, flush, pop(1).
 tilize SingleCore same, one core; blocks are tiles_per_block wide (the row or its largest divisor that fits L1).
 tilize Sharded   both DFBs borrow the shard: no NoC traffic, compute only.
@@ -15,7 +16,8 @@ untilize MultiCore reader_unary_start_id_metal2: per tile reserve(1), 1 read, ba
 untilize SingleCore same reader; writer ..._split_rows_single_core: per block 32 row writes, 1 barrier.
 
 Cost keys (cycles; profiles/costs/*.json), one prefix per factory because each runs its own kernels:
-<p>.start_{reader,compute,writer}, <p>.rd_{setup,fixed,issue,first,tail}, tilize <p>.cu_{fixed,per_tile} per block; untilize <p>.um_{fixed,per_tile} (unpack+math per DEST section) and
+<p>.start_{reader,compute,writer}, <p>.rd_{setup,fixed,issue,first,tail}, tilize <p>.cu_{fixed,per_tile} per block (tilize
+Default: <p>.um_*, <p>.pk_* as untilize, TILIZE_TWO_STAGE); untilize <p>.um_{fixed,per_tile} (unpack+math per DEST section) and
 <p>.pk_{fixed,per_tile} (pack); <p>.cu_{first,tail}, <p>.pk_offset,
 <p>.wr_{setup,fixed,issue,first,tail}, <p>.{rd,wr}_cpb (cycles per byte moved), <p>.drain; p = tz (tilize Default), tzs (tilize SingleCore), tzh (tilize Sharded), utz (untilize MultiCore),
 utzs (untilize SingleCore). *_setup is a DM kernel's prologue before its first DFB wait, *_tail its cost after the last batch.
@@ -50,10 +52,15 @@ SHARD_OPS = ("interleaved_to_sharded", "sharded_to_interleaved")
 STRATEGY = {"height": "hs", "width": "ws", "block": "bs"}  # shard strategy -> mem string kind
 
 
+def dest_tiles(elem):
+    """Tiles DEST holds for one stage (half-sync): 8 bf16, 4 with fp32."""
+    return 8 if elem == 2 else 4
+
+
 def sub_block_width(wt, elem):
     """untilize_helpers: a block wider than the DEST limit (8 tiles bf16, 4 with fp32) is untilized in sub-blocks of the
     largest divisor of wt that fits."""
-    limit = 8 if elem == 2 else 4
+    limit = dest_tiles(elem)
     return wt if wt <= limit else max(d for d in range(1, limit + 1) if wt % d == 0)
 
 
@@ -437,9 +444,32 @@ def build(op, cfg, c):
         wr.append(DMBatch([], "data", rout, 0.0, 0.0, (0.0, 0.0, 0), 0.0, [], ack, True, "pop", 0.0, dma=True))
     wr = [("busy", c.get(f"{p}.wr_setup", 0.0), True)] + wr + [("busy", c.get(f"{p}.wr_tail", 0.0), True)]
     um, pk = [], []
-    if fam == "tilize":
-        # tilize_block(Wt) as one step per block: unpack pops the row only after its last tile, so the stages move
-        # together (a two-stage split fits the runs no better).
+    if fam == "tilize" and p in TILIZE_TWO_STAGE:
+        # tilize Default: tilize_block(Wt) as two stages through DEST. The unpack+math TRISCs take the block once it is
+        # pushed, move it tile by tile into DEST (dest_tiles: 8 bf16, 4 fp32) and pop the input block after its last
+        # tile; the pack TRISC reserves the output block, packs each tile from DEST, pushes the block. <p>.um_* is the
+        # unpack+math side (fixed per block + per tile), <p>.pk_* the pack side. With the factory's single-buffered DFBs
+        # the stages move almost together (one step per block fits those runs as well). The dfb_blocks=2 kernel-variant
+        # runs (tilize-dfb-*.jsonl) separate them: unpack, and with it the reader, runs up to a DEST ahead of a pack that
+        # waits for output space. One step per block mispredicted their speedup by 7.9% (craq-sim) and 5.0% (ttsim-perf)
+        # on average (craq-sim 4096-8192 x 1024-2048: 1.28-1.41x measured, 1.19-1.25x predicted; too much gain at
+        # W=256); refit jointly with the factory and write_batch runs, these stages bring it under 1%.
+        dst = Ring("dst", 1, dest_tiles(elem), n)
+        for k, b in enumerate(blocks):
+            um.append(("wait", "data", rin, b, True))
+            pk.append(("wait", "space", rout, b, True))
+            for j, t in enumerate(b):
+                first = c.get(f"{p}.cu_first", 0.0) if k == j == 0 else 0.0
+                um += [("wait", "space", dst, [t], False),
+                       ("busy", (c[f"{p}.um_fixed"] if j == 0 else 0.0) + c[f"{p}.um_per_tile"] + first, True),
+                       ("push", dst, [t], 0.0)]
+                pk += [("wait", "data", dst, [t], False),
+                       ("busy", (c[f"{p}.pk_fixed"] if j == 0 else 0.0) + c[f"{p}.pk_per_tile"], False),
+                       ("pop", dst, [t], 0.0)]
+            um.append(("pop", rin, b, lat_cr))
+            pk += [("push", rout, b, lat_cr), ("count", wt, 1)]
+    elif fam == "tilize":
+        # the other tilize factories: tilize_block(Wt) as one step per block (their runs cannot tell the stages apart)
         for k, b in enumerate(blocks):
             t = c[f"{p}.cu_fixed"] + c[f"{p}.cu_per_tile"] * wt + (c.get(f"{p}.cu_first", 0.0) if k == 0 else 0.0)
             pk += [("wait", "data", rin, b, True), ("wait", "space", rout, b, True), ("busy", t, True),
@@ -480,6 +510,7 @@ PREFIX = {("tilize", "Default"): "tz", ("tilize", "SingleCore"): "tzs", ("tilize
           ("interleaved_to_sharded", "Default"): "i2s", ("sharded_to_interleaved", "Default"): "s2i",
           ("interleaved_to_sharded", "RowMajor"): "i2sr", ("interleaved_to_sharded", "RowMajorUnaligned"): "i2sru",
           ("sharded_to_interleaved", "RowMajor"): "s2ir"}  # BlockInterleaved runs the untilize Block kernels
+TILIZE_TWO_STAGE = ("tz",)  # tilize prefixes timed as unpack+math | pack stages through DEST (<p>.um_*, <p>.pk_*)
 FAMILY = {"tilize": "tilize", "tilize_with_val_padding": "tilize", "untilize": "untilize",
           "untilize_with_unpadding": "untilize", "interleaved_to_sharded": "move", "sharded_to_interleaved": "move"}
 L1_HALF = 3670016 // 2  # bytes SingleCore factories may give their two DFBs (half of the usable L1)
