@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0
+
+- binary_ng `subtract`, `divide` and bf16 FPU `multiply` (652 simulator runs). Every other binary op and broadcast is
+  answered `unsupported` with the reason (other factory, or doesn't build on Quasar).
+- Simulator-validated tilize knobs: `dfb_blocks` 2, `split` cols and their combination with `write_batch`, as real
+  kernel variants (`calibration/variants/tilize_dfb_cols.patch`), within 1% after refit. Tilize compute now runs as
+  two stages through DEST; factory accuracy improved (craq-sim 1.21% -> 0.75%).
+
 ## 1.6.0
 
 - Quasar DRAM channel model on silicon-hypothesis (`qperf/dram.py`). It uses ttsim-perf's Blackhole DRAM structure

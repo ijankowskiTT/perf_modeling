@@ -38,7 +38,7 @@ tiles is 23% off the best.
 
 | Op | Factory | craq-sim | ttsim-perf |
 |---|---|---|---|
-| tilize | Default | 1.3 / 0.9% | 1.2 / 1.4% |
+| tilize | Default | 0.75 / 0.65% | 1.1 / 1.5% |
 | | SingleCore | 1.6 / 1.5% | 1.1 / 0.7% |
 | | Sharded | 0.5 / 0.6% | 0.4 / 1.0% |
 | tilize_with_val_padding | Default | 0.7 / 0.7% | 0.8 / 0.4% |
@@ -72,14 +72,26 @@ Known gaps:
 
 The design knobs are hypothetical until a simulator runs them. Checked so far:
 
-| Knob | How | Runs | Mean error | Speedup error |
-|---|---|---|---|---|
-| tilize `write_batch` 4, 8 | real kernel variant (`calibration/variants/tilize_writer_batched.cpp`), 12 shapes | 24 per profile | craq-sim 1.6%, ttsim-perf 0.8% | 0.4%, 1.0% |
+Each knob was run as a real kernel variant: `calibration/variants/`, with one build and an env var per knob in
+`tilize_dfb_cols.patch`. Every output was exact.
 
-Before refitting on these runs the model over-predicted the batching gain on ttsim-perf (4096x2048: 1.39x predicted,
-1.30x measured; 3.2% mean speedup error). The joint fit separates the per-write and per-flush writer costs and adds
-`tz.wr_bissue` (extra cost per write in a batch; 28 cycles on craq-sim, 0 on ttsim-perf). Answers say which knobs are
-validated. Not validated yet: `cores`, `split`, `tiles_per_block`, `dfb_blocks`, `read_batch`.
+| Knob (tilize Default) | Shapes | Time error craq-sim / ttsim-perf | Speedup error |
+|---|---|---|---|
+| `write_batch` 4, 8 | 12 | 0.3% / 0.7% | 0.3% / 1.0% |
+| `dfb_blocks` 2 | 18 (H 32-8192, W 256-2048) | 0.2% / 0.7% | 0.2% / 0.5% |
+| `dfb_blocks` 2 + `write_batch` 8 | 18 | 0.4% / 0.5% | 0.4% / 0.8% |
+| `split` cols | 14 (short and wide, plus 2 tall) | 0.4% / 0.3% | 0.3% / 0.5% |
+
+Predictions were recorded before each run.
+- `write_batch`: the model over-predicted the gain at first (1.39x vs 1.30x measured on ttsim-perf). The fix separates
+  per-write and per-flush writer costs and adds `tz.wr_bissue`.
+- `dfb_blocks`: the model missed by up to 8% on the speedup, too low on wide tensors and too high on narrow ones.
+  The fix runs tilize compute as two stages through DEST, as untilize does: unpack and math fill DEST, pack drains it.
+  With single-buffered DFBs those stages move together, so only the double-buffered runs could separate them.
+- `split` cols matched within 2% before any refit.
+
+All tz terms were then refit jointly on factory and variant runs; factory accuracy improved. Answers say which knobs
+are validated. Not validated yet: `cores` on its own, `split` 2d, `tiles_per_block`, and untilize `read_batch`.
 
 ## Data
 
